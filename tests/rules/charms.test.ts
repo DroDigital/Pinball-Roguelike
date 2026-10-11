@@ -64,7 +64,7 @@ const t = (id: string, fn: () => void) =>
 
 describe('Money charms', () => {
   t('piggyBank', () =>
-    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.15),
+    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.2),
   );
   t('sharkTooth', () => expect(loanCost(runWith(['sharkTooth']), 100)).toBe(110));
   t('mattress', () => {
@@ -73,7 +73,7 @@ describe('Money charms', () => {
     finishBall(s, emptyOutcome());
     s.pocket = 100;
     endRound(s);
-    expect(s.pocket).toBe(115);
+    expect(s.pocket).toBe(120);
   });
   t('pawnTicket', () => {
     const s = newRun('pawn');
@@ -112,7 +112,7 @@ describe('Shot charms', () => {
     h.fire('pop', 'pop0');
     return h.of('score')[0].amount;
   };
-  t('jarOfTeeth', () => expect(popPays(['jarOfTeeth'])).toBeCloseTo(popPays([]) * 3));
+  t('jarOfTeeth', () => expect(popPays(['jarOfTeeth'])).toBeCloseTo(popPays([]) * 4));
   t('brassKnuckles', () => {
     const h = ballOf(['brassKnuckles']);
     h.fire('sling', 'slingL');
@@ -140,7 +140,7 @@ describe('Shot charms', () => {
   });
   t('feedingBowl', () => {
     const c = ctxOf(['feedingBowl']);
-    expect(c.shotMult.hole).toBe(3);
+    expect(c.shotMult.hole).toBe(2);
     expect(c.holeHoldAdd).toBe(-1);
   });
   t('greaseMonkey', () => {
@@ -405,7 +405,7 @@ describe('every charm', () => {
     expect(missing).toEqual([]);
   });
   it('multipliers from different charms multiply', () => {
-    expect(ctxOf(['jarOfTeeth', 'hellfireRubber']).shotMult.yard).toBe(15);
+    expect(ctxOf(['jarOfTeeth', 'hellfireRubber']).shotMult.yard).toBe(20);
   });
 });
 

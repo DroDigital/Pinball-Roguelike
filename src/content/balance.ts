@@ -167,7 +167,7 @@ export const SCORE = {
    * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
    * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
    */
-  scale: 0.2,
+  scale: 0.175,
   pop: 0.6,
   sling: 0.15,
   lane: 0.4,
@@ -273,7 +273,7 @@ export const ECONOMY = {
    * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
    * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
    */
-  payGrowth: 1.5,
+  payGrowth: 1.53,
 };
 
 /** Sentences. */
