@@ -98,7 +98,8 @@ Each must meet its checks before the next begins.
   - [x] <25% centre drains (average bot 11-17%)
   - [x] cradle -> major shot 70%+ on each flipper (left Perimeter 100%; right Chute/Hole 100%)
 - [x] Technique scenarios: cradle, post pass, live catch, nudge save (both sides, in tests)
-- [ ] 10,000-ball soak clean (no tunnelling, escapes, missed stuck balls)
+- [x] 10,000-ball soak clean (no tunnelling, escapes, missed stuck balls): 225 simulated hours
+      in 16 min; drains outlane L 47%, outlane R 32%, centre 19%; 0.2 watchdog rescues/ball
 - [x] Playwright smoke + screenshots (`npm run e2e`, `screenshots/`)
 - [x] Balance tools: `npm run botstats`, `npm run economy` (sampled + physics modes)
 - [x] Dev panel (`?dev`): live tuning, spawn / shift-click spawn, collider + trigger
