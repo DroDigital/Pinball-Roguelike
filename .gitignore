@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.vite
+test-results
+playwright-report
+*.log
+tools/out
+tools/scratch

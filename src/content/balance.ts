@@ -1,0 +1,368 @@
+/**
+ * Every gameplay tunable lives here. Geometry lives in table.ts.
+ * Units: lengths in ball diameters (27 mm), time in seconds, speeds in units/s.
+ */
+
+export const PHYSICS = {
+  hz: 240,
+  velocityIterations: 8,
+  positionIterations: 3,
+  /** Slope component of gravity along -y. */
+  slopeGravity: 20,
+  ballRadius: 0.5,
+  ballDensity: 1,
+  /** Air drag (proportional). Rolling losses are modelled separately as a constant decel. */
+  ballLinearDamping: 0.03,
+  /** Constant rolling resistance (units/s^2), ~9% of slope gravity like a real ball. */
+  rollingResistance: 2.2,
+  ballAngularDamping: 1.5,
+  /** Hard cap on ball speed (kept far below maxTranslation * hz = 480). */
+  maxBallSpeed: 150,
+  ballBallRestitution: 0.85,
+  ballBallFriction: 0.05,
+};
+
+export interface MaterialProps {
+  restitution: number;
+  friction: number;
+  /** Rubber gets deader at high impact speed: e = restitution * (1 - speedLoss * min(1, v / 80)). */
+  speedLoss: number;
+}
+
+export const MATERIALS: Record<string, MaterialProps> = {
+  wood: { restitution: 0.45, friction: 0.1, speedLoss: 0.1 },
+  metal: { restitution: 0.42, friction: 0.08, speedLoss: 0.1 },
+  plastic: { restitution: 0.42, friction: 0.1, speedLoss: 0.1 },
+  rubber: { restitution: 0.72, friction: 0.25, speedLoss: 0.35 },
+  post: { restitution: 0.6, friction: 0.25, speedLoss: 0.35 },
+  drop: { restitution: 0.3, friction: 0.15, speedLoss: 0 },
+  sling: { restitution: 0.7, friction: 0.2, speedLoss: 0.3 },
+  pop: { restitution: 0.4, friction: 0.1, speedLoss: 0 },
+  flipper: { restitution: 0.55, friction: 0.55, speedLoss: 0.3 },
+};
+
+export const FLIPPER = {
+  density: 2.2,
+  /** Motor speed while stroking / holding (rad/s). */
+  strokeSpeed: 20,
+  /** Torque while stroking, before end-of-stroke. */
+  strokeTorque: 24000,
+  /** Weaker hold torque once end-of-stroke is reached (lets impacts push the flipper). */
+  holdTorque: 3500,
+  /** Return spring. */
+  returnSpeed: 28,
+  returnTorque: 9000,
+  /** Fraction of the stroke at which the EOS switch opens. */
+  eosFraction: 0.97,
+  /** Rubber restitution at the base and at the tip (interpolated along the bat). */
+  baseRestitution: 0.32,
+  tipRestitution: 0.62,
+  friction: 0.55,
+};
+
+export const KICKERS = {
+  /** Pop bumper: outward normal speed after a hit. */
+  popKickSpeed: 21,
+  popCooldown: 0.07,
+  /** Slingshot: minimum approach speed into the face to fire, and the kick speed. */
+  slingThreshold: 2.5,
+  slingKickSpeed: 14,
+  /** +- fractional variation of pop/sling kick strength, and sling kick angle jitter (deg). */
+  kickVariance: 0.12,
+  slingAngleJitter: 5,
+  /** Rotate sling kicks down toward the opposite flipper (deg). */
+  slingKickTilt: 12,
+  slingTangentKeep: 0.75,
+  slingCooldown: 0.12,
+  /** Kickback launch speed (straight up the outlane). */
+  kickbackSpeed: 40,
+  /** Lucky bounce: an outlaned ball kicked back into play. */
+  luckyKickSpeed: 33,
+  /** Spinner: revolutions per unit of ball speed, and decay. */
+  spinnerGain: 0.11,
+  spinnerDrag: 2.2,
+  spinnerBallSpeedKeep: 0.96,
+  /** Drop targets: minimum normal impact speed to knock one down. */
+  dropThreshold: 3,
+};
+
+export const PLUNGER = {
+  /** Seconds to reach full pull while holding. */
+  pullTime: 1.0,
+  /**
+   * Pull (0..1) -> speed the ball should have when it leaves the top of the shooter lane.
+   * Piecewise linear; the middle band is stretched so each top lane gets a fair window.
+   * Launch speed is derived from this and the climb, so it stays right if gravity changes.
+   */
+  exitCurve: [
+    [0, 0],
+    [0.2, 14],
+    [0.55, 22.0],
+    [0.85, 27.3],
+    [1, 32.4],
+  ] as [number, number][],
+  /** Height the ball climbs from the plunger to the shooter lane exit. */
+  climb: 25.75,
+  /** Compensation for rolling losses on the way up. */
+  lossComp: 1.015,
+  /** Pull centred on each top lane's window (A, B, C) for the Roll Call skill shot. */
+  lanePull: [0.805, 0.715, 0.605] as [number, number, number],
+  /** Pull used for auto-launches (ball save, multiball): a full orbit to the right flipper. */
+  autoPull: 0.92,
+  /** Ball counts as resting in the shooter lane below this speed. */
+  restSpeed: 1.5,
+};
+
+export const CHUTE = {
+  /** Extra downhill acceleration inside the entrance incline. */
+  inclineAccel: 110,
+  /** Ride time scales with entry speed: time * clamp(refSpeed / speed, 0.75, 1.3). */
+  refSpeed: 45,
+};
+
+export const HOLE = {
+  /** How long the Hole holds a ball before ejecting (s). */
+  holdTime: 1.6,
+};
+
+export const NUDGE = {
+  /** Velocity change applied to every ball by a nudge. */
+  strength: 6,
+  sideStrength: 6,
+  /** Nudges can't be spammed faster than this. */
+  cooldown: 0.25,
+};
+
+export const TILT = {
+  /** Meter added per nudge; warning at 1.0. */
+  perNudge: 0.42,
+  /** Decay per second. */
+  decay: 0.28,
+  /** After a warning the meter drops to this. */
+  afterWarning: 0.45,
+  warnings: 2,
+};
+
+export const WATCHDOG = {
+  /** A field ball slower than this for `stuckTime` seconds outside a rest spot is stuck. */
+  stuckSpeed: 0.8,
+  stuckTime: 3.0,
+  rescueSpeed: 10,
+  /** After this many rescues without leaving the spot, the ball is re-served. */
+  maxRescues: 3,
+};
+
+export const BALL = {
+  /** Ball save duration from the first playfield switch. */
+  ballSave: 8,
+  /** Grace after ball save ends during which a drain is still saved (feel). */
+  ballSaveGrace: 0.5,
+  /** A drain cause is attributed to an outlane/centre trigger crossed within this window. */
+  drainCauseWindow: 3,
+};
+
+/** Base coin values at shot level 1 (each level adds +50%), before `scale`. */
+export const SCORE = {
+  /**
+   * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
+   * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
+   */
+  scale: 0.2,
+  pop: 0.6,
+  sling: 0.15,
+  lane: 0.4,
+  laneSet: 2,
+  inlane: 0.2,
+  outlane: 1,
+  drop: 0.8,
+  cellBlock: 3,
+  chute: 4,
+  perimeter: 3,
+  searchlightSpin: 0.06,
+  hole: 1.8,
+  skillShot: 4,
+  superSkillShot: 10,
+  /** Each shot level adds this fraction of base value. */
+  levelStep: 0.5,
+};
+
+/** Combos: major shots (Chute, Perimeter, Hole) chained within the window. */
+export const COMBO = {
+  window: 3,
+  /** Multiplier on the first shot of a chain; each further shot adds `step`. */
+  start: 1,
+  step: 1,
+};
+
+/** End-of-ball Bonus. */
+export const BONUS = {
+  /** Fraction of every paid hit (before combo) added to the Bonus. */
+  share: 0.3,
+  /** Bonus multiplier cap before charms and perks. */
+  maxMult: 5,
+  /** Seconds the count-up takes at normal speed (both flippers fast-forward). */
+  tallyTime: 2.4,
+};
+
+/** Cell Block -> Lockup -> RIOT multiball -> PAYDAY. */
+export const RIOT = {
+  locksNeeded: 2,
+  /** Balls in play when RIOT starts. */
+  balls: 3,
+  /** Drained balls are returned for this long after RIOT starts. */
+  ballSave: 6,
+  /** Seconds between the released locked balls. */
+  releaseGap: 1.1,
+  /** PAYDAY starts here and grows with every hit during RIOT; collecting resets it. */
+  paydayBase: 12,
+  paydayPerHit: 0.25,
+  /** SUPER PAYDAY at the Hole pays this times PAYDAY. */
+  superMult: 3,
+};
+
+/** The Hole's award ladder; a completed set (top lanes, Cell Block) lights the next award. */
+export const AWARDS = {
+  ladder: ['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'] as const,
+};
+
+/** Chute hurry-up from the Hole award: value counts down from start to end. */
+export const HURRY = {
+  seconds: 15,
+  start: 18,
+  end: 4,
+};
+
+export const LUCK = {
+  /** Each luck point adds this to every chance (2 percentage points). */
+  perPoint: 0.02,
+  /** Base chance that an outlaned ball gets a lucky bounce. */
+  luckyBounce: 0.04,
+  /** Spontaneous spark on a manual plunge: chance and luck gained for that ball. */
+  sparkChance: 0.1,
+  sparkLuck: 3,
+};
+
+/** Round Jobs posted by the ATM. */
+export const JOBS = {
+  offers: 3,
+  /** Chance one offer is a Key Job (from deadline 2). */
+  keyJobChance: 0.15,
+  keyJobMinDeadline: 1,
+  /** Coin targets and coin rewards scale with the debt curve. */
+  coinScale: 1,
+};
+
+export const ECONOMY = {
+  startCoins: 15,
+  startDebt: 75,
+  debtGrowth: 2.4,
+  deadlines: 8,
+  roundsPerDeadline: 3,
+  maxBallsPerRound: 5,
+  ballPriceBase: 3,
+  /** Ball price added per deadline after the first. */
+  ballPricePerDeadline: 2,
+  interest: 0.1,
+  /** Loans: borrow up to this fraction of the current debt per deadline. */
+  loanCap: 0.5,
+  /** Tickets per round skipped by paying a deadline early. */
+  payEarlyTickets: 2,
+  /**
+   * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
+   * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
+   */
+  payGrowth: 1.5,
+};
+
+/** Sentences. */
+export const SENTENCE = {
+  /** How many final rounds of a deadline a Sentence covers (Hard Time 2 makes it 2). */
+  lastRounds: 1,
+  /** Deadline 8 (Last Call) stacks two Sentences on its last round. */
+  lastCallCount: 2,
+};
+
+/** The phone after each cleared deadline. */
+export const PHONE = {
+  perkOffers: 3,
+  /** Red-call odds, and the odds once one has been accepted. */
+  redChance: 0.25,
+  redChanceAfterAccept: 0.4,
+  bargainOffers: 2,
+};
+
+/** The vending cabinet. */
+export const SHOP = {
+  charmOffers: 5,
+  contrabandOffers: 2,
+  /** Chance a restock also carries an Oil Can (always with Grease Monkey). */
+  oilCanChance: 0.35,
+  rarityWeights: { common: 60, uncommon: 30, rare: 9, legendary: 1 },
+  /** Legendaries appear from this deadline (0-based). */
+  legendaryFrom: 2,
+  /** Reroll price: (base + step x rerolls) coins, scaled like contraband. */
+  rerollBase: 2,
+  rerollStep: 1,
+  /** Coin prices scale by debtScale(deadline)^exp. */
+  priceScaleExp: 0.75,
+  /** Selling returns this fraction of the ticket cost (Hollow Book: all). */
+  sellFraction: 0.5,
+  /** Shiv refunds this multiple of the charm's ticket cost. */
+  shivMult: 2,
+};
+
+/** Contraband effects. */
+export const CONTRABAND_FX = {
+  moonshineLuck: 8,
+  forgedReceiptBonus: 0.2,
+};
+
+/** The neighbor knocking through the wall between rounds. */
+export const NEIGHBOR = {
+  /** Chance of a knock at each round break (at most one per deadline). */
+  knockChance: 0.3,
+  /** First deadline (0-based) the neighbor knocks in. */
+  fromDeadline: 1,
+  /** Coins asked, as a share of this deadline's base debt. */
+  coinShare: 0.12,
+  ticketsAsked: 2,
+  /** Weights for what they offer back; the tip is offered once per run. */
+  offerWeights: { key: 2, contraband: 4, tip: 3, tickets: 2 },
+  ticketsOffered: 3,
+  /** Asks needed, every one helped, for the Cellmate ending. */
+  cellmateMinAsks: 3,
+};
+
+/** The Tunnel: the neighbor's secret shot (Cell Block knocked down top to bottom). */
+export const SECRET = {
+  tunnel: 40,
+};
+
+/** JAILBREAK: the wizard mode at the Hole on Last Call with enough Keys. */
+export const JAILBREAK = {
+  keys: 3,
+  balls: 4,
+  shotsToEscape: 12,
+  /** Multiball save from the start (plus the release time). */
+  ballSave: 15,
+  /** Every lit shot buys this much more save (the guards are busy with the noise). */
+  savePerShot: 4,
+  releaseGap: 1.0,
+  /** Each lit shot pays this base times the shots made so far. */
+  shotValue: 6,
+  /** The machine falls apart: outlane posts drop, lights die, the glass cracks. */
+  postsDropAt: 3,
+  lightsDieAt: 6,
+  glassCracksAt: 9,
+};
+
+/** Assist mode: a slower table and a longer ball save; such runs skip the daily best. */
+export const ASSIST = {
+  timeScale: 0.8,
+  ballSaveAdd: 5,
+};
+
+/** Endless (unlocked by Paid in Full): deadlines keep coming. */
+export const ENDLESS = {
+  deadlines: 99,
+};
