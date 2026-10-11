@@ -13,6 +13,8 @@ import { wx, wz } from '../present/coords';
 import type { GameApp } from './game-app';
 import { TABLE } from '../content/table';
 import { JOB_DEFS, jobDef } from '../content/jobs';
+import { SENTENCES } from '../content/sentences';
+import { SENTENCE } from '../content/balance';
 import { jobTarget } from '../rules/run';
 
 const MAX_SEG = 12000;
@@ -44,6 +46,7 @@ export function attachDevPanel(app: GameApp): void {
     coins: 50,
     luck: 0,
     job: JOB_DEFS[0].id,
+    sentence: SENTENCES[0].id,
   };
 
   // ---- time
@@ -97,7 +100,7 @@ export function attachDevPanel(app: GameApp): void {
     app.run.keys += 1;
   });
   run.addBinding(state, 'luck', { min: 0, max: 50, step: 1 }).on('change', (e) => {
-    if (app.run) app.run.luck = e.value;
+    if (app.run) app.run.mods.luck = e.value;
     if (app.session) app.session.game.luck = e.value;
   });
   run.addBinding(state, 'job', { options: Object.fromEntries(JOB_DEFS.map((d) => [d.id, d.id])) });
@@ -112,6 +115,17 @@ export function attachDevPanel(app: GameApp): void {
       app.session.game.machine.lockLit = true;
       app.session.game.refreshLamps();
     }
+  });
+  run.addBinding(state, 'sentence', {
+    options: Object.fromEntries(SENTENCES.map((d) => [d.name, d.id])),
+  });
+  run.addButton({ title: 'Force Sentence (this round)' }).on('click', () => {
+    const r = app.run;
+    if (!r) return;
+    r.sentences = [state.sentence];
+    r.sentencesCancelled = false;
+    // Make the current round the Sentence round.
+    r.round = SENTENCE.rounds[0];
   });
   run.addButton({ title: 'Skip deadline (paid)' }).on('click', () => app.devSkipDeadline());
   run.addButton({ title: 'Trapdoor' }).on('click', () => app.fall());

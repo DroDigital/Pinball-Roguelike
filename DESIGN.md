@@ -147,8 +147,22 @@ Feel after M2 (200 balls per bot): novice median 63 s / mean 83 s, average media
 mean ~95-100 s, expert median 76 s / mean ~120 s; centre drains 12% (average).
 
 ### M3 — The run
-- [ ] 8 deadlines, debt curve, Sentences (14), interest, loans, pay early
-- [ ] Phone perks, red calls
+- [x] 8 deadlines on the x2.4 debt curve; Last Call (deadline 8) stacks two Sentences
+- [x] 14 Sentences as data (tiers 1-3, harsher later), revealed at deadline start, in force
+      on the last round; physics ones soak-tested (`npm run soak -- --sentences`)
+- [x] Interest at round end (10% + perks); loans up to half the debt, 150% added to the next
+      debt, none on Last Call
+- [x] Pay early at a round start once the Bank covers the debt: +2 tickets per skipped round
+- [x] The phone after each paid deadline: 3 permanent perks, or a red call (25%, 40% once
+      one is accepted) with 2 bargains or hang up; shop-only perks wait for M4
+- [x] Warden dialogue (5+ lines per trigger) for intro, Sentences, calls, loans, early pay,
+      the fall; Blackout presentation (dark room, each ball carries a light)
+- [x] Rules tests (Sentences, Inflation, Head Count, loans, pay early, perks, bargains, Last
+      Call) + property test over loans / early pays / calls; economy tool models the policy
+
+M3 calibration (`npm run economy -- --mode physics --runs 64`, average bot, perk policy,
+no charms): deadline 1 94%, deadline 2 53%, deadline 3 14%, deadline 4 3%. The brief's
+targets (deadline 4 ~35%, focused builds win ~20%) need M4's charms.
 
 ### M4 — Build-crafting
 - [ ] Vending cabinet shop (rarity, tags glow, reroll, sell), full charm roster
@@ -267,4 +281,16 @@ Format: date — decision — why.
 - 2026-10-11 — The kickback starts unlit; the Hole's award ladder lights it. — The brief's
   "lightable" kickback; a free save every round also inflated ball times.
 - 2026-10-11 — RIOT multiball save 6 s. — Long enough to get all three balls into play.
+- 2026-10-11 — Per-item numbers (Jobs, Sentences, perks, bargains, later charms) live in their
+  content files; systemic tunables live in `balance.ts`. — Item data is self-describing and
+  matches the brief's "numbers are starting values" for content.
+- 2026-10-11 — One `RunMods` record collects permanent modifiers from perks, bargains (and
+  later inmates, Hard Time, charms); `nextBall` compiles mods + active Sentences into the
+  ball snapshot. — A single choke point keeps replays and tests honest.
+- 2026-10-11 — Paying early happens at the start of a round (after that round's interest).
+  — The ATM decision point is between rounds; mid-round paying would strand bought balls.
+- 2026-10-11 — Red calls offer two bargains or hanging up (no perk that call). — The dread
+  is the point: refusing costs you the call.
+- 2026-10-11 — Sentence tiers: deadlines 1-2 draw tier 1, 3-5 tiers 1-2, 6-8 tiers 2-3. —
+  "Harsher picks later in the run".
 

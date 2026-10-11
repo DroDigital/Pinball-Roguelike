@@ -30,6 +30,7 @@ interface LampMesh {
 }
 
 interface BallVis {
+  light: THREE.PointLight;
   mesh: THREE.Mesh;
   halo: THREE.Mesh;
   trail: THREE.Line;
@@ -67,6 +68,9 @@ export class TableView {
   private plunger: THREE.Mesh | null = null;
   private time = 0;
   readonly gold = new Set<string>();
+  /** Blackout Sentence: inserts stay dark and each ball carries a light. */
+  blackout = false;
+  private readonly axis = new THREE.Vector3();
 
   constructor(
     readonly table: TableDef = TABLE,
@@ -433,7 +437,8 @@ export class TableView {
       for (const [id, lm] of this.lamps) {
         const mode = lamps[id] ?? Lamp.Off;
         const lit =
-          mode === Lamp.On || (mode === Lamp.Slow && slow) || (mode === Lamp.Fast && fast);
+          !this.blackout &&
+          (mode === Lamp.On || (mode === Lamp.Slow && slow) || (mode === Lamp.Fast && fast));
         lm.mat.color.copy(lit ? lm.on : lm.off);
         (lm.glow.material as THREE.MeshBasicMaterial).opacity = lit ? 0.35 : 0;
       }
@@ -459,9 +464,12 @@ export class TableView {
       const vy = b.vy;
       const sp = Math.hypot(vx, vy);
       if (sp > 0.01) {
-        const ax = new THREE.Vector3(-vy / sp, 0, -vx / sp);
-        v.mesh.rotateOnWorldAxis(ax, sp * dt * 2);
+        this.axis.set(-vy / sp, 0, -vx / sp);
+        v.mesh.rotateOnWorldAxis(this.axis, sp * dt * 2);
       }
+      v.light.visible = this.blackout;
+      if (this.blackout)
+        v.light.position.set(v.mesh.position.x, v.mesh.position.y + 1.4, v.mesh.position.z);
       // Trail.
       const tp = v.trailPos;
       tp.copyWithin(3, 0, (TRAIL - 1) * 3);
@@ -475,7 +483,7 @@ export class TableView {
     }
     for (const [id, v] of this.balls) {
       if (!v.seen) {
-        this.root.remove(v.mesh, v.halo, v.trail);
+        this.root.remove(v.mesh, v.halo, v.trail, v.light);
         v.trail.geometry.dispose();
         this.balls.delete(id);
       }
@@ -491,8 +499,11 @@ export class TableView {
     geo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
     const trail = new THREE.Line(geo, this.trailMat);
     trail.frustumCulled = false;
-    this.root.add(mesh, halo, trail);
-    return { mesh, halo, trail, trailPos, trailCount: 0, seen: true };
+    // Blackout: each ball carries its own small light.
+    const light = new THREE.PointLight(0xffe0b0, 7, 7, 1.6);
+    light.visible = false;
+    this.root.add(mesh, halo, trail, light);
+    return { mesh, halo, trail, trailPos, trailCount: 0, seen: true, light };
   }
 
   /** World position of a table point (for pops, particles, camera targets). */

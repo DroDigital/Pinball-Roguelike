@@ -87,6 +87,10 @@ export interface BallContext {
   sparkMult: number;
   /** The Bonus multiplier carries over between balls in a round (Held Breath). */
   holdBonusMult: boolean;
+  /** The kickback can never be lit (Bad Wiring). */
+  noKickback: boolean;
+  /** Blackout Sentence: lamps out except the ball's halo (presentation only). */
+  blackout: boolean;
   job: BallJob | null;
 }
 
@@ -153,6 +157,8 @@ export function defaultBallContext(): BallContext {
     paydayCarry: 0,
     sparkMult: 1,
     holdBonusMult: false,
+    noKickback: false,
+    blackout: false,
     job: null,
   };
 }
@@ -630,8 +636,9 @@ export class TableGame {
 
   private collectAward(): void {
     const ladder = AWARDS.ladder;
-    const award = ladder[this.machine.award % ladder.length] as AwardId;
+    let award = ladder[this.machine.award % ladder.length] as AwardId;
     this.machine.award = (this.machine.award + 1) % ladder.length;
+    if (award === 'kickback' && this.ctx.noKickback) award = 'bonusX';
     this.machine.awardLit = false;
     this.emit({ t: 'award', award, collected: true });
     let sub = AWARD_NAMES[award];

@@ -1,12 +1,13 @@
 /**
  * Physics soak: the bot plays N balls (full rules, mixed skills) across worker threads.
  * Fails on tunnelling, escapes, or a stuck ball the watchdog missed. Prints a drain-cause
- * histogram.  npm run soak -- --balls 10000 [--workers 4] [--max-seconds 300]
+ * histogram.  npm run soak -- --balls 10000 [--workers 4] [--max-seconds 300] [--sentences]
  */
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { BallSession } from '../src/rules/session';
+import { BallSession, type BallSnapshot } from '../src/rules/session';
+import { sentenceDef } from '../src/content/sentences';
 import { attachBot, defaultSnapshot } from '../src/bot/autoplay';
 import { Bot, type BotSkillName } from '../src/bot/bot';
 
@@ -15,6 +16,21 @@ interface Job {
   to: number;
   maxSeconds: number;
   skill: string;
+  /** Cycle balls through the physics-changing Sentences (--sentences). */
+  sentences: boolean;
+}
+
+/** Sentences that change the physics; balls cycle through them with --sentences. */
+const PHYSICAL = ['', 'leadBall', 'greased', 'wideOpen', 'boltedHole'];
+
+function snapshotFor(i: number, withSentences: boolean): BallSnapshot {
+  const snap = defaultSnapshot(100000 + i);
+  const id = withSentences ? PHYSICAL[i % PHYSICAL.length] : '';
+  if (!id) return snap;
+  const e = sentenceDef(id).effect;
+  snap.mods = { ...snap.mods, ...e.sim };
+  snap.tags = snap.tags.filter((t) => !(e.removeTags ?? []).includes(t)).concat(e.addTags ?? []);
+  return snap;
 }
 
 interface Tally {
@@ -53,7 +69,7 @@ function runRange(job: Job): Tally {
   for (let i = job.from; i < job.to; i++) {
     const skill = job.skill === 'mixed' ? SKILLS[i % 3] : (job.skill as BotSkillName);
     let cause = '';
-    const s = new BallSession(defaultSnapshot(100000 + i), (e) => {
+    const s = new BallSession(snapshotFor(i, job.sentences), (e) => {
       if (e.t === 'drain') cause = e.cause;
     });
     const bot = new Bot(skill, 31 * i + 7);
@@ -134,7 +150,13 @@ if (isMainThread) {
   const per = Math.ceil(balls / workers);
   const jobs: Promise<Tally>[] = [];
   for (let w = 0; w < workers; w++) {
-    const job: Job = { from: w * per, to: Math.min(balls, (w + 1) * per), maxSeconds, skill };
+    const job: Job = {
+      from: w * per,
+      to: Math.min(balls, (w + 1) * per),
+      maxSeconds,
+      skill,
+      sentences: args.includes('--sentences'),
+    };
     if (job.from >= job.to) continue;
     jobs.push(
       new Promise((resolve, reject) => {

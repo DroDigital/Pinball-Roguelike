@@ -2,6 +2,7 @@
  * Monte Carlo economy: plays whole runs with a simple money policy and reports how many runs
  * clear each deadline.
  *   npm run economy -- [--runs 2000] [--skill average] [--mode sampled|physics] [--workers N]
+ *     [--red] (accept red-call bargains) [--loans] (borrow to cover a shortfall)
  * sampled: ball earnings drawn from tools/out/botstats.json (run `npm run botstats` first).
  *          Fast; good for tuning debt curves, prices and interest.
  * physics: every ball is played by the bot on the real table (slow; use few runs).
@@ -23,6 +24,13 @@ import {
   endRound,
   settleDeadline,
   pickJob,
+  canPayEarly,
+  payEarly,
+  loanAvailable,
+  borrow,
+  choosePerk,
+  acceptBargain,
+  hangUp,
   type BallOutcome,
   type RunState,
 } from '../src/rules/run';
@@ -47,6 +55,12 @@ interface Job {
   samples: number[];
   /** Sampled mode: multiply sampled ball earnings (what-if for payout tuning). */
   scale: number;
+  policy: Policy;
+}
+
+interface Policy {
+  red: boolean;
+  loans: boolean;
 }
 
 interface RunRow {
@@ -57,12 +71,27 @@ interface RunRow {
   funds: number[];
 }
 
-/** Money policy: take the first Job, buy as many balls as possible while keeping enough to buy next round. */
-function playRun(seed: number, ball: (snap: BallSnapshot, r: RunState) => BallOutcome): RunRow {
+const PERK_PREF = ['freeBall', 'levels', 'bonusMax', 'interest', 'ballSave', 'tickets'];
+
+/**
+ * Player policy: take the first Job, buy as many balls as possible while keeping enough for
+ * next round, pay early when the Bank allows, prefer free balls and levels on the phone,
+ * optionally take red-call bargains and cover a shortfall with a loan.
+ */
+function playRun(
+  seed: number,
+  ball: (snap: BallSnapshot, r: RunState) => BallOutcome,
+  policy: Policy,
+): RunRow {
   const r = newRun(`ECON${seed}`);
   const funds: number[] = [];
   while (r.phase !== 'over') {
     if (r.phase === 'pickJob') {
+      if (canPayEarly(r)) {
+        funds.push(r.bank);
+        payEarly(r);
+        continue;
+      }
       pickJob(r, 0);
       continue;
     }
@@ -86,8 +115,29 @@ function playRun(seed: number, ball: (snap: BallSnapshot, r: RunState) => BallOu
     }
     if (r.phase === 'deadline') {
       deposit(r, r.pocket);
+      if (policy.loans && r.bank < r.debt && r.bank + loanAvailable(r) >= r.debt) {
+        borrow(r, r.debt - r.bank);
+        deposit(r, r.pocket);
+      }
       funds.push(r.bank);
-      if (!settleDeadline(r)) break;
+      settleDeadline(r);
+      continue;
+    }
+    if (r.phase === 'phone') {
+      const call = r.call!;
+      if (call.kind === 'perks') {
+        let best = 0;
+        let rank = 1e9;
+        call.offers.forEach((o, i) => {
+          const k = PERK_PREF.indexOf(o.id);
+          if (k >= 0 && k < rank) {
+            rank = k;
+            best = i;
+          }
+        });
+        choosePerk(r, best);
+      } else if (policy.red) acceptBargain(r, 0);
+      else hangUp(r);
     }
   }
   return { reached: r.deadline, result: r.result ?? 'fell', balls: r.stats.balls, funds };
@@ -118,7 +168,7 @@ function work(job: Job): RunRow[] {
             while (!s.over && s.steps < 240 * 600) s.step(bot.decide(s.sim));
             return s.game.outcome();
           };
-    rows.push(playRun(i, ball));
+    rows.push(playRun(i, ball, job.policy));
   }
   return rows;
 }
@@ -154,6 +204,7 @@ if (IS_MAIN) {
     mode,
     samples,
     scale,
+    policy: { red: args.includes('--red'), loans: args.includes('--loans') },
   }));
   const rows = (await runPool<Job, RunRow[]>(import.meta.url, jobs)).flat();
 

@@ -34,9 +34,21 @@ import {
   settleDeadline,
   pickJob,
   jobCoins,
+  canPayEarly,
+  payEarly,
+  loanAvailable,
+  loanCost,
+  borrow,
+  sentenceActive,
+  choosePerk,
+  acceptBargain,
+  hangUp,
   type BallOutcome,
   type RunState,
 } from '../rules/run';
+import { sentenceDef } from '../content/sentences';
+import { perkDef, bargainDef } from '../content/phone';
+import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { BONUS, ECONOMY } from '../content/balance';
 
 const STEP = 1 / 240;
@@ -44,6 +56,8 @@ const STEP_MS = 1000 / 240;
 
 export type AppMode =
   | 'title'
+  | 'intro'
+  | 'phone'
   | 'jobs'
   | 'buy'
   | 'cell'
@@ -594,8 +608,162 @@ export class GameApp {
     this.save.stats.runs++;
     this.persist();
     this.ui.toast(`Seed ${sd}`);
-    this.dmd.say('THE WARDEN: YOU OWE ME. PAY BY THE DEADLINE OR FALL.');
-    this.enterJobs();
+    this.enterDeadlineIntro();
+  }
+
+  private decks = new Map<WardenTrigger, string[]>();
+
+  /** Deal a Warden line from a shuffled deck so lines rarely repeat. */
+  warden(t: WardenTrigger): string {
+    let deck = this.decks.get(t);
+    if (!deck || !deck.length) {
+      deck = [...WARDEN[t]].sort(() => Math.random() - 0.5);
+      this.decks.set(t, deck);
+    }
+    return deck.pop()!;
+  }
+
+  /** A deadline begins: the debt, and the Sentence for its last round. */
+  private enterDeadlineIntro(): void {
+    const r = this.run!;
+    this.mode = 'intro';
+    this.world.setMode('seated');
+    const last = r.deadline === r.deadlines - 1;
+    const line = this.warden(r.deadline === 0 ? 'intro' : last ? 'lastCall' : 'sentence');
+    this.dmd.say(`THE WARDEN: ${line}`);
+    const cards = r.sentences.map((id) => {
+      const d = sentenceDef(id);
+      return h('div', { class: 'sentence' }, h('b', null, d.name), h('small', null, d.text));
+    });
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel' },
+        h(
+          'h2',
+          null,
+          last
+            ? `Deadline ${r.deadline + 1}: Last Call`
+            : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
+        ),
+        h('p', { class: 'warden' }, `“${line}”`),
+        h(
+          'div',
+          { class: 'grid' },
+          'Debt',
+          h('b', null, `${r.debt}c`),
+          'Bank',
+          h('b', null, `${r.bank}c`),
+          'Pocket',
+          h('b', null, `${r.pocket}c`),
+        ),
+        h(
+          'p',
+          null,
+          `${r.sentences.length > 1 ? 'Sentences' : 'Sentence'} for round ${ECONOMY.roundsPerDeadline}:`,
+        ),
+        ...cards,
+        h(
+          'div',
+          { class: 'row' },
+          h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'To the ATM'),
+        ),
+      ),
+    );
+  }
+
+  /** The phone after a paid deadline: perks, or the red phone's bargains. */
+  private enterPhone(): void {
+    const r = this.run!;
+    const call = r.call;
+    if (!call) {
+      this.enterDeadlineIntro();
+      return;
+    }
+    this.mode = 'phone';
+    this.world.setMode('seated');
+    audio.phoneRing();
+    if (call.kind === 'perks') {
+      const line = this.warden('deadlinePaid');
+      this.dmd.say(`THE WARDEN: ${line}`);
+      const cards = call.offers.map((o, i) =>
+        h(
+          'button',
+          {
+            class: `job${i === 0 ? ' primary' : ''}`,
+            onclick: () => this.answerPhone(() => choosePerk(r, i)),
+          },
+          h('b', null, perkDef(o.id).text.replace('{shot}', o.shot ?? '')),
+        ),
+      );
+      this.ui.show(
+        h(
+          'div',
+          { class: 'panel' },
+          h('h2', null, 'The phone rings'),
+          h('p', { class: 'warden' }, `“${line} Pick one. It is yours for the rest of your stay.”`),
+          h('div', { class: 'col' }, ...cards),
+        ),
+      );
+      return;
+    }
+    const line = this.warden('redCall');
+    this.dmd.say(`THE RED PHONE: ${line}`);
+    this.flash(0.15);
+    audio.creak();
+    const cards = call.offers.map((id, i) => {
+      const b = bargainDef(id);
+      return h(
+        'button',
+        { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
+        h('b', null, b.name),
+        h('small', null, b.gain),
+        h('small', { class: 'cost' }, b.cost),
+      );
+    });
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel red' },
+        h('h2', null, 'The red phone rings'),
+        h('p', { class: 'warden' }, `“${line}”`),
+        h('div', { class: 'col' }, ...cards),
+        h(
+          'div',
+          { class: 'row' },
+          h(
+            'button',
+            {
+              class: 'primary',
+              onclick: () =>
+                this.answerPhone(() => {
+                  this.ui.toast(this.warden('hangUp'));
+                  return hangUp(r);
+                }),
+            },
+            'Hang up',
+          ),
+        ),
+      ),
+    );
+  }
+
+  private answerPhone(fn: () => boolean): void {
+    if (!fn()) return;
+    audio.atmBeep();
+    this.enterDeadlineIntro();
+  }
+
+  /** Pay the deadline at the start of a round and skip the rest. */
+  private payEarlyFlow(): void {
+    const r = this.run!;
+    const before = r.tickets;
+    if (!payEarly(r)) return;
+    this.save.stats.bestDeadline = Math.max(this.save.stats.bestDeadline, r.deadline);
+    this.persist();
+    this.ui.toast(`${this.warden('payEarly')} (+${r.tickets - before} tickets)`);
+    if (r.phase === 'over') this.rapSheet();
+    else this.enterPhone();
   }
 
   private enterJobs(): void {
@@ -620,10 +788,35 @@ export class GameApp {
         'div',
         { class: 'panel atm' },
         h('h2', null, `Round ${r.round + 1}: jobs`),
+        sentenceActive(r)
+          ? h(
+              'p',
+              { class: 'cost' },
+              `SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
+            )
+          : null,
         h('p', null, 'THE ATM POSTS THREE JOBS. TAKE ONE.'),
         h('div', { class: 'col' }, ...cards),
+        canPayEarly(r)
+          ? h(
+              'div',
+              { class: 'row' },
+              h(
+                'button',
+                { onclick: () => this.payEarlyFlow() },
+                `Pay the debt now (+${ECONOMY.payEarlyTickets * (ECONOMY.roundsPerDeadline - r.round)} tickets)`,
+              ),
+            )
+          : null,
       ),
     );
+    if (sentenceActive(r))
+      this.dmd.show({
+        text: 'SENTENCE',
+        sub: r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + '),
+        priority: 6,
+        duration: 2.5,
+      });
   }
 
   takeJob(i: number): void {
@@ -719,6 +912,11 @@ export class GameApp {
           : null,
         h('p', { class: 'dim' }, `Shot levels: ${levelsText(r)}`),
         h(
+          'p',
+          { class: sentenceActive(r) ? 'cost' : 'dim' },
+          `${sentenceActive(r) ? 'Sentence in force' : `Sentence (round ${ECONOMY.roundsPerDeadline})`}: ${r.sentences.map((id) => sentenceDef(id).name).join(', ')}`,
+        ),
+        h(
           'div',
           { class: 'row' },
           h(
@@ -781,6 +979,7 @@ export class GameApp {
           ),
           h('button', { disabled: r.pocket < 1, onclick: () => dep(r.pocket) }, 'All'),
         ),
+        this.loanRow(r, back),
         h(
           'div',
           { class: 'row' },
@@ -797,6 +996,48 @@ export class GameApp {
     );
   }
 
+  private loanRow(r: RunState, back: 'cell' | 'deadline'): HTMLElement | null {
+    const avail = loanAvailable(r);
+    const owed = r.loanDue ? h('p', { class: 'dim' }, `Added to next debt: ${r.loanDue}c`) : null;
+    if (avail <= 0)
+      return (
+        owed ??
+        h(
+          'p',
+          { class: 'dim' },
+          r.deadline >= r.deadlines - 1 ? 'NO LOANS ON LAST CALL.' : 'LOAN LIMIT REACHED.',
+        )
+      );
+    const take = (n: number) => {
+      if (borrow(r, n) > 0) {
+        audio.atmBeep();
+        this.ui.toast(this.warden('loan'));
+      }
+      this.enterAtm(back);
+    };
+    const half = Math.max(1, Math.floor(avail / 2));
+    return h(
+      'div',
+      null,
+      h(
+        'p',
+        null,
+        `LOAN: borrow up to ${avail}c, repaid at ${Math.round(r.mods.loanRate * 100)}% with the next debt.`,
+      ),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { onclick: () => take(half) }, `Borrow ${half}c (owe ${loanCost(r, half)}c)`),
+        h(
+          'button',
+          { onclick: () => take(avail) },
+          `Borrow ${avail}c (owe ${loanCost(r, avail)}c)`,
+        ),
+      ),
+      owed,
+    );
+  }
+
   startBall(): void {
     const r = this.run!;
     if (ballsLeft(r) <= 0) return;
@@ -804,6 +1045,7 @@ export class GameApp {
     const snap = nextBall(r);
     this.session = new BallSession(snap, this.onGameEvent);
     if (this.autoBot) attachBot(this.autoBot, this.session);
+    this.world.setBlackout(snap.ctx.blackout);
     this.simCursor = 0;
     this.acc = 0;
     this.input.events.length = 0;
@@ -813,6 +1055,7 @@ export class GameApp {
   }
 
   private onBallOver(): void {
+    this.world.setBlackout(false);
     const g = this.session!.game;
     this.outcome = g.outcome();
     if (!g.tilted && g.bonusPaid > 0) {
@@ -845,6 +1088,7 @@ export class GameApp {
     const o = this.outcome!;
     this.mode = 'ballEnd';
     const res = finishBall(r, o);
+    if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
     this.save.stats.balls++;
     this.save.stats.coins += res.gained;
     this.save.stats.biggestPayday = Math.max(
@@ -982,10 +1226,8 @@ export class GameApp {
       this.fall();
       return;
     }
-    audio.phoneRing();
-    this.dmd.say('THE PHONE RINGS. "PAID. FOR NOW."');
     if (r.phase === 'over') this.rapSheet();
-    else this.enterJobs();
+    else this.enterPhone();
   }
 
   /** Dev: pay the current deadline from thin air and move on. */
@@ -1006,6 +1248,7 @@ export class GameApp {
     this.fallT = 0;
     this.world.setMode('fall');
     audio.trapdoor();
+    this.dmd.say(`THE WARDEN: ${this.warden('fall')}`);
     this.shake(1.2);
     this.flash(0.2);
     window.setTimeout(() => this.rapSheet(), 3000);
@@ -1029,7 +1272,7 @@ export class GameApp {
           'p',
           null,
           fell
-            ? `Fell at deadline ${r.deadline + 1}, owing ${r.debt}c.`
+            ? `Fell at deadline ${r.deadline + 1} of ${r.deadlines}, owing ${r.debt}c.`
             : 'Paid in full. The door opens.',
         ),
         h(
@@ -1043,6 +1286,22 @@ export class GameApp {
           h('b', null, `${r.stats.biggestBall}c`),
           'Skill shots',
           h('b', null, String(r.stats.skillShots)),
+          'RIOTs',
+          h('b', null, String(r.stats.riots)),
+          'Biggest PAYDAY',
+          h('b', null, `${Math.round(r.stats.biggestPayday)}c`),
+          'Longest combo',
+          h('b', null, String(r.stats.longestCombo)),
+          'Jobs done',
+          h('b', null, String(r.stats.jobsDone)),
+          'Sentences survived',
+          h('b', null, String(r.stats.sentencesSurvived)),
+          'Loans',
+          h('b', null, String(r.stats.loans)),
+          'Paid early',
+          h('b', null, String(r.stats.earlyPays)),
+          'Red calls',
+          h('b', null, `${r.stats.redCalls} (${r.bargains.length} taken)`),
           'Tilts',
           h('b', null, String(r.stats.tilts)),
         ),
@@ -1131,7 +1390,7 @@ export class GameApp {
     this.hud.style.display = this.mode === 'title' ? 'none' : '';
     if (r) {
       const g = shown && playing ? shown.game : null;
-      let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.debt}c</b></span>`;
+      let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`;
       if (g) {
         left += `<br>Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}`;
         if (g.luck > 0) left += `<br>Luck <b>${g.luck}</b>`;

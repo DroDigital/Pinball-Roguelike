@@ -1,12 +1,16 @@
 /**
- * The run: deadlines, rounds, Jobs, balls, Pocket/Bank/debt. Plain serialisable state plus
- * pure-ish functions that mutate it deterministically (all randomness through the run's
- * Rng state).
+ * The run: deadlines, Sentences, rounds, Jobs, balls, Pocket/Bank/debt, loans, paying early
+ * and the phone. Plain serialisable state plus pure-ish functions that mutate it
+ * deterministically (all randomness through the run's Rng state).
  */
 import { Rng, hashString, type RngState } from '../core/rng';
-import { ECONOMY, JOBS } from '../content/balance';
+import { BALL, BONUS, ECONOMY, JOBS, PHONE, SENTENCE } from '../content/balance';
 import { JOB_DEFS, jobDef, type BallStats, type JobDef } from '../content/jobs';
+import { SENTENCES, maxTier, minTier, sentenceDef } from '../content/sentences';
+import { BARGAINS, PERKS, PERK_SHOTS, bargainDef, perkDef } from '../content/phone';
+import { defaultRunMods, type RunMods } from '../content/mods';
 import type { ShotType } from '../sim/table-def';
+import type { SimMods } from '../sim/sim-config';
 import {
   SHOT_TYPES,
   defaultBallContext,
@@ -16,8 +20,18 @@ import {
 } from './table-game';
 import type { BallSnapshot } from './session';
 
-export type RunPhase = 'pickJob' | 'buyBalls' | 'ball' | 'betweenBalls' | 'deadline' | 'over';
+export type RunPhase =
+  | 'pickJob'
+  | 'buyBalls'
+  | 'ball'
+  | 'betweenBalls'
+  | 'deadline'
+  | 'phone'
+  | 'over';
 export type RunResult = 'fell' | 'paidInFull' | 'breakout' | 'cellmate' | null;
+
+/** Shop systems arrive in M4; until then perks that only matter there aren't offered. */
+export const SHOP_OPEN = false;
 
 export interface RunStats {
   balls: number;
@@ -32,6 +46,10 @@ export interface RunStats {
   longestCombo: number;
   biggestBonus: number;
   jobsDone: number;
+  sentencesSurvived: number;
+  loans: number;
+  earlyPays: number;
+  redCalls: number;
 }
 
 export interface JobOffer {
@@ -44,8 +62,16 @@ export interface RunJob extends JobOffer {
   done: boolean;
 }
 
+export interface PerkOffer {
+  id: string;
+  /** Level perks name a shot type. */
+  shot?: ShotType;
+}
+
+export type PhoneCall = { kind: 'perks'; offers: PerkOffer[] } | { kind: 'red'; offers: string[] };
+
 export interface RunState {
-  version: 1;
+  version: 2;
   seed: string;
   rng: RngState;
   deadline: number;
@@ -57,14 +83,23 @@ export interface RunState {
   looseChange: number;
   tickets: number;
   keys: number;
-  /** Permanent luck (Thick Skin, phone perks); each ball adds its own on top. */
-  luck: number;
   shotLevels: Record<ShotType, number>;
+  mods: RunMods;
   machine: MachineState;
   phase: RunPhase;
+  /** This deadline's Sentences (ids) and whether a Bribe cancelled them. */
+  sentences: string[];
+  sentencesCancelled: boolean;
+  /** Borrowed this deadline, and what gets added to the next debt. */
+  loanTaken: number;
+  loanDue: number;
   /** Jobs posted at round start, and the one taken. */
   jobOffers: JobOffer[];
   job: RunJob | null;
+  /** The phone call waiting to be answered (phase 'phone'). */
+  call: PhoneCall | null;
+  /** Bargains accepted so far. */
+  bargains: string[];
   /** Balls bought for this round (incl. free and extra balls) and how many have been played. */
   ballsThisRound: number;
   ballsPlayed: number;
@@ -85,32 +120,34 @@ export function debtScale(deadline: number): number {
   return Math.pow(ECONOMY.debtGrowth, deadline) * JOBS.coinScale;
 }
 
-export function ballPrice(s: RunState): number {
-  return ECONOMY.ballPriceBase + ECONOMY.ballPricePerDeadline * s.deadline;
-}
-
 export function newRun(seed: string, opts: { deadlines?: number } = {}): RunState {
   const rng = new Rng(hashString(seed));
   const levels = {} as Record<ShotType, number>;
   for (const t of SHOT_TYPES) levels[t] = 1;
   const s: RunState = {
-    version: 1,
+    version: 2,
     seed,
     rng: rng.getState(),
     deadline: 0,
     round: 0,
-    debt: debtFor(0),
+    debt: 0,
     bank: 0,
     pocket: ECONOMY.startCoins,
     looseChange: 0,
     tickets: 0,
     keys: 0,
-    luck: 0,
     shotLevels: levels,
+    mods: defaultRunMods(),
     machine: newMachineState(),
     phase: 'pickJob',
+    sentences: [],
+    sentencesCancelled: false,
+    loanTaken: 0,
+    loanDue: 0,
     jobOffers: [],
     job: null,
+    call: null,
+    bargains: [],
     ballsThisRound: 0,
     ballsPlayed: 0,
     paydayCarry: 0,
@@ -128,10 +165,14 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
       longestCombo: 0,
       biggestBonus: 0,
       jobsDone: 0,
+      sentencesSurvived: 0,
+      loans: 0,
+      earlyPays: 0,
+      redCalls: 0,
     },
     deadlines: opts.deadlines ?? ECONOMY.deadlines,
   };
-  postJobs(s);
+  startDeadline(s);
   return s;
 }
 
@@ -139,6 +180,36 @@ function rngOf(s: RunState): Rng {
   const r = new Rng(0);
   r.setState(s.rng);
   return r;
+}
+
+// ------------------------------------------------------------------ deadlines and Sentences
+
+/** Set the debt, reveal the Sentences and post round 1's Jobs. */
+export function startDeadline(s: RunState): void {
+  s.round = 0;
+  s.debt = Math.round(debtFor(s.deadline) * s.mods.debtMult) + s.loanDue;
+  s.loanDue = 0;
+  s.loanTaken = 0;
+  s.sentencesCancelled = false;
+  const rng = rngOf(s);
+  const lo = minTier(s.deadline);
+  const hi = maxTier(s.deadline);
+  const pool = SENTENCES.filter((d) => d.tier >= lo && d.tier <= hi);
+  rng.shuffle(pool);
+  const n = s.deadline === s.deadlines - 1 ? SENTENCE.lastCallCount : 1;
+  s.sentences = pool.slice(0, n).map((d) => d.id);
+  s.rng = rng.getState();
+  postJobs(s);
+}
+
+/** Is a Sentence in force this round? */
+export function sentenceActive(s: RunState): boolean {
+  return !s.sentencesCancelled && s.sentences.length > 0 && SENTENCE.rounds.includes(s.round);
+}
+
+/** Active Sentence definitions this round. */
+export function activeSentences(s: RunState) {
+  return sentenceActive(s) ? s.sentences.map(sentenceDef) : [];
 }
 
 // ------------------------------------------------------------------ jobs
@@ -188,19 +259,35 @@ function applyJobReward(s: RunState, def: JobDef): void {
 
 // ------------------------------------------------------------------ balls
 
-/** Cost to buy n balls this round (the first is free). */
+export function ballPrice(s: RunState): number {
+  let p =
+    (ECONOMY.ballPriceBase + ECONOMY.ballPricePerDeadline * s.deadline) * s.mods.ballPriceMult;
+  for (const d of activeSentences(s)) p *= d.effect.ballPriceMult ?? 1;
+  return Math.round(p);
+}
+
+/** Free balls this round. */
+export function freeBalls(s: RunState): number {
+  return (s.mods.noFreeBall ? 0 : 1) + s.mods.freeBalls;
+}
+
+export function maxBalls(s: RunState): number {
+  return ECONOMY.maxBallsPerRound + s.mods.freeBalls;
+}
+
+/** Cost to buy n balls this round (free balls first). */
 export function costForBalls(s: RunState, n: number): number {
-  return Math.max(0, n - 1) * ballPrice(s);
+  return Math.max(0, n - freeBalls(s)) * ballPrice(s);
 }
 
 export function maxAffordableBalls(s: RunState): number {
   const p = ballPrice(s);
-  return Math.min(ECONOMY.maxBallsPerRound, 1 + Math.floor(s.pocket / p));
+  return Math.min(maxBalls(s), freeBalls(s) + Math.floor(s.pocket / Math.max(1, p)));
 }
 
 /** Buy balls at round start. Returns false if not allowed/affordable. */
 export function buyBalls(s: RunState, n: number): boolean {
-  if (s.phase !== 'buyBalls' || n < 1 || n > ECONOMY.maxBallsPerRound) return false;
+  if (s.phase !== 'buyBalls' || n < 1 || n > maxBalls(s)) return false;
   const cost = costForBalls(s, n);
   if (cost > s.pocket) return false;
   s.pocket -= cost;
@@ -214,18 +301,30 @@ export function ballsLeft(s: RunState): number {
   return s.ballsThisRound - s.ballsPlayed;
 }
 
-/** Build the snapshot for the next ball. Advances the run Rng. */
-export function nextBall(s: RunState, tags: string[] = ['outlanePosts']): BallSnapshot {
+/** Build the snapshot for the next ball (run mods and active Sentences). Advances the Rng. */
+export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): BallSnapshot {
   const rng = rngOf(s);
   const seed = rng.nextU32();
   s.rng = rng.getState();
   s.phase = 'ball';
+  const m = s.mods;
   const base = defaultBallContext();
   const job = s.job ? jobDef(s.job.id) : null;
+  const tags = new Set(baseTags);
+  const sim: Partial<SimMods> = { flipperStrength: m.flipperStrength, ballMass: 1 };
+  const shotMult = { ...base.shotMult };
+  for (const [k, v] of Object.entries(m.shotMult) as [ShotType, number][]) shotMult[k] *= v;
   const ctx: BallContext = {
     ...base,
     shotLevels: { ...s.shotLevels },
-    luck: s.luck,
+    shotMult,
+    ballSave: Math.max(0, BALL.ballSave + m.ballSaveAdd),
+    tiltSensitivity: m.tiltSensitivity,
+    extraWarnings: m.extraWarnings,
+    payMult: m.payMult,
+    luck: m.luck,
+    bonusMaxMult: BONUS.maxMult + m.bonusMaxAdd,
+    noKickback: m.noKickback,
     ballNumber: s.ballsPlayed + 1,
     ballsInRound: s.ballsThisRound,
     job:
@@ -240,13 +339,25 @@ export function nextBall(s: RunState, tags: string[] = ['outlanePosts']): BallSn
           }
         : null,
   };
-  return {
-    seed,
-    tags,
-    mods: {},
-    machine: JSON.parse(JSON.stringify(s.machine)) as MachineState,
-    ctx,
-  };
+  for (const d of activeSentences(s)) {
+    const e = d.effect;
+    if (e.sim?.flipperStrength)
+      sim.flipperStrength = (sim.flipperStrength ?? 1) * e.sim.flipperStrength;
+    if (e.sim?.ballMass) sim.ballMass = (sim.ballMass ?? 1) * e.sim.ballMass;
+    for (const t of e.removeTags ?? []) tags.delete(t);
+    for (const t of e.addTags ?? []) tags.add(t);
+    if (e.yardPays === false) ctx.shotMult.yard = 0;
+    if (e.comboWindowMult) ctx.comboWindow *= e.comboWindowMult;
+    if (e.tiltSensitivityMult) ctx.tiltSensitivity *= e.tiltSensitivityMult;
+    if (e.lockdown) ctx.lockdown = true;
+    if (e.bonusKeepMult) ctx.bonusKeep *= e.bonusKeepMult;
+    if (e.noBallSave) ctx.ballSave = 0;
+    if (e.deadLanes) ctx.deadLanes = true;
+    if (e.blackout) ctx.blackout = true;
+  }
+  const machine = JSON.parse(JSON.stringify(s.machine)) as MachineState;
+  if (m.noKickback) machine.kickback = false;
+  return { seed, tags: [...tags], mods: sim, machine, ctx };
 }
 
 export interface BallOutcome {
@@ -268,6 +379,8 @@ export interface BallResult {
   gained: number;
   /** The Job completed by this ball, if any. */
   jobDone: JobDef | null;
+  /** Debt added by Head Count. */
+  debtAdded: number;
 }
 
 /** Commit a finished ball. */
@@ -281,6 +394,11 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
   s.ballsPlayed++;
   s.ballsThisRound += o.extraBalls;
   for (const l of o.levelUps) s.shotLevels[l]++;
+  let debtAdded = 0;
+  for (const d of activeSentences(s)) {
+    if (d.effect.drainDebt) debtAdded += Math.round(s.debt * d.effect.drainDebt);
+  }
+  s.debt += debtAdded;
   const st = s.stats;
   st.balls++;
   st.coinsEarned += gained;
@@ -305,8 +423,10 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
     }
   }
   s.phase = 'betweenBalls';
-  return { gained, jobDone };
+  return { gained, jobDone, debtAdded };
 }
+
+// ------------------------------------------------------------------ ATM
 
 /** Move coins from Pocket to Bank. Deposits are final. */
 export function deposit(s: RunState, amount: number): number {
@@ -316,32 +436,167 @@ export function deposit(s: RunState, amount: number): number {
   return a;
 }
 
+/** Coins still borrowable this deadline (none in the last deadline). */
+export function loanAvailable(s: RunState): number {
+  if (s.deadline >= s.deadlines - 1 || s.phase === 'over') return 0;
+  return Math.max(0, Math.floor(s.debt * ECONOMY.loanCap) - s.loanTaken);
+}
+
+/** What borrowing `amount` adds to the next deadline's debt. */
+export function loanCost(s: RunState, amount: number): number {
+  return Math.ceil(amount * s.mods.loanRate);
+}
+
+/** Borrow into the Pocket; repaid on top of the next debt. */
+export function borrow(s: RunState, amount: number): number {
+  const a = Math.max(0, Math.min(Math.floor(amount), loanAvailable(s)));
+  if (a <= 0) return 0;
+  s.pocket += a;
+  s.loanTaken += a;
+  s.loanDue += loanCost(s, a);
+  s.stats.loans++;
+  return a;
+}
+
+export function interestRate(s: RunState): number {
+  return ECONOMY.interest + s.mods.interestAdd;
+}
+
 /** End the round once all balls are played: interest, then next round or the deadline. */
 export function endRound(s: RunState): void {
   if (ballsLeft(s) > 0) return;
-  s.bank += Math.floor(s.bank * ECONOMY.interest);
+  if (sentenceActive(s)) s.stats.sentencesSurvived++;
+  s.bank += Math.floor(s.bank * interestRate(s));
   s.round++;
   s.machine = newMachineState();
   if (s.round >= ECONOMY.roundsPerDeadline) s.phase = 'deadline';
   else postJobs(s);
 }
 
-/** Settle the deadline. Returns true if paid (run continues), false if the floor opens. */
+/** Paying early is possible at the start of a round once the Bank covers the debt. */
+export function canPayEarly(s: RunState): boolean {
+  return s.phase === 'pickJob' && s.bank >= s.debt;
+}
+
+/** Pay now and skip the rest of the deadline (Sentence round included) for tickets. */
+export function payEarly(s: RunState): boolean {
+  if (!canPayEarly(s)) return false;
+  const skipped = ECONOMY.roundsPerDeadline - s.round;
+  s.tickets += ECONOMY.payEarlyTickets * skipped;
+  s.stats.earlyPays++;
+  s.phase = 'deadline';
+  return settleDeadline(s);
+}
+
+/** Settle the deadline. Returns true if paid (the phone rings), false if the floor opens. */
 export function settleDeadline(s: RunState): boolean {
   if (s.bank >= s.debt) {
     s.bank -= s.debt;
     s.deadline++;
     s.round = 0;
+    s.job = null;
     if (s.deadline >= s.deadlines) {
       s.phase = 'over';
       s.result = 'paidInFull';
-    } else {
-      s.debt = debtFor(s.deadline);
-      postJobs(s);
-    }
+    } else ring(s);
     return true;
   }
   s.phase = 'over';
   s.result = 'fell';
   return false;
+}
+
+// ------------------------------------------------------------------ the phone
+
+function ring(s: RunState): void {
+  const rng = rngOf(s);
+  const odds = s.mods.redAccepted > 0 ? PHONE.redChanceAfterAccept : PHONE.redChance;
+  const bargains = BARGAINS.filter((b) => !s.bargains.includes(b.id));
+  if (bargains.length >= PHONE.bargainOffers && rng.chance(odds)) {
+    rng.shuffle(bargains);
+    s.call = { kind: 'red', offers: bargains.slice(0, PHONE.bargainOffers).map((b) => b.id) };
+    s.stats.redCalls++;
+  } else {
+    const pool = PERKS.filter((p) => SHOP_OPEN || !p.requires);
+    rng.shuffle(pool);
+    s.call = {
+      kind: 'perks',
+      offers: pool
+        .slice(0, PHONE.perkOffers)
+        .map((p) =>
+          p.effect.kind === 'levels' ? { id: p.id, shot: rng.pick(PERK_SHOTS) } : { id: p.id },
+        ),
+    };
+  }
+  s.rng = rng.getState();
+  s.phase = 'phone';
+}
+
+export function choosePerk(s: RunState, index: number): boolean {
+  if (s.phase !== 'phone' || s.call?.kind !== 'perks') return false;
+  const o = s.call.offers[index];
+  if (!o) return false;
+  const e = perkDef(o.id).effect;
+  const m = s.mods;
+  switch (e.kind) {
+    case 'charmSlot':
+      m.charmSlots++;
+      break;
+    case 'contrabandSlot':
+      m.contrabandSlots++;
+      break;
+    case 'freeBall':
+      m.freeBalls++;
+      break;
+    case 'levels':
+      s.shotLevels[o.shot ?? 'chute'] += e.amount;
+      break;
+    case 'ballSave':
+      m.ballSaveAdd += e.seconds;
+      break;
+    case 'bonusMax':
+      m.bonusMaxAdd++;
+      break;
+    case 'tickets':
+      s.tickets += e.amount;
+      break;
+    case 'interest':
+      m.interestAdd += e.amount;
+      break;
+    case 'rerolls':
+      m.rerollDiscount++;
+      break;
+  }
+  return hangUp(s);
+}
+
+export function acceptBargain(s: RunState, index: number): boolean {
+  if (s.phase !== 'phone' || s.call?.kind !== 'red') return false;
+  const id = s.call.offers[index];
+  if (!id) return false;
+  const e = bargainDef(id).effect;
+  const m = s.mods;
+  if (e.payMult) m.payMult *= e.payMult;
+  if (e.debtMult) m.debtMult *= e.debtMult;
+  if (e.tickets) s.tickets += e.tickets;
+  if (e.keys) s.keys += e.keys;
+  if (e.luck) m.luck += e.luck;
+  if (e.ballSaveAdd) m.ballSaveAdd += e.ballSaveAdd;
+  if (e.tiltSensitivity) m.tiltSensitivity *= e.tiltSensitivity;
+  if (e.extraWarnings) m.extraWarnings += e.extraWarnings;
+  if (e.flipperStrength) m.flipperStrength *= e.flipperStrength;
+  for (const [k, v] of Object.entries(e.levels ?? {}) as [ShotType, number][]) s.shotLevels[k] += v;
+  if (e.noFreeBall) m.noFreeBall = true;
+  if (e.noKickback) m.noKickback = true;
+  m.redAccepted++;
+  s.bargains.push(id);
+  return hangUp(s);
+}
+
+/** Put the receiver down (declining a red call) and start the next deadline. */
+export function hangUp(s: RunState): boolean {
+  if (s.phase !== 'phone') return false;
+  s.call = null;
+  startDeadline(s);
+  return true;
 }

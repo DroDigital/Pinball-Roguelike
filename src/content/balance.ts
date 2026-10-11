@@ -263,4 +263,25 @@ export const ECONOMY = {
   /** Ball price added per deadline after the first. */
   ballPricePerDeadline: 2,
   interest: 0.1,
+  /** Loans: borrow up to this fraction of the current debt per deadline. */
+  loanCap: 0.5,
+  /** Tickets per round skipped by paying a deadline early. */
+  payEarlyTickets: 2,
+};
+
+/** Sentences. */
+export const SENTENCE = {
+  /** Rounds (0-based) a Sentence applies to; the last round normally. */
+  rounds: [2],
+  /** Deadline 8 (Last Call) stacks two Sentences on its last round. */
+  lastCallCount: 2,
+};
+
+/** The phone after each cleared deadline. */
+export const PHONE = {
+  perkOffers: 3,
+  /** Red-call odds, and the odds once one has been accepted. */
+  redChance: 0.25,
+  redChanceAfterAccept: 0.4,
+  bargainOffers: 2,
 };

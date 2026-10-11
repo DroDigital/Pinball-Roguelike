@@ -28,6 +28,9 @@ export class World {
   readonly cabinet = new THREE.Group();
   readonly bulb: THREE.PointLight;
   readonly bulbMesh: THREE.Mesh;
+  private readonly fill: THREE.HemisphereLight;
+  private readonly key: THREE.DirectionalLight;
+  private readonly gi: THREE.PointLight[] = [];
   private readonly camPos = new THREE.Vector3();
   private readonly camLook = new THREE.Vector3();
   private readonly goalPos = new THREE.Vector3();
@@ -81,7 +84,8 @@ export class World {
 
     // Lights: a dim cell lit by one bare bulb; the machine's GI makes the playfield the
     // brightest thing in the room so it always reads.
-    this.scene.add(new THREE.HemisphereLight(0x8a7458, 0x140c08, 1.1));
+    this.fill = new THREE.HemisphereLight(0x8a7458, 0x140c08, 1.1);
+    this.scene.add(this.fill);
     this.bulb = new THREE.PointLight(0xffd59a, 1800, 140, 2);
     this.bulb.position.set(0, 26, 12);
     this.scene.add(this.bulb);
@@ -94,6 +98,7 @@ export class World {
     const key = new THREE.DirectionalLight(0xfff2dd, 2.2);
     key.position.set(-4, 30, 14);
     this.scene.add(key);
+    this.key = key;
     // GI strings down both side rails plus the backbox spill.
     for (const [x, z, c, i] of [
       [-9, 14, 0xffc890, 40],
@@ -107,10 +112,22 @@ export class World {
       const l = new THREE.PointLight(c, i, 22, 1.6);
       l.position.set(x, 3.2, z);
       this.table.root.add(l);
+      this.gi.push(l);
     }
     this.goalFor('title');
     this.camPos.copy(this.goalPos);
     this.camLook.copy(this.goalLook);
+  }
+
+  /** Blackout Sentence: the room and the machine's GI go dark; only the balls glow. */
+  setBlackout(on: boolean): void {
+    if (this.table.blackout === on) return;
+    this.table.blackout = on;
+    const k = on ? 0.06 : 1;
+    this.fill.intensity = 1.1 * k;
+    this.key.intensity = 2.2 * k;
+    for (const l of this.gi) l.intensity = (l.userData.base ??= l.intensity) * k;
+    this.bulb.visible = !on;
   }
 
   setMode(m: CamMode): void {
