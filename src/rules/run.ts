@@ -813,10 +813,14 @@ export function canPayEarly(s: RunState): boolean {
 }
 
 /** Pay now and skip the rest of the deadline (Sentence round included) for tickets. */
+/** Tickets paying early would earn now. */
+export function payEarlyReward(s: RunState): number {
+  return ECONOMY.payEarlyTickets * (roundsIn(s) - s.round) + charmFx(s).payEarlyTickets;
+}
+
 export function payEarly(s: RunState): boolean {
   if (!canPayEarly(s)) return false;
-  const skipped = roundsIn(s) - s.round;
-  s.tickets += ECONOMY.payEarlyTickets * skipped + charmFx(s).payEarlyTickets;
+  s.tickets += payEarlyReward(s);
   if (owns(s, 'wardensKeyring')) s.keys++;
   s.stats.earlyPays++;
   s.phase = 'deadline';

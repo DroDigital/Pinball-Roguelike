@@ -64,6 +64,7 @@ import {
   jobCoins,
   canPayEarly,
   payEarly,
+  payEarlyReward,
   payScale,
   loanAvailable,
   loanCost,
@@ -1421,7 +1422,7 @@ export class GameApp {
               h(
                 'button',
                 { onclick: () => this.payEarlyFlow() },
-                `Pay the debt now (+${ECONOMY.payEarlyTickets * (ECONOMY.roundsPerDeadline - r.round)} tickets)`,
+                `Pay the debt now (+${payEarlyReward(r)} tickets)`,
               ),
             )
           : null,

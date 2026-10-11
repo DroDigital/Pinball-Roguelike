@@ -4,6 +4,12 @@
  * rate-limited so the Warden comments rather than narrates.
  */
 const REACT_COOLDOWN_MS = 12000;
+/** Who speaks aloud, and how; narration and sounds ("THE WALL") stay on screen only. */
+const VOICES: Record<string, { pitch: number; rate: number }> = {
+  'THE WARDEN': { pitch: 0.35, rate: 0.82 },
+  'THE RED PHONE': { pitch: 0.15, rate: 0.72 },
+  'NEXT DOOR': { pitch: 0.95, rate: 0.85 },
+};
 const MS_PER_CHAR = 55;
 const MIN_MS = 2600;
 
@@ -22,7 +28,8 @@ export class Subtitles {
 
   /** Show (and maybe speak) a line now. `show` false only speaks it (a panel shows it). */
   say(speaker: string, text: string, show = true): void {
-    if (this.voice) this.speak(text);
+    const v = VOICES[speaker];
+    if (this.voice && v) this.speak(text, v.pitch, v.rate);
     if (!show) return;
     this.el.replaceChildren();
     // Narration has no speaker label.
@@ -54,7 +61,7 @@ export class Subtitles {
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
   }
 
-  private speak(text: string): void {
+  private speak(text: string, pitch: number, rate: number): void {
     if (typeof speechSynthesis === 'undefined') return;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -66,8 +73,8 @@ export class Subtitles {
         null;
     }
     if (this.chosen) u.voice = this.chosen;
-    u.pitch = 0.35;
-    u.rate = 0.82;
+    u.pitch = pitch;
+    u.rate = rate;
     u.volume = 0.9;
     speechSynthesis.speak(u);
   }
