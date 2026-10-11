@@ -19,10 +19,16 @@ npm run dev        # open http://localhost:5173
 | Flippers | Z / Slash, Shift L / R, arrows       | bumpers / triggers         | left / right half of the screen      |
 | Plunger  | hold Space or Down, release to fire  | A (right stick for analog) | drag down in the bottom-right corner |
 | Nudge    | X (up), C (left), V (right)          | Y, d-pad left / right      | three fingers                        |
+| Lockbar  | B (first charged active charm), 1-5  |                            | lockbar button                       |
+| Look     | A / D between balls                  |                            |                                      |
 | Menus    | flippers move, Space / Enter selects |                            | tap                                  |
 
 Skill shot: tap a flipper while the ball sits in the shooter lane to move the lit top lane,
 then pull the plunger to the mark on the meter.
+
+Pick an inmate from the lineup (more unlock as you play, along with Hard Time levels and
+Endless). Your run autosaves at the start of every round; **Continue** picks it up. The
+title's **Rap sheet** keeps your lifetime stats, endings and everything you've found.
 
 URL options: `?seed=ABC` (fixed run seed), `?bot=novice|average|expert` (the bot plays your
 balls), `?dev` (dev panel).

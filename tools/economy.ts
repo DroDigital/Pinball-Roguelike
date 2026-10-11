@@ -4,6 +4,7 @@
  *   npm run economy -- [--runs 2000] [--skill average] [--mode sampled|physics] [--workers N]
  *     [--red] (accept red-call bargains) [--loans] (borrow to cover a shortfall)
  *     [--arch none|random|yard|chute|riot|bonus|luck|money|lone] (shop policy)
+ *     [--inmate debtor|embezzler|brawler|lifer|escapeArtist|snitch] [--hard 0-8] (Hard Time)
  * sampled: ball earnings drawn from tools/out/botstats.json (run `npm run botstats` first).
  *          Fast; good for tuning debt curves, prices and interest.
  * physics: every ball is played by the bot on the real table (slow; use few runs).
@@ -14,6 +15,8 @@ import { Bot, type BotSkillName } from '../src/bot/bot';
 import { BallSession, type BallSnapshot } from '../src/rules/session';
 import { ECONOMY } from '../src/content/balance';
 import {
+  answerKnock,
+  canHelp,
   newRun,
   buyBalls,
   maxAffordableBalls,
@@ -75,6 +78,8 @@ interface Policy {
   loans: boolean;
   /** Shop archetype: buy charms with this tag ('none' buys nothing, 'random' anything). */
   arch: string;
+  inmate: string;
+  hardTime: number;
 }
 
 /** Shot each archetype levels with Oil Cans and aims the bot at. */
@@ -154,10 +159,14 @@ function playRun(
   ball: (snap: BallSnapshot, r: RunState) => BallOutcome,
   policy: Policy,
 ): RunRow {
-  const r = newRun(`ECON${seed}`);
+  const r = newRun(`ECON${seed}`, { inmate: policy.inmate, hardTime: policy.hardTime });
   const funds: number[] = [];
   while (r.phase !== 'over') {
     if (r.phase === 'pickJob') {
+      // The neighbor: help when it's cheap and pays in Keys or the Tunnel tip.
+      const k = r.neighbor.knock;
+      if (k)
+        answerKnock(r, canHelp(r) && (k.offer === 'key' || k.offer === 'tip') && k.ask !== 'charm');
       shopFor(r, policy);
       if (canPayEarly(r)) {
         funds.push(r.bank);
@@ -240,6 +249,7 @@ function work(job: Job): RunRow[] {
             extraBalls: 0,
             paydayEnd: 0,
             charges: {},
+            jailbreak: 'none',
           })
         : (snap: BallSnapshot): BallOutcome => {
             const s = new BallSession(snap);
@@ -290,6 +300,8 @@ if (IS_MAIN) {
       red: args.includes('--red'),
       loans: args.includes('--loans'),
       arch: argStr(args, '--arch', 'none'),
+      inmate: argStr(args, '--inmate', 'debtor'),
+      hardTime: argNum(args, '--hard', 0),
     },
   }));
   const rows = (await runPool<Job, RunRow[]>(import.meta.url, jobs)).flat();
@@ -314,7 +326,7 @@ if (IS_MAIN) {
   }
   const balls = rows.map((r) => r.balls).sort((a, b) => a - b);
   console.log(`\nBalls per run: median ${quantile(balls, 0.5)}, p90 ${quantile(balls, 0.9)}`);
-  const winners = rows.filter((r) => r.result === 'paidInFull');
+  const winners = rows.filter((r) => r.result !== 'fell');
   console.log(
     `Wins: ${winners.length}/${rows.length} (${((winners.length / rows.length) * 100).toFixed(1)}%)`,
   );

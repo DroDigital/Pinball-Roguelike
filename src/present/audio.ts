@@ -267,6 +267,28 @@ export class Audio {
     this.tone({ type: 'sine', f0: f * 1.5, dur: 0.09, gain: 0.08, when: this.now + 0.01 });
   }
 
+  /** Knocking through the wall: muffled thuds. */
+  knock(n = 3): void {
+    for (let i = 0; i < n; i++) {
+      const when = this.now + i * 0.28 + (i === n - 1 ? 0.12 : 0);
+      this.tone({ type: 'sine', f0: 110, f1: 60, dur: 0.12, gain: 0.5, when });
+      this.noise({ dur: 0.05, freq: 300, q: 2, gain: 0.25, when, pan: -0.7 });
+    }
+  }
+
+  /** Metal giving way (JAILBREAK posts dropping, the wall coming down). */
+  clang(): void {
+    this.tone({ type: 'square', f0: 220, f1: 90, dur: 0.5, gain: 0.12 });
+    this.tone({ type: 'sine', f0: 640, f1: 410, dur: 0.9, gain: 0.1 });
+    this.noise({ dur: 0.4, freq: 1200, q: 1, gain: 0.25 });
+  }
+
+  /** The glass cracking. */
+  glassCrack(): void {
+    for (let i = 0; i < 5; i++)
+      this.noise({ dur: 0.03, freq: 5000 + i * 700, q: 8, gain: 0.2, when: this.now + i * 0.04 });
+  }
+
   /** A coin landing in the tray: a short metallic clatter. */
   clatter(): void {
     const f = 2300 + Math.random() * 1400;

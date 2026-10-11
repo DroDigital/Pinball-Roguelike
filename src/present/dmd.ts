@@ -295,6 +295,19 @@ function registerDefaultAnims(d: Dmd): void {
     dmd.text(c.text, 64, 4, { scale, align: 'center', v: Math.floor(t * 12) % 2 ? 15 : 11 });
     if (c.sub) dmd.text(c.sub, 64, 24, { font: FONT_SMALL, align: 'center' });
   });
+  // JAILBREAK: the bars bend apart from the middle, the text shakes through the gap.
+  d.registerAnim('jailbreak', (dmd, t, c) => {
+    const k = Math.min(1, t / 0.8);
+    for (let i = 0; i < 6; i++) {
+      const spread = Math.round(k * (6 + i * 4));
+      dmd.rect(58 - i * 10 - spread, 0, 2, 32, 5);
+      dmd.rect(68 + i * 10 + spread, 0, 2, 32, 5);
+    }
+    const jx = Math.round(Math.sin(t * 55) * (1 - k) * 3);
+    const scale = dmd.fitScale(c.text, FONT_LARGE, 124, 2);
+    dmd.text(c.text, 64 + jx, 4, { scale, align: 'center', v: Math.floor(t * 8) % 2 ? 15 : 12 });
+    if (c.sub) dmd.text(c.sub, 64, 24, { font: FONT_SMALL, align: 'center', v: 13 });
+  });
   d.registerAnim('count', (dmd, _t, c) => {
     dmd.text(c.text, 64, 3, { font: FONT_SMALL, align: 'center', v: 11 });
     if (c.sub) dmd.text(c.sub, 64, 12, { scale: 2, align: 'center' });

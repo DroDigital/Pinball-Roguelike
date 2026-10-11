@@ -227,8 +227,27 @@ dominate Riot wins; samples are small (24 runs).
 
 ### M6 — Story and meta
 
-- [ ] Neighbor, Keys, JAILBREAK, three endings, inmates, Hard Time
-- [ ] Unlocks, Rap Sheet, saves with migrations
+- [x] The neighbor: knocking between rounds (subtitled), asking for coins, tickets or a
+      charm and offering a Key, contraband, tickets or a tip; every answer is tracked
+- [x] The Tunnel: the neighbor's tip reveals a secret shot (knock the Cell Block down from
+      the top) that pays big on every later ball
+- [x] JAILBREAK on Last Call with 3 Keys, started at the Hole: 4-ball multiball, five lit
+      shots that relight when all are made, 12 to escape; the machine falls apart as you go
+      (the outlane posts physically drop at 3, the lights die at 6, the glass cracks at 9);
+      escaping ends the run on the spot, failing spends the Keys
+- [x] Three endings as scripted camera sequences: Paid in Full (the door opens on a corridor
+      of identical cells, each with a machine), Breakout (into the drain and out into
+      daylight), Cellmate (the wall comes down)
+- [x] Six inmates on a mugshot lineup, each with an upside and a downside; Hard Time 1-8
+      per inmate, each level stacking on the last
+- [x] Meta progression: 19 of 50 charms, five inmates and Endless start locked behind ten
+      milestones; the Rap Sheet shows lifetime stats, the endings log, milestones and the
+      collection of discovered charms, contraband and Sentences
+- [x] Saves v2 with a v1 migration; the run autosaves at the start of every round and
+      resumes from the title (Continue)
+- [x] Tests: inmates, Hard Time, the neighbor, the Tunnel, JAILBREAK, endings, Endless,
+      meta progression and save migrations; dev panel buttons for knocks, Last Call and
+      each ending
 
 ### M7 — Polish
 
@@ -384,3 +403,34 @@ Format: date — decision — why.
 - 2026-10-11 — Warden reactions during play wait 12 s between lines; tilt always speaks. —
   The Warden should comment, not narrate; the voice is off by default (speech synthesis
   varies a lot by browser).
+- 2026-10-11 — The neighbor knocks at a round break with 30% odds, at most once per
+  deadline, from deadline 2, and asks for something you have where possible. Coins come
+  from the Pocket, then the Bank. — "Sometimes" with a real choice each time; around three
+  or four knocks in a full run, which is what Cellmate needs (at least 3, all helped).
+- 2026-10-11 — The secret shot is the Tunnel: the Cell Block knocked down top to bottom. It
+  only pays once the neighbor has told you. — A real pinball-style hidden rule that rewards
+  aim, built from switches the table already has; gating it on the tip makes the tip worth
+  something and keeps random clears (1 in 6 orders) from paying it.
+- 2026-10-11 — JAILBREAK runs until the last ball drains, not until one ball is left; its
+  five lit shots relight once all are made. — Twelve shots is a long wizard mode; a lone
+  last ball fighting on is the most tense part of it. The falling-apart steps change the
+  physics (posts) as well as the presentation, so the mode gets harder as you near the door.
+- 2026-10-11 — JAILBREAK keeps the brief's 12 shots but saves balls for 15 s plus 4 s per
+  lit shot, and the bot aims at lit shots during it. — With a flat 10 s save the expert bot
+  made 3.8 lit shots on average and never got out. The bot aims poorly (about two major
+  shots a minute), so its numbers are a floor: with the new save it averages 4.6 (p90 8)
+  and the average bot escapes now and then. Breakout is meant to be the hardest ending.
+- 2026-10-11 — Cellmate's twist: the cell next door is yours, down to the tally marks, and
+  someone starts knocking behind you. — Unsettling and loop-shaped; the neighbor's lines
+  ("I would have said no too", "You always trust me, eventually") were written toward it.
+- 2026-10-11 — Locked content: 19 of the 50 shop charms, five inmates and Endless, over ten
+  milestones. Every archetype tag keeps unlocked charms from the first run. Balance tools
+  assume everything is unlocked (a returning player). — About a third, as briefed, without
+  making any build impossible early.
+- 2026-10-11 — Hard Time advances per inmate on any win at your highest level; Endless runs
+  don't advance it. Endless unlocks on any win. — Matches "unlocked per inmate by winning
+  at the previous level"; Endless has no win to count.
+- 2026-10-11 — The run autosaves at the start of each round and resumes there; a save from
+  another version of the run rules is dropped rather than migrated. — Round start is the one
+  point where the run state alone describes the screen. Meta progress (the part players
+  care about) is migrated.

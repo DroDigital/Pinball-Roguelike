@@ -38,6 +38,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  z-index: 8;
 }
 /* Landscape: DMD and stats in a left column beside the table. Portrait: DMD on top. */
 #hud .left {
@@ -121,6 +122,7 @@ body {
 #ui {
   position: fixed;
   inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -292,6 +294,131 @@ body {
   .fade {
     animation: none;
   }
+}
+
+/* ---- M6: lineup, knock, rap sheet, JAILBREAK glass, endings */
+.panel.lineup {
+  max-width: min(760px, 96vw);
+}
+.panel .mugs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.panel button.mugcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  width: 104px;
+  font-size: 0.7rem;
+}
+.panel button.mugcard.sel {
+  outline: 2px solid var(--amber);
+  background: #4a2410;
+}
+.panel button.mugcard small {
+  color: var(--dim);
+  text-transform: none;
+  font-size: 0.65rem;
+  line-height: 1.2;
+}
+.mug {
+  width: 88px;
+  height: 110px;
+  image-rendering: pixelated;
+}
+.panel .inmate {
+  margin-top: 12px;
+}
+.panel .up {
+  color: var(--green);
+}
+.panel .down {
+  color: var(--red);
+}
+.panel .ht {
+  align-self: center;
+  color: var(--amber);
+}
+.panel .htlist {
+  margin: 6px 0;
+  padding-left: 18px;
+  color: var(--red);
+  font-size: 0.8rem;
+}
+.panel.knock .neighbor {
+  font-family: Georgia, serif;
+  font-style: italic;
+  text-transform: none;
+  color: #d8c8a8;
+}
+.panel.rapsheet {
+  max-width: min(720px, 96vw);
+}
+.panel.rapsheet h3 {
+  color: var(--amber);
+  margin: 14px 0 4px;
+  font-size: 0.95rem;
+}
+.panel .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.panel .chip {
+  border: 1px solid var(--edge);
+  padding: 1px 5px;
+  font-size: 0.68rem;
+}
+.panel .chip.unknown {
+  color: #5a4a38;
+  border-style: dashed;
+}
+.panel .milestones {
+  padding-left: 4px;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--dim);
+}
+.panel .milestones .done {
+  color: var(--ink);
+}
+.panel .unlocks {
+  border: 1px solid var(--amber);
+  padding: 6px 10px;
+  margin: 8px 0;
+}
+#hud .right .job.jb {
+  color: #ff6a50;
+}
+canvas.cracks {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 5;
+}
+canvas.ending-sky {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  image-rendering: pixelated;
+  opacity: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.ending-white {
+  position: fixed;
+  inset: 0;
+  background: #fffaf0;
+  opacity: 0;
+  z-index: 6;
+  pointer-events: none;
 }
 
 @media (max-aspect-ratio: 6/5) {

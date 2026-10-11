@@ -9,18 +9,18 @@ import { CONTRABAND, contrabandDef } from '../content/contraband';
 import type { ShotType } from '../sim/table-def';
 import { ballPrice, charmFx, debtScale, gainCharm, rngOf, type RunState } from './run';
 
-/** Charms that start locked (meta progression) are filtered by the caller via `locked`. */
-export function restock(s: RunState, locked: ReadonlySet<string> = new Set()): void {
+/** Restock the cabinet; charms still locked by meta progression never appear. */
+export function restock(s: RunState): void {
   const rng = rngOf(s);
   const pool = CHARMS.filter(
     (c) =>
       c.rarity !== 'devil' &&
       !s.charms.includes(c.id) &&
-      !locked.has(c.id) &&
+      !s.locked.includes(c.id) &&
       (c.rarity !== 'legendary' || s.deadline >= SHOP.legendaryFrom),
   );
   const picks: string[] = [];
-  for (let i = 0; i < SHOP.charmOffers && pool.length; i++) {
+  for (let i = 0; i < s.mods.shopCharms && pool.length; i++) {
     const c = rng.weighted(pool, (x) => SHOP.rarityWeights[x.rarity as Exclude<Rarity, 'devil'>]);
     picks.push(c.id);
     pool.splice(pool.indexOf(c), 1);
@@ -44,15 +44,15 @@ function scaled(s: RunState, coins: number): number {
 
 export function rerollCost(s: RunState): number {
   const base = scaled(s, SHOP.rerollBase + SHOP.rerollStep * s.shop.rerolls);
-  return Math.max(1, base - s.mods.rerollDiscount);
+  return Math.max(1, base - s.mods.rerollDiscount) * s.mods.rerollMult;
 }
 
-export function reroll(s: RunState, locked?: ReadonlySet<string>): boolean {
+export function reroll(s: RunState): boolean {
   const c = rerollCost(s);
   if (s.pocket < c) return false;
   s.pocket -= c;
   s.shop.rerolls++;
-  restock(s, locked);
+  restock(s);
   return true;
 }
 

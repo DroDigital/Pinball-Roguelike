@@ -12,6 +12,12 @@ import { Lamp } from '../rules/types';
 export function litChooser(game: TableGame): TargetChooser {
   return (side) => {
     const L = game.lamps;
+    if (game.jailbreak) {
+      // Aim at whatever is still lit.
+      const lit = game.jbLit;
+      if (side === 'right') return lit.has('chute') ? 'chute' : lit.has('hole') ? 'hole' : 'chute';
+      return lit.has('cellblock') ? 'cellblock' : lit.has('perimL') ? 'perimeter' : 'cellblock';
+    }
     if (side === 'right') {
       if (L.arrowChute === Lamp.Fast) return 'chute';
       if ((L.arrowHole ?? Lamp.Off) !== Lamp.Off) return 'hole';
@@ -27,7 +33,7 @@ export function attachBot(bot: Bot, session: BallSession): Bot {
   bot.skillLane = () => session.game.machine.skillLane;
   bot.chooseTarget = litChooser(session.game);
   const g = session.game;
-  bot.hurry = () => g.combo.active(g.time) || g.hurryLeft > 0 || g.riot;
+  bot.hurry = () => g.combo.active(g.time) || g.hurryLeft > 0 || g.riot || g.jailbreak;
   return bot;
 }
 

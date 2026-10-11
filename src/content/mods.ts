@@ -4,6 +4,7 @@
  * building each ball. Additive fields add, `...Mult` fields multiply.
  */
 import type { ShotType } from '../sim/table-def';
+import { PHONE, SENTENCE, SHOP } from './balance';
 
 export interface RunMods {
   charmSlots: number;
@@ -33,6 +34,18 @@ export interface RunMods {
   noFreeBall: boolean;
   /** Per-shot pay multipliers. */
   shotMult: Partial<Record<ShotType, number>>;
+  /** Reroll price multiplier (Embezzler 2). */
+  rerollMult: number;
+  /** Perks the phone offers. */
+  phoneOffers: number;
+  noRedCalls: boolean;
+  noNeighbor: boolean;
+  /** Final rounds of a deadline under its Sentence (Hard Time 2: 2). */
+  sentenceRounds: number;
+  ballSaveMult: number;
+  /** Charms stocked by the vending cabinet. */
+  shopCharms: number;
+  redChanceAdd: number;
 }
 
 export function defaultRunMods(): RunMods {
@@ -56,5 +69,13 @@ export function defaultRunMods(): RunMods {
     redAccepted: 0,
     noFreeBall: false,
     shotMult: {},
+    rerollMult: 1,
+    phoneOffers: PHONE.perkOffers,
+    noRedCalls: false,
+    noNeighbor: false,
+    sentenceRounds: SENTENCE.lastRounds,
+    ballSaveMult: 1,
+    shopCharms: SHOP.charmOffers,
+    redChanceAdd: 0,
   };
 }

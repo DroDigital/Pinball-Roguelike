@@ -316,3 +316,47 @@ export const CONTRABAND_FX = {
   moonshineLuck: 8,
   forgedReceiptBonus: 0.2,
 };
+
+/** The neighbor knocking through the wall between rounds. */
+export const NEIGHBOR = {
+  /** Chance of a knock at each round break (at most one per deadline). */
+  knockChance: 0.3,
+  /** First deadline (0-based) the neighbor knocks in. */
+  fromDeadline: 1,
+  /** Coins asked, as a share of this deadline's base debt. */
+  coinShare: 0.12,
+  ticketsAsked: 2,
+  /** Weights for what they offer back; the tip is offered once per run. */
+  offerWeights: { key: 2, contraband: 4, tip: 3, tickets: 2 },
+  ticketsOffered: 3,
+  /** Asks needed, every one helped, for the Cellmate ending. */
+  cellmateMinAsks: 3,
+};
+
+/** The Tunnel: the neighbor's secret shot (Cell Block knocked down top to bottom). */
+export const SECRET = {
+  tunnel: 40,
+};
+
+/** JAILBREAK: the wizard mode at the Hole on Last Call with enough Keys. */
+export const JAILBREAK = {
+  keys: 3,
+  balls: 4,
+  shotsToEscape: 12,
+  /** Multiball save from the start (plus the release time). */
+  ballSave: 15,
+  /** Every lit shot buys this much more save (the guards are busy with the noise). */
+  savePerShot: 4,
+  releaseGap: 1.0,
+  /** Each lit shot pays this base times the shots made so far. */
+  shotValue: 6,
+  /** The machine falls apart: outlane posts drop, lights die, the glass cracks. */
+  postsDropAt: 3,
+  lightsDieAt: 6,
+  glassCracksAt: 9,
+};
+
+/** Endless (unlocked by Paid in Full): deadlines keep coming. */
+export const ENDLESS = {
+  deadlines: 99,
+};

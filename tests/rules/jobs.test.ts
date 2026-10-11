@@ -24,6 +24,7 @@ const ball = (stats: Partial<BallStats> = {}, extra: Partial<BallOutcome> = {}):
   extraBalls: 0,
   paydayEnd: 0,
   charges: {},
+  jailbreak: 'none',
   ...extra,
 });
 

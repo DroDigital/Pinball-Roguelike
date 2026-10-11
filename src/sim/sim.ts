@@ -199,7 +199,8 @@ export interface SimOptions {
 export class PinballSim {
   readonly table: TableDef;
   readonly cfg: SimConfig;
-  readonly tags: ReadonlySet<string>;
+  /** Enabled tags (JAILBREAK can remove one mid-ball, see removeTag). */
+  tags: ReadonlySet<string>;
   readonly world: World;
   readonly rng: Rng;
   readonly events = new EventRing(4096);
@@ -753,6 +754,26 @@ export class PinballSim {
     setVel(b.body, sgn * 2.5, this.cfg.kickers.luckyKickSpeed);
     b.lastOutlaneStep = -1e9;
     this.events.push('luckyKick', '', b.id, 0, 0, b.x, b.y, this.step);
+  }
+
+  /**
+   * Tear out every static post and wall with this tag (JAILBREAK drops the outlane posts).
+   * A rules command: call between steps, never from a contact callback.
+   */
+  removeTag(tag: string): void {
+    if (!this.tags.has(tag)) return;
+    const ids = new Set<string>();
+    for (const p of this.table.posts) if (p.tag === tag) ids.add(p.id);
+    for (const w of this.table.walls) if (w.tag === tag) ids.add(w.id);
+    for (let f = this.ground.getFixtureList(); f; ) {
+      const next = f.getNext();
+      const t = f.getUserData() as FixTag;
+      if (t.kind !== FixKind.OneWay && ids.has(t.id)) this.ground.destroyFixture(f);
+      f = next;
+    }
+    const tags = new Set(this.tags);
+    tags.delete(tag);
+    this.tags = tags;
   }
 
   setKickback(armed: boolean): void {

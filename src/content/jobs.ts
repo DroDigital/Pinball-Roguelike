@@ -26,6 +26,9 @@ export interface BallStats {
   seconds: number;
   earned: number;
   luckyBounces: number;
+  /** The neighbor's secret shot. */
+  tunnels: number;
+  jailbreakShots: number;
 }
 
 export function emptyBallStats(): BallStats {
@@ -49,6 +52,8 @@ export function emptyBallStats(): BallStats {
     seconds: 0,
     earned: 0,
     luckyBounces: 0,
+    tunnels: 0,
+    jailbreakShots: 0,
   };
 }
 

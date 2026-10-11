@@ -149,6 +149,15 @@ export function attachDevPanel(app: GameApp): void {
   run.addButton({ title: 'Restock shop' }).on('click', () => app.run && restock(app.run));
   run.addButton({ title: 'Skip deadline (paid)' }).on('click', () => app.devSkipDeadline());
   run.addButton({ title: 'Trapdoor' }).on('click', () => app.fall());
+  run.addButton({ title: 'Knock (next round)' }).on('click', () => app.devKnock());
+  run.addButton({ title: 'Last Call + 3 Keys' }).on('click', () => {
+    const r = app.run;
+    if (!r) return;
+    r.keys = Math.max(r.keys, 3);
+    while (r.deadline < r.deadlines - 1 && r.phase !== 'over') app.devSkipDeadline();
+  });
+  for (const k of ['paidInFull', 'breakout', 'cellmate'] as const)
+    run.addButton({ title: `Ending: ${k}` }).on('click', () => app.devEnding(k));
 
   // ---- tuning
   const tune = pane.addFolder({ title: 'Physics (next ball)', expanded: false });

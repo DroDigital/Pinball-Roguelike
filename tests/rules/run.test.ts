@@ -30,6 +30,7 @@ const outcome = (earned: number, tilted = false, bonus = 0): BallOutcome => ({
   extraBalls: 0,
   paydayEnd: 0,
   charges: {},
+  jailbreak: 'none',
 });
 
 /** New run with the first Job taken, ready to buy balls. */

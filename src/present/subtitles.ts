@@ -25,9 +25,13 @@ export class Subtitles {
     if (this.voice) this.speak(text);
     if (!show) return;
     this.el.replaceChildren();
-    const who = document.createElement('b');
-    who.textContent = `${speaker}: `;
-    this.el.append(who, text);
+    // Narration has no speaker label.
+    if (speaker) {
+      const who = document.createElement('b');
+      who.textContent = `${speaker}: `;
+      this.el.append(who);
+    }
+    this.el.append(text);
     this.el.style.opacity = '1';
     window.clearTimeout(this.timer);
     this.timer = window.setTimeout(

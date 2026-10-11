@@ -9,11 +9,18 @@ import {
   BONUS,
   CONTRABAND_FX,
   ECONOMY,
+  ENDLESS,
+  JAILBREAK,
   JOBS,
   LUCK,
+  NEIGHBOR,
   PHONE,
   SENTENCE,
 } from '../content/balance';
+import { CONTRABAND } from '../content/contraband';
+import { HARD_TIME, MAX_HARD_TIME } from '../content/hard-time';
+import { inmateDef } from '../content/inmates';
+import type { NeighborAsk, NeighborOffer } from '../content/neighbor';
 import { CHARMS, charmDef } from '../content/charms';
 import { foldCharms, type FoldedFx } from './charms';
 import { RUN_HOOK } from './charm-hooks';
@@ -61,6 +68,8 @@ export interface RunStats {
   earlyPays: number;
   redCalls: number;
   charmsBought: number;
+  jailbreaks: number;
+  tunnels: number;
 }
 
 export interface JobOffer {
@@ -87,9 +96,50 @@ export interface ShopState {
   rerolls: number;
 }
 
+/** A knock on the wall: what the neighbor asks for and what they offer back. */
+export interface NeighborKnock {
+  ask: NeighborAsk;
+  /** Coins or tickets asked. */
+  amount: number;
+  /** The charm asked for. */
+  charm?: string;
+  offer: NeighborOffer;
+  /** Contraband offered, or tickets offered. */
+  item?: string;
+  offerAmount?: number;
+}
+
+export interface NeighborState {
+  asked: number;
+  helped: number;
+  /** The Tunnel tip has been given. */
+  tip: boolean;
+  /** Knocked already this deadline. */
+  knocked: boolean;
+  knock: NeighborKnock | null;
+}
+
+export interface RunOptions {
+  deadlines?: number;
+  inmate?: string;
+  hardTime?: number;
+  /** Charms still locked by meta progression (never offered). */
+  locked?: string[];
+  /** Endless: deadlines keep coming (unlocked by Paid in Full). */
+  endless?: boolean;
+}
+
+export const RUN_VERSION = 3;
+
 export interface RunState {
-  version: 2;
+  version: 3;
   seed: string;
+  inmate: string;
+  hardTime: number;
+  endless: boolean;
+  /** Locked charms (meta progression) never appear in the shop or on the phone. */
+  locked: string[];
+  neighbor: NeighborState;
   rng: RngState;
   deadline: number;
   round: number;
@@ -154,13 +204,19 @@ export function debtScale(deadline: number): number {
   return Math.pow(ECONOMY.debtGrowth, deadline) * JOBS.coinScale;
 }
 
-export function newRun(seed: string, opts: { deadlines?: number } = {}): RunState {
+export function newRun(seed: string, opts: RunOptions = {}): RunState {
   const rng = new Rng(hashString(seed));
   const levels = {} as Record<ShotType, number>;
   for (const t of SHOT_TYPES) levels[t] = 1;
+  const endless = !!opts.endless;
   const s: RunState = {
-    version: 2,
+    version: RUN_VERSION,
     seed,
+    inmate: opts.inmate ?? 'debtor',
+    hardTime: Math.max(0, Math.min(MAX_HARD_TIME, opts.hardTime ?? 0)),
+    endless,
+    locked: [...(opts.locked ?? [])],
+    neighbor: { asked: 0, helped: 0, tip: false, knocked: false, knock: null },
     rng: rng.getState(),
     deadline: 0,
     round: 0,
@@ -214,11 +270,58 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
       earlyPays: 0,
       redCalls: 0,
       charmsBought: 0,
+      jailbreaks: 0,
+      tunnels: 0,
     },
-    deadlines: opts.deadlines ?? ECONOMY.deadlines,
+    deadlines: endless ? ENDLESS.deadlines : (opts.deadlines ?? ECONOMY.deadlines),
   };
+  applyInmate(s);
+  applyHardTime(s);
   startDeadline(s);
   return s;
+}
+
+function applyInmate(s: RunState): void {
+  const fx = inmateDef(s.inmate).fx;
+  const m = s.mods;
+  if (fx.charmSlots) m.charmSlots = fx.charmSlots;
+  if (fx.flipperStrength) m.flipperStrength *= fx.flipperStrength;
+  if (fx.tiltSensitivity) m.tiltSensitivity *= fx.tiltSensitivity;
+  if (fx.rerollMult) m.rerollMult *= fx.rerollMult;
+  if (fx.debtMult) m.debtMult *= fx.debtMult;
+  if (fx.freeBalls) m.freeBalls += fx.freeBalls;
+  if (fx.phoneOffersAdd) m.phoneOffers += fx.phoneOffersAdd;
+  if (fx.noRedCalls) m.noRedCalls = true;
+  if (fx.noNeighbor) m.noNeighbor = true;
+  if (fx.keys) s.keys += fx.keys;
+  for (const id of fx.charms ?? []) gainCharm(s, id);
+  for (const id of fx.contraband ?? []) s.contraband.push(id);
+}
+
+/** Hard Time levels stack: level n applies every level up to n. */
+function applyHardTime(s: RunState): void {
+  const m = s.mods;
+  for (const h of HARD_TIME) {
+    if (h.level > s.hardTime) break;
+    const fx = h.fx;
+    if (fx.debtMult) m.debtMult *= fx.debtMult;
+    if (fx.sentenceRounds) m.sentenceRounds = fx.sentenceRounds;
+    if (fx.ballSaveMult) m.ballSaveMult *= fx.ballSaveMult;
+    if (fx.shopCharms) m.shopCharms = fx.shopCharms;
+    if (fx.interestAdd) m.interestAdd += fx.interestAdd;
+    if (fx.ballPriceMult) m.ballPriceMult *= fx.ballPriceMult;
+    if (fx.redChanceAdd) m.redChanceAdd += fx.redChanceAdd;
+  }
+}
+
+/** Deadline 8: two Sentences, no loans, and JAILBREAK for those holding the Keys. */
+export function lastCall(s: RunState): boolean {
+  return !s.endless && s.deadline === s.deadlines - 1;
+}
+
+/** JAILBREAK is lit at the Hole: Last Call with enough Keys. */
+export function jailbreakLit(s: RunState): boolean {
+  return lastCall(s) && s.keys >= JAILBREAK.keys;
 }
 
 /** Folded static effects of the owned charms. */
@@ -273,10 +376,12 @@ export function startDeadline(s: RunState): void {
   const hi = maxTier(s.deadline);
   const pool = SENTENCES.filter((d) => d.tier >= lo && d.tier <= hi);
   rng.shuffle(pool);
-  const n = s.deadline === s.deadlines - 1 ? SENTENCE.lastCallCount : 1;
+  const n = lastCall(s) ? SENTENCE.lastCallCount : 1;
   s.sentences = pool.slice(0, n).map((d) => d.id);
   s.rng = rng.getState();
   s.extraRounds = 0;
+  s.neighbor.knocked = false;
+  s.neighbor.knock = null;
   refill(s, true);
   restock(s);
   resetRoundState(s);
@@ -292,7 +397,9 @@ function resetRoundState(s: RunState): void {
 /** Is a Sentence in force this round? */
 export function sentenceActive(s: RunState): boolean {
   return (
-    !s.sentencesCancelled && s.sentences.length > 0 && s.round >= roundsIn(s) - SENTENCE.lastRounds
+    !s.sentencesCancelled &&
+    s.sentences.length > 0 &&
+    s.round >= roundsIn(s) - s.mods.sentenceRounds
   );
 }
 
@@ -426,7 +533,9 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     ...base,
     shotLevels: { ...s.shotLevels },
     shotMult,
-    ballSave: f.noBallSave ? 0 : Math.max(0, BALL.ballSave + m.ballSaveAdd + f.ballSaveAdd),
+    ballSave: f.noBallSave
+      ? 0
+      : Math.max(0, (BALL.ballSave + m.ballSaveAdd + f.ballSaveAdd) * m.ballSaveMult),
     tiltSensitivity: m.tiltSensitivity,
     extraWarnings: m.extraWarnings + f.extraWarnings,
     payMult:
@@ -463,6 +572,8 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     }),
     chalk: p.chalk,
     moonshine: p.moonshine,
+    tunnel: s.neighbor.tip,
+    jailbreak: jailbreakLit(s),
     ballNumber,
     ballsInRound: s.ballsThisRound,
     job:
@@ -515,6 +626,8 @@ export interface BallOutcome {
   paydayEnd: number;
   /** Active charm charges left after the ball. */
   charges: Record<string, number>;
+  /** JAILBREAK this ball: not started, failed, or escaped. */
+  jailbreak: 'none' | 'failed' | 'escaped';
 }
 
 export interface BallResult {
@@ -554,6 +667,7 @@ export function emptyOutcome(machine: MachineState = newMachineState()): BallOut
     extraBalls: 0,
     paydayEnd: 0,
     charges: {},
+    jailbreak: 'none',
   };
 }
 
@@ -588,6 +702,12 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
   st.biggestPayday = Math.max(st.biggestPayday, o.stats.biggestPayday);
   st.longestCombo = Math.max(st.longestCombo, o.stats.maxCombo);
   st.biggestBonus = Math.max(st.biggestBonus, o.bonus);
+  st.tunnels += o.stats.tunnels;
+  if (o.jailbreak !== 'none') {
+    // The Keys open the gate whether or not you make it through.
+    s.keys = Math.max(0, s.keys - JAILBREAK.keys);
+    st.jailbreaks++;
+  }
   let jobDone: JobDef | null = null;
   if (s.job && !s.job.done) {
     const def = jobDef(s.job.id);
@@ -600,6 +720,10 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
     }
   }
   s.phase = 'betweenBalls';
+  if (o.jailbreak === 'escaped') {
+    s.phase = 'over';
+    s.result = 'breakout';
+  }
   return { gained, jobDone, debtAdded };
 }
 
@@ -619,7 +743,7 @@ export function deposit(s: RunState, amount: number): number {
 
 /** Coins still borrowable this deadline (none in the last deadline). */
 export function loanAvailable(s: RunState): number {
-  if (s.deadline >= s.deadlines - 1 || s.phase === 'over') return 0;
+  if (lastCall(s) || s.phase === 'over') return 0;
   return Math.max(0, Math.floor(s.debt * ECONOMY.loanCap) - s.loanTaken);
 }
 
@@ -662,7 +786,10 @@ export function endRound(s: RunState): void {
   resetRoundState(s);
   refill(s, false);
   if (s.round >= roundsIn(s)) s.phase = 'deadline';
-  else postJobs(s);
+  else {
+    postJobs(s);
+    maybeKnock(s);
+  }
 }
 
 /** Paying early is possible at the start of a round once the Bank covers the debt. */
@@ -690,7 +817,7 @@ export function settleDeadline(s: RunState): boolean {
     s.job = null;
     if (s.deadline >= s.deadlines) {
       s.phase = 'over';
-      s.result = 'paidInFull';
+      s.result = cellmate(s) ? 'cellmate' : 'paidInFull';
     } else ring(s);
     return true;
   }
@@ -701,15 +828,23 @@ export function settleDeadline(s: RunState): boolean {
 
 // ------------------------------------------------------------------ the phone
 
+/** Helped the neighbor every time they asked (and they asked enough). */
+export function cellmate(s: RunState): boolean {
+  const n = s.neighbor;
+  return n.asked >= NEIGHBOR.cellmateMinAsks && n.helped === n.asked;
+}
+
 function ring(s: RunState): void {
   const rng = rngOf(s);
-  const odds = s.mods.redAccepted > 0 ? PHONE.redChanceAfterAccept : PHONE.redChance;
+  const odds =
+    (s.mods.redAccepted > 0 ? PHONE.redChanceAfterAccept : PHONE.redChance) + s.mods.redChanceAdd;
   // Bargains plus devil charms (as "charm:<id>", only with a free slot).
   const offers = BARGAINS.filter((b) => !s.bargains.includes(b.id)).map((b) => b.id);
   if (s.charms.length < s.mods.charmSlots)
     for (const c of CHARMS)
-      if (c.rarity === 'devil' && !s.charms.includes(c.id)) offers.push(`charm:${c.id}`);
-  if (offers.length >= PHONE.bargainOffers && rng.chance(odds)) {
+      if (c.rarity === 'devil' && !s.charms.includes(c.id) && !s.locked.includes(c.id))
+        offers.push(`charm:${c.id}`);
+  if (!s.mods.noRedCalls && offers.length >= PHONE.bargainOffers && rng.chance(odds)) {
     rng.shuffle(offers);
     s.call = { kind: 'red', offers: offers.slice(0, PHONE.bargainOffers) };
     s.stats.redCalls++;
@@ -719,7 +854,7 @@ function ring(s: RunState): void {
     s.call = {
       kind: 'perks',
       offers: pool
-        .slice(0, PHONE.perkOffers)
+        .slice(0, s.mods.phoneOffers)
         .map((p) =>
           p.effect.kind === 'levels' ? { id: p.id, shot: rng.pick(PERK_SHOTS) } : { id: p.id },
         ),
@@ -801,5 +936,95 @@ export function hangUp(s: RunState): boolean {
   if (s.phase !== 'phone') return false;
   s.call = null;
   startDeadline(s);
+  return true;
+}
+
+// ------------------------------------------------------------------ the neighbor
+
+/** Maybe a knock at this round break (at most once per deadline). */
+function maybeKnock(s: RunState): void {
+  const n = s.neighbor;
+  if (s.mods.noNeighbor || n.knocked || s.deadline < NEIGHBOR.fromDeadline) return;
+  const rng = rngOf(s);
+  if (rng.chance(NEIGHBOR.knockChance)) {
+    n.knocked = true;
+    n.asked++;
+    n.knock = makeKnock(s, rng);
+  }
+  s.rng = rng.getState();
+}
+
+function makeKnock(s: RunState, rng: Rng): NeighborKnock {
+  const coins = Math.max(2, Math.round(debtFor(s.deadline) * NEIGHBOR.coinShare));
+  const charms = s.charms.filter((id) => !charmDef(id).cursed);
+  // Ask for something you have when possible: the choice should be a real one.
+  const asks: NeighborAsk[] = [];
+  if (s.pocket + s.bank >= coins) asks.push('coins');
+  if (s.tickets >= NEIGHBOR.ticketsAsked) asks.push('tickets');
+  if (charms.length) asks.push('charm');
+  const ask = asks.length ? rng.pick(asks) : 'coins';
+  const w = NEIGHBOR.offerWeights;
+  const offers: [NeighborOffer, number][] = [
+    ['key', w.key],
+    ['contraband', w.contraband],
+    ['tickets', w.tickets],
+  ];
+  if (!s.neighbor.tip) offers.push(['tip', w.tip]);
+  const offer = rng.weighted(offers, (o) => o[1])[0];
+  const k: NeighborKnock = {
+    ask,
+    amount: ask === 'coins' ? coins : ask === 'tickets' ? NEIGHBOR.ticketsAsked : 1,
+    offer,
+  };
+  if (ask === 'charm') k.charm = rng.pick(charms);
+  if (offer === 'contraband') k.item = rng.pick(CONTRABAND.filter((c) => !c.target)).id;
+  if (offer === 'tickets') k.offerAmount = NEIGHBOR.ticketsOffered;
+  return k;
+}
+
+/** Can the player give what the neighbor asks? */
+export function canHelp(s: RunState): boolean {
+  const k = s.neighbor.knock;
+  if (!k) return false;
+  if (k.ask === 'coins') return s.pocket + s.bank >= k.amount;
+  if (k.ask === 'tickets') return s.tickets >= k.amount;
+  return !!k.charm && s.charms.includes(k.charm);
+}
+
+/** Answer the knock: help (pay, receive the offer) or refuse. */
+export function answerKnock(s: RunState, help: boolean): boolean {
+  const n = s.neighbor;
+  const k = n.knock;
+  if (!k || (help && !canHelp(s))) return false;
+  n.knock = null;
+  if (!help) return true;
+  if (k.ask === 'coins') {
+    // From the Pocket first, then the Bank.
+    const fromPocket = Math.min(s.pocket, k.amount);
+    s.pocket -= fromPocket;
+    s.bank -= k.amount - fromPocket;
+  } else if (k.ask === 'tickets') s.tickets -= k.amount;
+  else if (k.charm) {
+    s.charms = s.charms.filter((id) => id !== k.charm);
+    delete s.charges[k.charm];
+    const d = charmDef(k.charm);
+    if (d.fx?.debtMult) s.mods.debtMult /= d.fx.debtMult;
+  }
+  switch (k.offer) {
+    case 'key':
+      s.keys++;
+      break;
+    case 'contraband':
+      if (k.item && s.contraband.length < s.mods.contrabandSlots) s.contraband.push(k.item);
+      else s.tickets += NEIGHBOR.ticketsOffered;
+      break;
+    case 'tickets':
+      s.tickets += k.offerAmount ?? NEIGHBOR.ticketsOffered;
+      break;
+    case 'tip':
+      n.tip = true;
+      break;
+  }
+  n.helped++;
   return true;
 }

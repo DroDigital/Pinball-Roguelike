@@ -17,6 +17,25 @@ import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
 import { UI, h } from './ui';
 import { loadSave, writeSave, type SaveData } from './save';
+import { lineupPanel, rapSheetPanel, type LineupChoice } from './meta-screens';
+import { EndingDirector, type EndingKind } from '../present/endings';
+import { paintCracks } from '../present/cracks';
+import {
+  discover,
+  endlessUnlocked,
+  inmateUnlocked,
+  lockedCharms,
+  maxHardTime,
+  checkUnlocks,
+  recordBall,
+  recordDeadline,
+  recordKnock,
+  recordRunEnd,
+  recordRunStart,
+} from '../rules/meta';
+import type { UnlockDef } from '../content/unlocks';
+import { inmateDef } from '../content/inmates';
+import { NEIGHBOR_LINES } from '../content/neighbor';
 import { BallSession } from '../rules/session';
 import { Lamp, type GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
@@ -50,6 +69,10 @@ import {
   choosePerk,
   acceptBargain,
   hangUp,
+  answerKnock,
+  canHelp,
+  jailbreakLit,
+  lastCall,
   type BallOutcome,
   type RunState,
 } from '../rules/run';
@@ -73,7 +96,7 @@ import { perkDef, bargainDef } from '../content/phone';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
 import { SaveDetector } from '../present/save-detector';
-import { BONUS, ECONOMY } from '../content/balance';
+import { BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
@@ -99,7 +122,11 @@ export type AppMode =
   | 'ballEnd'
   | 'deadline'
   | 'fall'
-  | 'rapsheet';
+  | 'rapsheet'
+  | 'lineup'
+  | 'knock'
+  | 'ending'
+  | 'meta';
 
 export class GameApp {
   readonly renderer: RetroRenderer;
@@ -139,6 +166,12 @@ export class GameApp {
   /** Coins the tray shows (poured or piled); follows the pocket between balls. */
   private trayCoins = 0;
   private clatterAt = 0;
+  readonly endings: EndingDirector;
+  private ending: EndingKind | null = null;
+  /** Milestones reached at the end of the last run (shown on its Rap Sheet). */
+  private fresh: UnlockDef[] = [];
+  private lineup: LineupChoice = { inmate: 'debtor', hardTime: 0, endless: false };
+  private readonly cracks: HTMLCanvasElement;
   readonly subs: Subtitles;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
@@ -211,6 +244,16 @@ export class GameApp {
       glass.position.set(0, 2.6, 2.05);
       backbox.add(glass);
     }
+    this.endings = new EndingDirector(this.world, document.body, this.glassTex);
+    this.endings.onCue = (who, text) => this.endingCue(who, text);
+    this.cracks = h('canvas', { class: 'cracks' });
+    this.cracks.style.display = 'none';
+    document.body.append(this.cracks);
+    this.lineup = {
+      inmate: this.save.lastInmate,
+      hardTime: this.save.lastHardTime,
+      endless: false,
+    };
     this.dmd.idle = (d, t) => this.dmdIdle(d, t);
     this.dmd.registerAnim('tally', (d) => {
       const t = this.tally;
@@ -264,6 +307,7 @@ export class GameApp {
   }
 
   persist(): void {
+    if (this.run) discover(this.save.meta, this.run);
     writeSave(this.save);
   }
 
@@ -350,6 +394,8 @@ export class GameApp {
       this.input.events.length = 0;
     }
     if (this.mode === 'tally') this.updateTally(dt);
+    if (this.endings.kind) this.endings.update(dt);
+    if (this.mode === 'ending' && !this.endings.running) this.rapSheet();
     this.updateMusic();
     const shown = act?.session ?? this.session;
     if (this.mode === 'title') this.shows.play('attract');
@@ -598,6 +644,15 @@ export class GameApp {
             this.shake(0.4);
           }
           break;
+        case 'tunnel':
+          audio.clang();
+          this.shake(0.8);
+          this.flash(0.3);
+          this.react('tunnel', true);
+          break;
+        case 'jailbreak':
+          this.onJailbreak(e.phase, e.n);
+          break;
         case 'slowmo':
           this.slowmoLeft = e.seconds;
           break;
@@ -668,7 +723,8 @@ export class GameApp {
       this.mode === 'title' &&
       (a === 'confirm' || a === 'plunger' || a === 'left' || a === 'right')
     )
-      this.newRunFlow();
+      this.enterLineup();
+    else if (this.mode === 'ending' && (a === 'confirm' || a === 'plunger')) this.rapSheet();
   }
 
   // ------------------------------------------------------------------ flow
@@ -679,9 +735,12 @@ export class GameApp {
     this.world.setDecay(0);
     this.renderer.tint.set(1, 1, 1);
     this.session = null;
+    this.endings.stop();
+    this.ending = null;
     this.world.setMode('title');
     this.world.coins.clear();
     this.trayCoins = 0;
+    const saved = this.save.run;
     this.newAttractBall();
     this.ui.show(
       h(
@@ -694,7 +753,15 @@ export class GameApp {
         h(
           'div',
           { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.newRunFlow() }, 'Wake up'),
+          saved
+            ? h('button', { class: 'primary', onclick: () => this.continueRun() }, 'Continue')
+            : null,
+          h(
+            'button',
+            { class: saved ? '' : 'primary', onclick: () => this.enterLineup() },
+            saved ? 'New run' : 'Wake up',
+          ),
+          h('button', { onclick: () => this.enterMeta() }, 'Rap sheet'),
           h(
             'button',
             {
@@ -735,21 +802,89 @@ export class GameApp {
     this.simCursor = 0;
   }
 
+  /** The mugshot lineup: inmate, Hard Time, Endless. */
+  enterLineup(): void {
+    this.mode = 'lineup';
+    const meta = this.save.meta;
+    const c = this.lineup;
+    if (!inmateUnlocked(meta, c.inmate)) c.inmate = 'debtor';
+    c.hardTime = Math.min(c.hardTime, maxHardTime(meta, c.inmate));
+    if (!endlessUnlocked(meta)) c.endless = false;
+    this.ui.show(
+      lineupPanel(meta, c, {
+        change: (n) => {
+          this.lineup = n;
+          this.enterLineup();
+        },
+        start: () => this.newRunFlow(),
+        back: () => this.enterTitle(),
+      }),
+    );
+  }
+
   newRunFlow(seed?: string): void {
     this.attract = null;
     const sd =
       seed ??
       new URLSearchParams(location.search).get('seed') ??
       Math.random().toString(36).slice(2, 10).toUpperCase();
-    this.run = newRun(sd);
+    const c = this.lineup;
+    this.run = newRun(sd, {
+      inmate: c.inmate,
+      hardTime: c.hardTime,
+      endless: c.endless,
+      locked: lockedCharms(this.save.meta),
+    });
+    this.save.lastInmate = c.inmate;
+    this.save.lastHardTime = c.hardTime;
     this.world.coins.clear();
     this.trayCoins = 0;
     this.save.tallies++;
-    this.save.stats.runs++;
+    recordRunStart(this.save.meta);
     this.world.cell.setTallies(this.save.tallies);
     this.persist();
     this.ui.toast(`Seed ${sd}`);
     this.enterDeadlineIntro();
+  }
+
+  /** Resume the autosaved run at the start of its round. */
+  continueRun(): void {
+    const r = this.save.run;
+    if (!r) return;
+    this.attract = null;
+    this.run = JSON.parse(JSON.stringify(r)) as RunState;
+    this.world.coins.setPile(this.run.pocket);
+    this.trayCoins = this.run.pocket;
+    this.world.setDecay(this.run.deadline / Math.max(1, Math.min(8, this.run.deadlines) - 1));
+    if (this.run.round === 0 && !this.run.neighbor.knock) this.enterDeadlineIntro();
+    else this.enterJobs();
+  }
+
+  /** Autosave: the run as it stands at the start of a round. */
+  private autosave(): void {
+    if (!this.run || this.run.phase !== 'pickJob') return;
+    this.save.run = JSON.parse(JSON.stringify(this.run)) as RunState;
+    this.persist();
+  }
+
+  /** Lifetime Rap Sheet from the title. */
+  enterMeta(): void {
+    this.mode = 'meta';
+    this.ui.show(rapSheetPanel(this.save.meta, this.save.tallies, () => this.enterTitle()));
+  }
+
+  /** Milestones reached mid-run (from stats) are announced at once. */
+  private unlockCheck(): void {
+    for (const u of checkUnlocks(this.save.meta)) this.announceUnlock(u);
+  }
+
+  private announceUnlock(u: UnlockDef): void {
+    const what = [
+      ...(u.charms ?? []).map((id) => charmDef(id).name),
+      u.inmate ? inmateDef(u.inmate).name : '',
+      u.endless ? 'Endless' : '',
+    ].filter(Boolean);
+    this.ui.toast(`Unlocked${what.length ? `: ${what.join(', ')}` : `: ${u.text}`}`, 3500);
   }
 
   private decks = new Map<WardenTrigger, string[]>();
@@ -762,6 +897,49 @@ export class GameApp {
       this.decks.set(t, deck);
     }
     return deck.pop()!;
+  }
+
+  /** JAILBREAK on the table: every lit shot shakes something loose. */
+  private onJailbreak(phase: string, n: number): void {
+    switch (phase) {
+      case 'start':
+        this.shows.play('jailbreak');
+        audio.knocker();
+        this.flash(0.5);
+        this.shake(1.2);
+        this.world.swingBulb(0.7);
+        this.react('jailbreak', true);
+        break;
+      case 'shot':
+        audio.creak();
+        this.shake(0.3 + n * 0.08);
+        this.world.swingBulb(0.15 + n * 0.03);
+        this.input.buzz(40 + n * 6);
+        break;
+      case 'posts':
+        audio.clang();
+        if (this.session) this.world.table.setTags(new Set(this.session.sim.tags));
+        this.ui.toast('THE OUTLANE POSTS FALL OFF');
+        break;
+      case 'lights':
+        this.world.lightsDying = true;
+        this.ui.toast('THE LIGHTS ARE DYING');
+        break;
+      case 'glass':
+        audio.glassCrack();
+        paintCracks(this.cracks, n * 7919 + 13);
+        this.cracks.style.display = '';
+        this.flash(0.4);
+        break;
+      case 'escaped':
+        this.flash(0.8);
+        this.shake(2);
+        audio.knocker();
+        break;
+      case 'failed':
+        this.react('caught', true);
+        break;
+    }
   }
 
   /** The Warden reacts to play (rate-limited unless `force`). */
@@ -788,10 +966,11 @@ export class GameApp {
   private enterDeadlineIntro(): void {
     const r = this.run!;
     this.mode = 'intro';
-    this.world.setDecay(r.deadline / Math.max(1, r.deadlines - 1));
+    this.world.setDecay(r.deadline / Math.max(1, Math.min(8, r.deadlines) - 1));
     this.world.cell.setAtmAlarm(false);
     this.world.setMode('seated');
-    const last = r.deadline === r.deadlines - 1;
+    const last = lastCall(r);
+    this.autosave();
     const line = this.warden(r.deadline === 0 ? 'intro' : last ? 'lastCall' : 'sentence');
     this.dmd.say(`THE WARDEN: ${line}`);
     this.subs.say('THE WARDEN', line, false);
@@ -942,16 +1121,22 @@ export class GameApp {
     const r = this.run!;
     const before = r.tickets;
     if (!payEarly(r)) return;
-    this.save.stats.bestDeadline = Math.max(this.save.stats.bestDeadline, r.deadline);
+    recordDeadline(this.save.meta, r);
+    this.unlockCheck();
     this.persist();
     this.subs.say('THE WARDEN', this.warden('payEarly'));
     this.ui.toast(`+${r.tickets - before} tickets`);
-    if (r.phase === 'over') this.rapSheet();
+    if (r.phase === 'over') this.endRun();
     else this.enterPhone();
   }
 
   private enterJobs(): void {
     const r = this.run!;
+    this.autosave();
+    if (r.neighbor.knock) {
+      this.enterKnock();
+      return;
+    }
     this.mode = 'jobs';
     this.world.setMode('seated');
     audio.atmBeep();
@@ -1001,6 +1186,74 @@ export class GameApp {
         priority: 6,
         duration: 2.5,
       });
+  }
+
+  /** Knocking through the wall: the neighbor asks, and offers something back. */
+  private enterKnock(): void {
+    const r = this.run!;
+    const k = r.neighbor.knock!;
+    this.mode = 'knock';
+    audio.knock();
+    const pick = (lines: string[]) => lines[Math.floor(Math.random() * lines.length)];
+    const fill = (t: string) =>
+      t
+        .replaceAll('{amount}', String(k.amount))
+        .replaceAll('{charm}', k.charm ? charmDef(k.charm).name : '')
+        .replaceAll('{item}', k.item ? contrabandDef(k.item).name : '');
+    const ask = fill(pick(NEIGHBOR_LINES.ask[k.ask]));
+    const offer = fill(NEIGHBOR_LINES.offer[k.offer]).replace(
+      '{amount}',
+      String(k.offerAmount ?? NEIGHBOR.ticketsOffered),
+    );
+    this.subs.say('THE WALL', pick(NEIGHBOR_LINES.knock));
+    const give =
+      k.ask === 'coins'
+        ? `${k.amount} coins`
+        : k.ask === 'tickets'
+          ? `${k.amount} tickets`
+          : charmDef(k.charm!).name;
+    const answer = (help: boolean) => {
+      if (!answerKnock(r, help)) return;
+      recordKnock(this.save.meta);
+      this.subs.say('NEXT DOOR', pick(help ? NEIGHBOR_LINES.thanks : NEIGHBOR_LINES.refused));
+      if (help && k.offer === 'tip') this.ui.toast(NEIGHBOR_LINES.tip, 9000);
+      else if (help) audio.coin(3);
+      this.unlockCheck();
+      this.persist();
+      this.enterJobs();
+    };
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel knock' },
+        h('h2', null, 'Knocking'),
+        h('p', { class: 'neighbor' }, `“${ask}”`),
+        h('p', { class: 'neighbor' }, `“${offer}”`),
+        h(
+          'div',
+          { class: 'row' },
+          h(
+            'button',
+            {
+              class: canHelp(r) ? 'primary' : '',
+              disabled: !canHelp(r),
+              onclick: () => answer(true),
+            },
+            `Slide over ${give}`,
+          ),
+          h(
+            'button',
+            { class: canHelp(r) ? '' : 'primary', onclick: () => answer(false) },
+            'Ignore it',
+          ),
+        ),
+        h(
+          'p',
+          { class: 'dim' },
+          `The neighbor has asked ${r.neighbor.asked} time(s). You helped ${r.neighbor.helped}.`,
+        ),
+      ),
+    );
   }
 
   takeJob(i: number): void {
@@ -1405,6 +1658,17 @@ export class GameApp {
     if (this.autoBot) attachBot(this.autoBot, this.session);
     this.world.setBlackout(snap.ctx.blackout);
     this.world.table.setTags(new Set(snap.tags));
+    this.world.restoreLights();
+    this.cracks.style.display = 'none';
+    if (snap.ctx.jailbreak) {
+      this.dmd.show({
+        text: 'JAILBREAK',
+        sub: 'IS LIT AT THE HOLE',
+        priority: 6,
+        anim: 'jailbreak',
+        duration: 2.5,
+      });
+    }
     this.world.sway = snap.ctx.moonshine ? 1 : 0;
     this.slowmoLeft = 0;
     this.simCursor = 0;
@@ -1417,6 +1681,8 @@ export class GameApp {
 
   private onBallOver(): void {
     this.world.setBlackout(false);
+    this.world.restoreLights();
+    this.cracks.style.display = 'none';
     this.world.sway = 0;
     this.slowmoLeft = 0;
     const g = this.session!.game;
@@ -1477,14 +1743,14 @@ export class GameApp {
     this.mode = 'ballEnd';
     const res = finishBall(r, o);
     if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
-    this.save.stats.balls++;
-    this.save.stats.coins += res.gained;
-    this.save.stats.biggestPayday = Math.max(
-      this.save.stats.biggestPayday,
-      Math.round(o.stats.biggestPayday),
-    );
-    this.save.stats.longestCombo = Math.max(this.save.stats.longestCombo, o.stats.maxCombo);
+    recordBall(this.save.meta, o, res.gained);
+    this.unlockCheck();
     this.persist();
+    if (r.phase === 'over') {
+      // JAILBREAK made it out: straight to the ending.
+      this.endRun();
+      return;
+    }
     this.dmd.show({
       text: o.tilted ? 'TILTED' : 'BALL OVER',
       sub: o.tilted ? 'NOTHING COUNTS' : `+${res.gained} COINS`,
@@ -1612,14 +1878,11 @@ export class GameApp {
 
   private payDeadline(): void {
     const r = this.run!;
-    const ok = settleDeadline(r);
-    this.save.stats.bestDeadline = Math.max(this.save.stats.bestDeadline, r.deadline);
+    settleDeadline(r);
+    recordDeadline(this.save.meta, r);
+    this.unlockCheck();
     this.persist();
-    if (!ok) {
-      this.fall();
-      return;
-    }
-    if (r.phase === 'over') this.rapSheet();
+    if (r.phase === 'over') this.endRun();
     else this.enterPhone();
   }
 
@@ -1649,12 +1912,70 @@ export class GameApp {
     window.setTimeout(() => this.rapSheet(), 3000);
   }
 
+  /** The run is over: record it, then the fall or the ending's sequence. */
+  private endRun(): void {
+    const r = this.run!;
+    this.save.run = null;
+    this.fresh = recordRunEnd(this.save.meta, r, this.save.tallies);
+    this.persist();
+    if (r.result === 'fell' || !r.result) {
+      this.fall();
+      return;
+    }
+    this.mode = 'ending';
+    this.ui.hide();
+    this.ending = r.result;
+    this.endings.start(r.result);
+    if (r.result === 'cellmate') audio.knock(4);
+    if (r.result === 'paidInFull') audio.creak();
+  }
+
+  private endingCue(who: string, text: string): void {
+    if (who === 'TITLE') {
+      this.dmd.show({ text, priority: 10, anim: 'jailbreak', duration: 4 });
+      audio.knocker();
+      return;
+    }
+    this.subs.say(who, text);
+    if (this.ending === 'cellmate' && text.startsWith('Then the wall')) {
+      audio.clang();
+      window.setTimeout(() => this.shake(1.4), 900);
+    }
+  }
+
+  /** Dev: play an ending now. */
+  devEnding(kind: EndingKind): void {
+    if (!this.run) this.newRunFlow('DEV');
+    const r = this.run!;
+    this.session = null;
+    r.phase = 'over';
+    r.result = kind;
+    this.endRun();
+  }
+
+  /** Dev: the neighbor knocks at the next round start. */
+  devKnock(): void {
+    const r = this.run;
+    if (!r) return;
+    r.neighbor.asked++;
+    r.neighbor.knock = {
+      ask: 'coins',
+      amount: Math.min(5, r.pocket + r.bank),
+      offer: r.neighbor.tip ? 'key' : 'tip',
+    };
+  }
+
   private rapSheet(): void {
     const r = this.run!;
     this.mode = 'rapsheet';
     this.renderer.tint.set(1, 1, 1);
-    this.world.setMode('seated');
+    if (!this.ending) this.world.setMode('seated');
     const fell = r.result === 'fell';
+    const ENDING_TEXT: Record<string, string> = {
+      paidInFull: 'Paid in full. The door opens.',
+      breakout: 'Escaped through the drain. JAILBREAK.',
+      cellmate: 'Paid in full. The wall came down.',
+    };
     const drains = Object.entries(r.stats.drains)
       .map(([k, v]) => `${k} ${v}`)
       .join(', ');
@@ -1667,8 +1988,13 @@ export class GameApp {
           'p',
           null,
           fell
-            ? `Fell at deadline ${r.deadline + 1} of ${r.deadlines}, owing ${r.debt}c.`
-            : 'Paid in full. The door opens.',
+            ? `Fell at deadline ${r.deadline + 1}${r.endless ? ' (Endless)' : ` of ${r.deadlines}`}, owing ${r.debt}c.`
+            : (ENDING_TEXT[r.result ?? ''] ?? ''),
+        ),
+        h(
+          'p',
+          { class: 'dim' },
+          `${inmateDef(r.inmate).name}${r.hardTime ? `, Hard Time ${r.hardTime}` : ''} · seed ${r.seed}`,
         ),
         h(
           'div',
@@ -1706,6 +2032,16 @@ export class GameApp {
           { class: 'dim' },
           `Build: ${r.charms.map((id) => charmDef(id).name).join(', ') || 'no charms'}`,
         ),
+        this.fresh.length
+          ? h(
+              'div',
+              { class: 'unlocks' },
+              h('b', null, 'Unlocked'),
+              ...this.fresh.map((u) =>
+                h('p', null, u.ending ? u.text : `${u.text} → ${unlockReward(u)}`),
+              ),
+            )
+          : null,
         h('p', { class: 'dim' }, 'A new mark is scratched into the wall.'),
         h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
         h(
@@ -1727,7 +2063,7 @@ export class GameApp {
     const r = this.run;
     const st = music.state;
     st.combo = g && g.combo.active(g.time) ? g.combo.count : 0;
-    st.riot = !!g?.riot;
+    st.riot = !!g?.riot || !!g?.jailbreak;
     st.sentence = !!r && sentenceActive(r);
     st.tension = r ? Math.min(1, r.round / Math.max(1, roundsIn(r) - 1)) : 0;
     music.update();
@@ -1806,7 +2142,11 @@ export class GameApp {
   private updateHud(shown: BallSession | null): void {
     const r = this.run;
     const playing = this.mode === 'play' || this.mode === 'tally';
-    this.hud.style.display = this.mode === 'title' ? 'none' : '';
+    const m = this.mode;
+    this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
+    // Endings keep the DMD (it shows the title) but drop the run's numbers.
+    const quiet = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
+    this.hudStats.style.display = this.hudRight.style.display = quiet ? 'none' : '';
     if (r) {
       const g = shown && playing ? shown.game : null;
       let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`;
@@ -1815,7 +2155,10 @@ export class GameApp {
         if (g.luck > 0) left += `<br>Luck <b>${g.luck}</b>`;
       }
       this.setHtml(this.hudStats, left);
-      let right = `Deadline ${r.deadline + 1}/${r.deadlines}<br>Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
+      let right = `Deadline ${r.deadline + 1}${r.endless ? '' : `/${r.deadlines}`}<br>Round ${r.round + 1}/${roundsIn(r)}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
+      if (g?.jailbreak)
+        right += `<div class="job jb">JAILBREAK<br><b>${g.jbShots}/${JAILBREAK.shotsToEscape}</b></div>`;
+      else if (jailbreakLit(r)) right += `<div class="job jb">JAILBREAK LIT<br>AT THE HOLE</div>`;
       if (r.job) {
         const def = jobDef(r.job.id);
         const prog = g ? g.jobProgress() : r.job.progress;
@@ -1824,6 +2167,8 @@ export class GameApp {
       }
       if (r.tickets || r.keys)
         right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
+      if (r.neighbor.tip && !g?.jailbreak)
+        right += `<br><small>Tunnel: Cell Block top to bottom</small>`;
       const actives = g ? g.ctx.actives : [];
       if (actives.length)
         right += `<div class="actives">${actives
@@ -1870,6 +2215,9 @@ const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
   shop: 'vending',
   phone: 'phone',
   rapsheet: 'wall',
+  meta: 'wall',
+  knock: 'wall',
+  lineup: 'door',
   intro: 'seated',
   tally: 'tray',
   ballEnd: 'tray',
@@ -1896,4 +2244,12 @@ function levelsText(r: RunState): string {
   return (Object.entries(r.shotLevels) as [string, number][])
     .map(([k, v]) => `${k} ${v}`)
     .join(' · ');
+}
+
+/** What a milestone gave, for the Rap Sheet. */
+function unlockReward(u: UnlockDef): string {
+  const parts = (u.charms ?? []).map((id) => charmDef(id).name);
+  if (u.inmate) parts.push(inmateDef(u.inmate).name);
+  if (u.endless) parts.push('Endless');
+  return parts.join(', ');
 }

@@ -24,6 +24,7 @@ export type CamMode =
   | 'tray';
 
 const TILT = 6.5 * (Math.PI / 180);
+export const FOG_DENSITY = 0.018;
 
 export class World {
   readonly scene = new THREE.Scene();
@@ -54,6 +55,8 @@ export class World {
   private bulbSwing = 0;
   private bulbSwingV = 0;
   private time = 0;
+  /** An ending's scripted camera overrides the mode's goal while set. */
+  scripted: { pos: THREE.Vector3; look: THREE.Vector3; rate: number } | null = null;
   /** Seated cam yaw offset for look-around (A/D). */
   lookYaw = 0;
   /** Moonshine camera sway amount (0..1). */
@@ -66,7 +69,7 @@ export class World {
     const envMap = makeEnvMap();
     this.table = new TableView(undefined, tags, envMap);
     this.scene.background = new THREE.Color(0x050403);
-    this.scene.fog = new THREE.FogExp2(0x070504, 0.018);
+    this.scene.fog = new THREE.FogExp2(0x070504, FOG_DENSITY);
 
     // Cabinet: the table group tilts toward the player like a real machine.
     this.table.root.rotation.x = TILT;
@@ -144,6 +147,12 @@ export class World {
   }
 
   /** Blackout Sentence: the room and the machine's GI go dark; only the balls glow. */
+  /** Bring the machine's GI back after JAILBREAK. */
+  restoreLights(): void {
+    this.lightsDying = false;
+    if (!this.table.blackout) for (const l of this.gi) l.intensity = l.userData.base ?? l.intensity;
+  }
+
   setBlackout(on: boolean): void {
     if (this.table.blackout === on) return;
     this.table.blackout = on;
@@ -153,6 +162,9 @@ export class World {
     for (const l of this.gi) l.intensity = (l.userData.base ??= l.intensity) * k;
     this.bulb.visible = !on;
   }
+
+  /** JAILBREAK: the machine's lights are dying (GI stutters and sags). */
+  lightsDying = false;
 
   setMode(m: CamMode): void {
     if (m === 'fall' && this.mode !== 'fall') this.fallT = 0;
@@ -256,8 +268,12 @@ export class World {
   update(dt: number): void {
     this.time += dt;
     this.camera.aspect = this.aspect;
-    this.goalFor(this.mode);
-    const k = 1 - Math.exp(-dt * 4);
+    const sc = this.scripted;
+    if (sc) {
+      this.goalPos.copy(sc.pos);
+      this.goalLook.copy(sc.look);
+    } else this.goalFor(this.mode);
+    const k = 1 - Math.exp(-dt * (sc ? sc.rate : 4));
     this.camPos.lerp(this.goalPos, k);
     this.camLook.lerp(this.goalLook, k);
     // Spring-damped shake.
@@ -286,6 +302,9 @@ export class World {
     const flicker = Math.random() < this.flickerChance ? 0.4 : 1;
     this.bulb.intensity = this.bulbPower * flicker;
     ROOM_UNIFORMS.uBulbPower.value = this.bulb.visible ? (this.bulbPower / 1800) * flicker : 0.05;
+    if (this.lightsDying && !this.table.blackout)
+      for (const l of this.gi)
+        l.intensity = (l.userData.base ??= l.intensity) * (Math.random() < 0.15 ? 0.05 : 0.35);
     this.cell.update(dt);
     if (this.mode === 'fall') {
       this.fallT += dt;

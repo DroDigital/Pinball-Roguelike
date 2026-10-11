@@ -17,7 +17,10 @@ export type WardenTrigger =
   | 'tilt'
   | 'jobDone'
   | 'lastCall'
-  | 'hangUp';
+  | 'hangUp'
+  | 'jailbreak'
+  | 'caught'
+  | 'tunnel';
 
 export const WARDEN: Record<WardenTrigger, string[]> = {
   intro: [
@@ -125,5 +128,26 @@ export const WARDEN: Record<WardenTrigger, string[]> = {
     'No deal. The offer remembers you.',
     'Suit yourself. The red phone does not ring for long.',
     'Hung up on me. Bold. Pointless, but bold.',
+  ],
+  jailbreak: [
+    'Three Keys. Where did you get three Keys?',
+    'Put the machine down. Put it down.',
+    'Every light on the board is lit. That is not how I set it.',
+    'You are breaking my machine. I will add it to your bill.',
+    'The posts, the glass, the lights. You will pay for all of it.',
+  ],
+  caught: [
+    'Back on the stool. The Keys stay with me.',
+    'Nearly. Nobody gets nearly in here.',
+    'The machine is fixed. So are you.',
+    'A good try. Bill attached.',
+    'Sit. The debt did not go anywhere. Neither did you.',
+  ],
+  tunnel: [
+    'Who told you about that?',
+    'That brick is load-bearing. Was.',
+    'Interesting. Do it again and I fill it with concrete.',
+    'Someone has been talking through the wall.',
+    'Cute. The Tunnel goes nowhere. Mostly.',
   ],
 };

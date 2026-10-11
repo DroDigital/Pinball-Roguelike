@@ -10,6 +10,9 @@ import { ROOM_UNIFORMS, canvasTexture, retroMaterial } from './retro-material';
 /** Room bounds (world units, 1 = one ball diameter). */
 export const ROOM = { x0: -46, x1: 46, z0: -46, z1: 62, floor: -12, ceil: 50 } as const;
 
+const DOOR_W = 18;
+const DOOR_H = 34;
+
 /** Where the props are (camera modes look at them). */
 export const PROPS = {
   atm: new THREE.Vector3(ROOM.x1 - 2.2, 4, 18),
@@ -97,6 +100,9 @@ export class CellRoom {
   private readonly drops: { m: THREE.Mesh; v: number }[] = [];
   private readonly trapdoor: THREE.Mesh;
   private readonly doorGlow: THREE.Mesh;
+  /** The door swings on its hinge; the left (neighbour's) wall can come down. */
+  private readonly doorPivot = new THREE.Group();
+  readonly leftWall = new THREE.Group();
   decay = 0;
   private time = 0;
 
@@ -105,7 +111,8 @@ export class CellRoom {
     const W = R.x1 - R.x0;
     const D = R.z1 - R.z0;
     const H = R.ceil - R.floor;
-    const wall = retroMaterial({ map: concrete(), repeat: [8, 5] });
+    const concreteTex = concrete();
+    const wall = retroMaterial({ map: concreteTex, repeat: [8, 5] });
     const brick = retroMaterial({ map: bricks(), repeat: [10, 6] });
     const floor = retroMaterial({ map: tiles(), repeat: [12, 14], rust: 0.3 });
     const ceil = retroMaterial({ map: concrete(), repeat: [8, 8], tint: 0x8a8278 });
@@ -128,14 +135,19 @@ export class CellRoom {
     plane(W, D, floor, new THREE.Vector3(0, R.floor, (R.z0 + R.z1) / 2), 0, -Math.PI / 2);
     plane(W, D, ceil, new THREE.Vector3(0, R.ceil, (R.z0 + R.z1) / 2), 0, Math.PI / 2);
     plane(W, H, wall, new THREE.Vector3(0, (R.floor + R.ceil) / 2, R.z0));
-    plane(W, H, wall, new THREE.Vector3(0, (R.floor + R.ceil) / 2, R.z1), Math.PI);
-    plane(
-      D,
-      H,
-      brick,
-      new THREE.Vector3(R.x0, (R.floor + R.ceil) / 2, (R.z0 + R.z1) / 2),
-      Math.PI / 2,
-    );
+    // Back wall in three pieces around the doorway (texture repeats scaled to each piece).
+    const side = (W - DOOR_W) / 2;
+    const top = H - DOOR_H;
+    const sideMat = retroMaterial({ map: concreteTex, repeat: [(8 * side) / W, 5] });
+    const topMat = retroMaterial({ map: concreteTex, repeat: [(8 * DOOR_W) / W, (5 * top) / H] });
+    const midY = (R.floor + R.ceil) / 2;
+    plane(side, H, sideMat, new THREE.Vector3(R.x0 + side / 2, midY, R.z1), Math.PI);
+    plane(side, H, sideMat, new THREE.Vector3(R.x1 - side / 2, midY, R.z1), Math.PI);
+    plane(DOOR_W, top, topMat, new THREE.Vector3(0, R.ceil - top / 2, R.z1), Math.PI);
+    // The neighbour's wall pivots on its foot so it can fall away.
+    this.leftWall.position.set(R.x0, R.floor, (R.z0 + R.z1) / 2);
+    this.group.add(this.leftWall);
+    this.leftWall.add(plane(D, H, brick, new THREE.Vector3(0, H / 2, 0), Math.PI / 2));
     plane(
       D,
       H,
@@ -229,8 +241,8 @@ export class CellRoom {
       new THREE.MeshBasicMaterial({ map: this.tallyTex, transparent: true, opacity: 0.85 }),
     );
     tally.rotation.y = Math.PI / 2;
-    tally.position.copy(PROPS.tally);
-    this.group.add(tally);
+    tally.position.copy(PROPS.tally).sub(this.leftWall.position);
+    this.leftWall.add(tally);
 
     // The loose brick that hides the contraband.
     const brickProp = new THREE.Mesh(
@@ -241,13 +253,36 @@ export class CellRoom {
     brickProp.rotation.y = 0.12;
     this.group.add(brickProp);
 
-    // The door behind you, light leaking underneath.
+    // The door behind you, light leaking underneath; hinged on its left edge.
     const door = new THREE.Mesh(
-      new THREE.BoxGeometry(18, 34, 1),
+      new THREE.BoxGeometry(DOOR_W, DOOR_H, 1),
       retroMaterial({ map: flat('#4a4440'), rust: 1 }),
     );
-    door.position.set(0, R.floor + 17, R.z1 - 0.4);
-    this.group.add(door);
+    door.position.set(DOOR_W / 2, DOOR_H / 2, 0);
+    this.doorPivot.position.set(-DOOR_W / 2, R.floor, R.z1 - 0.4);
+    this.doorPivot.add(door);
+    this.group.add(this.doorPivot);
+
+    // The stool you're chained to, over the trapdoor.
+    const iron = retroMaterial({ map: flat('#3a3a3c'), rust: 0.9 });
+    const stool = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.8, 10), iron);
+    seat.position.y = 9;
+    stool.add(seat);
+    for (let i = 0; i < 3; i++) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 9, 0.5), iron);
+      const a = (i / 3) * Math.PI * 2;
+      leg.position.set(Math.cos(a) * 2.2, 4.5, Math.sin(a) * 2.2);
+      stool.add(leg);
+    }
+    for (let i = 0; i < 6; i++) {
+      const link = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.14, 4, 8), iron);
+      link.position.set(1.5 + i * 0.5, 8.5 - i * 1.4, 0.6);
+      link.rotation.set(i % 2 ? Math.PI / 2 : 0, 0.4, 0);
+      stool.add(link);
+    }
+    stool.position.set(PROPS.trapdoor.x, R.floor, PROPS.trapdoor.z);
+    this.group.add(stool);
     this.doorGlow = new THREE.Mesh(
       new THREE.PlaneGeometry(18, 1.2),
       new THREE.MeshBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.5 }),
@@ -333,6 +368,16 @@ export class CellRoom {
     g.font = 'bold 11px monospace';
     text.split('\n').forEach((line, i) => g.fillText(line, 5, 14 + i * 13));
     this.atmTex.needsUpdate = true;
+  }
+
+  /** The door swings open into the corridor (0 closed .. 1 open). */
+  openDoor(k: number): void {
+    this.doorPivot.rotation.y = -k * 1.9;
+  }
+
+  /** The neighbour's wall falls away from you (0 standing .. 1 down). */
+  dropWall(k: number): void {
+    this.leftWall.rotation.z = k * (Math.PI / 2);
   }
 
   /** The trapdoor swings open (0 closed .. 1 open). */

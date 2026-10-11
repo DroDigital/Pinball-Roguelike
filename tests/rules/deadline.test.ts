@@ -44,6 +44,7 @@ const ball = (earned = 1, tilted = false): BallOutcome => ({
   extraBalls: 0,
   paydayEnd: 0,
   charges: {},
+  jailbreak: 'none',
 });
 
 /** Play a round with n balls each earning `earned`, then end it. */

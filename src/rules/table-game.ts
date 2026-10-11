@@ -16,9 +16,11 @@ import {
   COMBO,
   HOLE,
   HURRY,
+  JAILBREAK,
   LUCK,
   RIOT,
   SCORE,
+  SECRET,
   TILT,
 } from '../content/balance';
 import { emptyBallStats, type BallStats } from '../content/jobs';
@@ -102,6 +104,10 @@ export interface BallContext {
   chalk: boolean;
   /** Moonshine: the camera sways (presentation). */
   moonshine: boolean;
+  /** The neighbor's tip: the Tunnel pays (Cell Block knocked down top to bottom). */
+  tunnel: boolean;
+  /** JAILBREAK is lit at the Hole (Last Call with the Keys). */
+  jailbreak: boolean;
   job: BallJob | null;
 }
 
@@ -184,6 +190,8 @@ export function defaultBallContext(): BallContext {
     holeHoldAdd: 0,
     chalk: false,
     moonshine: false,
+    tunnel: false,
+    jailbreak: false,
     job: null,
   };
 }
@@ -197,6 +205,19 @@ const FAVOURITES = LADDER_SHOTS;
 const PERIM_WINDOW = 2.2; // seconds between orbit entry and top switch
 const SKILL_WINDOW = 4; // seconds after launch for the skill shot to resolve
 const SUPER_WINDOW = 6;
+/** The Tunnel: drop targets knocked down from the top (index 2) to the bottom (index 0). */
+const TUNNEL_ORDER = [2, 1, 0];
+
+/** JAILBREAK's lit shots. */
+export type JailbreakShot = 'chute' | 'perimL' | 'perimR' | 'hole' | 'cellblock';
+export const JAILBREAK_SHOTS: JailbreakShot[] = ['chute', 'perimL', 'perimR', 'hole', 'cellblock'];
+const JB_LAMP: Record<JailbreakShot, string> = {
+  chute: 'arrowChute',
+  perimL: 'arrowPerimL',
+  perimR: 'arrowPerimR',
+  hole: 'arrowHole',
+  cellblock: 'arrowCell',
+};
 
 export const AWARD_NAMES: Record<AwardId, string> = {
   bonusX: 'BONUS X',
@@ -264,6 +285,14 @@ export class TableGame implements BallRules {
   private multiSaveLeft = 0;
   /** Cell Block cleared and waiting for the sim to reset the targets. */
   private cellCleared = false;
+  /** Drop order since the bank was last up (null: unknown, it started part-down). */
+  private dropSeq: number[] | null;
+  /** JAILBREAK running, its lit shots, shots made and how it ended. */
+  jailbreak = false;
+  readonly jbLit = new Set<JailbreakShot>();
+  jbShots = 0;
+  jbResult: 'none' | 'failed' | 'escaped' = 'none';
+  private jbSaveLeft = 0;
 
   constructor(
     readonly sim: PinballSim,
@@ -287,6 +316,7 @@ export class TableGame implements BallRules {
     this.combo = new ComboTracker(ctx.comboWindow, ctx.comboStart, ctx.comboStep);
     this.payday = ctx.paydayCarry > 0 ? ctx.paydayCarry : RIOT.paydayBase;
     if (ctx.lockdown) machine.lockLit = false;
+    this.dropSeq = machine.drops.every(Boolean) ? [] : null;
     sim.setKickback(machine.kickback);
     this.refreshLamps();
   }
@@ -335,6 +365,7 @@ export class TableGame implements BallRules {
     }
     if (this.riotSaveLeft > 0) this.riotSaveLeft -= dt;
     if (this.multiSaveLeft > 0) this.multiSaveLeft -= dt;
+    if (this.jbSaveLeft > 0) this.jbSaveLeft -= dt;
     if (this.skillTimer >= 0) {
       this.skillTimer += dt;
       if (this.skillTimer > SKILL_WINDOW) this.endSkill();
@@ -536,6 +567,7 @@ export class TableGame implements BallRules {
   }
 
   private onPerimeter(side: 'L' | 'R', e: SimEvent): void {
+    this.jbShot(side === 'L' ? 'perimL' : 'perimR', e.x, e.y);
     this.stats.perimeters++;
     const mult = this.major();
     this.pay('perimeter', SCORE.perimeter * mult, e.x, e.y, mult);
@@ -557,6 +589,7 @@ export class TableGame implements BallRules {
   }
 
   private onChute(e: SimEvent): void {
+    this.jbShot('chute', e.x, e.y);
     this.stats.chutes++;
     this.endSkill();
     const mult = this.major();
@@ -596,7 +629,11 @@ export class TableGame implements BallRules {
     const mult = this.major();
     this.pay('hole', SCORE.hole * mult, e.x, e.y, mult);
     let locked = false;
-    if (this.riot && this.superLit) {
+    if (this.jailbreak) {
+      this.jbShot('hole', e.x, e.y);
+    } else if (this.ctx.jailbreak && this.jbResult === 'none' && !this.riot) {
+      this.startJailbreak();
+    } else if (this.riot && this.superLit) {
       const amount =
         this.shotValue('hole', this.superValue * RIOT.superMult) * mult * this.paydayMult();
       this.superLit = false;
@@ -744,6 +781,8 @@ export class TableGame implements BallRules {
   private onDrop(e: SimEvent): void {
     this.pay('cellblock', SCORE.drop, e.x, e.y);
     this.endSkill();
+    this.jbShot('cellblock', e.x, e.y);
+    this.dropSeq?.push(e.value);
     const states = this.sim.dropStates();
     this.machine.drops = states;
     // The sim resets the bank after the step; one clear per reset.
@@ -751,9 +790,12 @@ export class TableGame implements BallRules {
       this.cellCleared = true;
       this.stats.cellBlocks++;
       this.pay('cellblock', SCORE.cellBlock, e.x, e.y);
+      const seq = this.dropSeq;
+      this.dropSeq = [];
+      if (this.ctx.tunnel && seq && seq.join() === TUNNEL_ORDER.join()) this.onTunnel(e);
       this.sim.resetDrops();
       this.machine.drops = [true, true, true];
-      if (!this.riot && !this.ctx.lockdown && !this.machine.lockLit) {
+      if (!this.riot && !this.jailbreak && !this.ctx.lockdown && !this.machine.lockLit) {
         this.machine.lockLit = true;
         this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'LOCKUP IS LIT', priority: 4 });
       } else this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'CLEARED', priority: 3 });
@@ -786,7 +828,7 @@ export class TableGame implements BallRules {
     this.drainCause = e.id;
     this.emit({ t: 'drain', cause: e.id, x: e.x, y: e.y });
     if (this.tilted) return;
-    if ((this.riot && this.riotSaveLeft > 0) || this.multiSaveLeft > 0) {
+    if ((this.riot && this.riotSaveLeft > 0) || this.multiSaveLeft > 0 || this.jbSaveLeft > 0) {
       this.sim.serveBall(true);
       this.emit({ t: 'ballSaved' });
       return;
@@ -890,6 +932,13 @@ export class TableGame implements BallRules {
     this.over = true;
     this.hurryLeft = 0;
     if (this.riot) this.endRiot();
+    if (this.jailbreak) {
+      this.jailbreak = false;
+      if (this.jbResult === 'failed') {
+        this.emit({ t: 'jailbreak', phase: 'failed', n: this.jbShots });
+        this.emit({ t: 'callout', text: 'CAUGHT', sub: 'BACK TO PAYING', priority: 9 });
+      }
+    }
     if (this.tilted) {
       this.earned = 0;
       this.bonus = 0;
@@ -1001,7 +1050,81 @@ export class TableGame implements BallRules {
       extraBalls: this.extraBalls,
       paydayEnd: this.paydayEnd,
       charges: Object.fromEntries(this.ctx.actives.map((a) => [a.id, a.charges])),
+      jailbreak: this.jbResult,
     };
+  }
+
+  // ------------------------------------------------------------------ the Tunnel, JAILBREAK
+
+  private onTunnel(e: SimEvent): void {
+    this.stats.tunnels++;
+    const v = this.shotValue('cellblock', SECRET.tunnel);
+    this.payRaw(v, e.x, e.y);
+    this.emit({ t: 'tunnel', amount: v });
+    this.emit({
+      t: 'callout',
+      text: 'THE TUNNEL',
+      sub: `A BRICK COMES LOOSE  +${fmt(v)}`,
+      priority: 7,
+      anim: 'skill',
+    });
+  }
+
+  private startJailbreak(): void {
+    this.jailbreak = true;
+    this.jbResult = 'failed';
+    this.combo.reset();
+    this.machine.lockLit = false;
+    for (const s of JAILBREAK_SHOTS) this.jbLit.add(s);
+    // The captured ball ejects after its hold; the rest come out one by one.
+    const hold = Math.round(this.holeHold() / this.dt);
+    const gap = Math.round(JAILBREAK.releaseGap / this.dt);
+    for (let i = 1; i < JAILBREAK.balls; i++)
+      this.releases.push({ steps: hold + gap * i, fromHole: i === 1 });
+    this.jbSaveLeft = JAILBREAK.ballSave + this.holeHold() + JAILBREAK.releaseGap * JAILBREAK.balls;
+    this.emit({ t: 'jailbreak', phase: 'start', n: 0 });
+    this.emit({
+      t: 'callout',
+      text: 'JAILBREAK!',
+      sub: `${JAILBREAK.shotsToEscape} SHOTS TO THE DOOR`,
+      priority: 10,
+      anim: 'jailbreak',
+      duration: 3,
+    });
+  }
+
+  /** A lit JAILBREAK shot: pay, count, tear a piece off the machine, maybe escape. */
+  private jbShot(shot: JailbreakShot, x: number, y: number): void {
+    if (!this.jailbreak || !this.jbLit.has(shot) || this.tilted) return;
+    this.jbLit.delete(shot);
+    if (this.jbLit.size === 0) for (const s of JAILBREAK_SHOTS) this.jbLit.add(s);
+    const n = ++this.jbShots;
+    this.stats.jailbreakShots++;
+    this.jbSaveLeft = Math.max(this.jbSaveLeft, 0) + JAILBREAK.savePerShot;
+    this.payRaw(JAILBREAK.shotValue * n * SCORE.scale * this.ctx.payMult, x, y);
+    this.emit({ t: 'jailbreak', phase: 'shot', n });
+    if (n === JAILBREAK.postsDropAt) {
+      this.sim.removeTag('outlanePosts');
+      this.emit({ t: 'jailbreak', phase: 'posts', n });
+    }
+    if (n === JAILBREAK.lightsDieAt) this.emit({ t: 'jailbreak', phase: 'lights', n });
+    if (n === JAILBREAK.glassCracksAt) this.emit({ t: 'jailbreak', phase: 'glass', n });
+    if (n >= JAILBREAK.shotsToEscape) {
+      this.jbResult = 'escaped';
+      this.emit({ t: 'jailbreak', phase: 'escaped', n });
+      this.emit({ t: 'callout', text: 'ESCAPED', sub: 'RUN', priority: 10, anim: 'jailbreak' });
+      this.endBall();
+      return;
+    }
+    const left = JAILBREAK.shotsToEscape - n;
+    this.emit({
+      t: 'callout',
+      text: `${left} TO GO`,
+      sub: 'THE MACHINE IS COMING APART',
+      priority: 7,
+      anim: 'jailbreak',
+    });
+    this.refreshLamps();
   }
 
   // ------------------------------------------------------------------ scoring
@@ -1077,6 +1200,8 @@ export class TableGame implements BallRules {
         : Lamp.Off;
     L.arrowPerimR = Lamp.Off;
     L.arrowCell = !this.machine.lockLit && !this.riot && drops.some(Boolean) ? Lamp.Slow : Lamp.Off;
+    if (this.jailbreak)
+      for (const s of JAILBREAK_SHOTS) L[JB_LAMP[s]] = this.jbLit.has(s) ? Lamp.Fast : Lamp.Off;
     L.kickback = this.machine.kickback ? Lamp.On : Lamp.Off;
     L.lockup = this.riot ? Lamp.Fast : this.machine.lockLit ? Lamp.Slow : Lamp.Off;
     L.shootAgain = this.extraBalls > 0 ? Lamp.On : Lamp.Off;
