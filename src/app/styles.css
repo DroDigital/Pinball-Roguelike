@@ -1,0 +1,287 @@
+:root {
+  --bg: #0b0604;
+  --ink: #f0d9a8;
+  --dim: #9a8160;
+  --amber: #ff9b2f;
+  --red: #e2442f;
+  --green: #7dff8a;
+  --panel: rgba(16, 9, 6, 0.94);
+  --edge: #6d4a2c;
+  --atm: #97ffb0;
+  --text-scale: 1;
+  font-size: calc(16px * var(--text-scale));
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Courier New', ui-monospace, monospace;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  image-rendering: pixelated;
+}
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+/* Landscape: DMD and stats in a left column beside the table. Portrait: DMD on top. */
+#hud .left {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  width: min(30vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#hud .dmd {
+  width: 100%;
+  border: 3px solid #1a0e08;
+  border-radius: 4px;
+  box-shadow: 0 0 24px rgba(255, 120, 30, 0.25);
+  image-rendering: pixelated;
+}
+#hud .stats {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-shadow:
+    0 0 6px #000,
+    0 0 2px #000;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+#hud .stats b {
+  color: var(--amber);
+  font-weight: bold;
+}
+#hud .stats .debt b {
+  color: var(--red);
+}
+#hud .right {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  text-align: right;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-shadow: 0 0 6px #000;
+  text-transform: uppercase;
+}
+#hud .plunger {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 16px;
+  height: 120px;
+  border: 2px solid var(--edge);
+  background: rgba(0, 0, 0, 0.5);
+}
+#hud .plunger i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, #ffb347, #ff4a2a);
+}
+#hud .plunger em {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 2px;
+  background: rgba(255, 240, 200, 0.6);
+}
+#hud .touch-lockbar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  display: none;
+}
+@media (pointer: coarse) {
+  #hud .touch-lockbar {
+    display: block;
+  }
+}
+#ui {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.panel {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 2px solid var(--edge);
+  box-shadow:
+    0 0 0 4px #000,
+    0 12px 60px rgba(0, 0, 0, 0.8);
+  padding: 20px 26px;
+  max-width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.panel h1,
+.panel h2 {
+  margin: 0 0 10px;
+  color: var(--amber);
+  letter-spacing: 0.12em;
+}
+.panel h1 {
+  font-size: 2rem;
+}
+.panel h2 {
+  font-size: 1.25rem;
+}
+.panel p {
+  margin: 6px 0;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.panel .dim {
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+.panel .row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.panel .grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 18px;
+  margin: 10px 0;
+}
+.panel .grid b {
+  color: var(--amber);
+  text-align: right;
+}
+.panel.atm {
+  background: #031208;
+  border-color: #1f6a35;
+  color: var(--atm);
+  box-shadow:
+    0 0 0 4px #000,
+    0 0 40px rgba(60, 255, 120, 0.15) inset;
+}
+.panel.atm h2,
+.panel.atm b {
+  color: var(--atm);
+}
+.panel.atm p {
+  color: #bfffcf;
+}
+.panel button {
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: #2a160c;
+  border: 2px solid var(--edge);
+  padding: 9px 14px;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+}
+.panel button:hover,
+.panel button:focus-visible {
+  background: #4a2614;
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+.panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.panel button.primary {
+  background: #5a2a10;
+  border-color: var(--amber);
+  color: #fff3d6;
+}
+.panel.atm button {
+  background: #062a12;
+  border-color: #1f6a35;
+  color: var(--atm);
+}
+.panel.atm button:hover {
+  background: #0b4a20;
+  outline-color: var(--atm);
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  text-shadow:
+    0 0 8px #000,
+    0 0 3px #000;
+  font-size: 1.05rem;
+  text-align: center;
+  max-width: 90vw;
+}
+.tally {
+  font-family: 'Courier New', monospace;
+  color: #c9b9a0;
+  letter-spacing: 0.15em;
+  word-break: break-all;
+}
+.fade {
+  animation: fade 0.35s ease-out;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade {
+    animation: none;
+  }
+}
+
+@media (max-aspect-ratio: 6/5) {
+  #hud .left {
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(96vw, 512px);
+    top: 6px;
+    gap: 4px;
+  }
+  #hud .stats {
+    font-size: 0.75rem;
+  }
+  #hud .right {
+    top: calc(min(96vw, 512px) / 4 + 12px);
+    font-size: 0.75rem;
+  }
+}

@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 const nodeSafe = ['src/core/**', 'src/sim/**', 'src/rules/**', 'src/content/**', 'src/bot/**'];
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'screenshots', 'tools/out'] },
+  { ignores: ['dist', 'node_modules', 'coverage', 'screenshots', 'tools/out', 'tools/scratch', 'test-results', 'playwright-report'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   prettier,

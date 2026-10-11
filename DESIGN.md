@@ -82,24 +82,40 @@ with the remainder carried as loose change. Number pops show one decimal under 1
 Each must meet its checks before the next begins.
 
 ### M1 — Vertical slice
-- [ ] Project scaffold, strict TS, lint, tests, docs
-- [ ] Table data: flippers, plunger, top lanes, Yard pops, slings, Cell Block drops,
+- [x] Project scaffold, strict TS, lint, tests, docs
+- [x] Table data: flippers, plunger, top lanes, Yard pops, slings, Cell Block drops,
       Chute, Perimeter orbits + Searchlight spinner, Hole, inlanes/outlanes, kickback, drain
-- [ ] Sim: fixed step, flippers, plunger, triggers, Chute transport, Hole capture/eject,
+- [x] Sim: fixed step, flippers, plunger, triggers, Chute transport, Hole capture/eject,
       nudge + tilt, ball save, watchdog, events
-- [ ] Coins on hits, number pops
-- [ ] One deadline of 3 rounds, ball buying, ATM deposits, trapdoor
-- [ ] Renderer: 3D table from data, Play cam, ball interpolation, HUD
-- [ ] Bot (3 skill levels) + headless runner
-- [ ] Feel targets met (tools/feel.ts):
-  - [ ] flipper responds next step, upswing ~45 ms
-  - [ ] full tip shot reaches top in ~0.7 s
-  - [ ] competent bot 45-90 s/ball (deadline 1)
-  - [ ] <25% centre drains
-  - [ ] cradle -> major shot 70%+ on each flipper
-- [ ] Technique scenarios: cradle, post pass, live catch, nudge save
+- [x] Coins on hits, number pops
+- [x] One deadline of 3 rounds, ball buying, ATM deposits, trapdoor
+- [x] Renderer: 3D table from data, Play cam, ball interpolation, HUD
+- [x] Bot (3 skill levels) + headless runner
+- [x] Feel targets met (`npm run feel`):
+  - [x] flipper responds next step (20 rad/s after 1 step), upswing 50 ms
+  - [x] full tip shot reaches top in 0.72 s (median)
+  - [x] competent bot 45-90 s/ball on deadline 1 (average bot: mean ~83 s, median ~60 s)
+  - [x] <25% centre drains (average bot 11-17%)
+  - [x] cradle -> major shot 70%+ on each flipper (left Perimeter 100%; right Chute/Hole 100%)
+- [x] Technique scenarios: cradle, post pass, live catch, nudge save (both sides, in tests)
 - [ ] 10,000-ball soak clean (no tunnelling, escapes, missed stuck balls)
-- [ ] Playwright smoke + screenshots
+- [x] Playwright smoke + screenshots (`npm run e2e`, `screenshots/`)
+- [x] Balance tools: `npm run botstats`, `npm run economy` (sampled + physics modes)
+- [x] Dev panel (`?dev`): live tuning, spawn / shift-click spawn, collider + trigger
+      overlay, slow-mo, frame step, frame-time graph, bot autoplay, top-down cam
+
+M1 baseline numbers (deadline-1 rules, 90 balls per skill):
+
+| bot | coins/ball | secs/ball | skill shot | drains (L/R/centre) |
+| --- | --- | --- | --- | --- |
+| novice | 15.8 | 77 | 26% | 51/34/14% |
+| average | 22.2 | 102 | 80% | 47/42/11% |
+| expert | 23.0 | 98 | 98% | 56/29/16% |
+
+Economy at M1 (sampled, average bot): deadlines 1-3 clear 97-100% (deadline 1 ends with
+~370c against a 75c debt: no dread), deadline 4 clears 4%, nobody passes 5. Flat scoring
+cannot keep up with x2.4 debt; M2 (shot levels, multipliers, PAYDAY) and M4 (charms) are
+the growth, and M2 must also cut deadline-1 earnings so the first deadline is tense.
 
 ### M2 — Scoring depth
 - [ ] Combos, Bonus + count-up tally, Bonus multiplier
@@ -157,3 +173,32 @@ Format: date — decision — why.
   per ball and committed on a clean drain. — Matches "the ball is lost with its Bonus and
   everything it earned".
 - 2026-10-11 — Heuristic bot lives in `src/bot/` (Node-safe). — Shared by tools and attract mode.
+- 2026-10-11 — Slope gravity 20 u/s² (real 6.5° slope is ~41). — At real gravity shots
+  curved visibly and orbits died; 20 keeps the 0.7 s tip shot and makes shots readable at
+  low resolution. Kick speeds and the plunger curve are scaled to match.
+- 2026-10-11 — Constant rolling resistance (2.2 u/s²) plus tiny linear damping (0.03)
+  instead of heavy damping. — Proportional damping never let a cradled ball settle and
+  bled fast shots; a constant decel matches a rolling ball.
+- 2026-10-11 — Slings kick with ±12% seeded speed variance, ±5° jitter and a 12° downward
+  tilt. — Without them two slings formed a deterministic infinite ping-pong; the tilt
+  also matches real slings (they send the ball down-field).
+- 2026-10-11 — The right Perimeter funnels into the top of the shooter lane (a one-way
+  gate keeps plunged balls out of it). Weak plunges and orbit returns that fall back down
+  the column are caught by a return wire (`colWire`) to the right inlane. — Every earlier
+  right-orbit layout either died on the arch shoulder or fed the right outlane.
+- 2026-10-11 — Shield faces below each flank and a steep `cellRoof` over the Cell Block. —
+  Flanks were funnelling cross-table traffic straight into the outlanes; the roof removes
+  a dead spot where balls balanced on the drop bank.
+- 2026-10-11 — Plunger exit curve reshaped so each top lane gets a ~0.08-0.1 pull window
+  (C 0.55-0.66, B 0.67-0.76, A 0.78-0.84; full plunge orbits). The HUD meter marks the
+  lit lane's pull. — Lanes B and A were ~20 ms windows, effectively luck.
+- 2026-10-11 — Excess Bank carries over after paying a deadline. — Overpaying early should
+  feel like a cushion, not a waste; pay-early tickets (M3) still reward skipping.
+- 2026-10-11 — Extra nudge bindings C / V (left / right) beside X (up). — The brief's
+  single nudge key can't save both outlanes; directional nudges are standard.
+- 2026-10-11 — Cabinet body and lockbar are children of the tilted table group. — A
+  level cabinet box cut through the lower playfield.
+- 2026-10-11 — Landscape HUD puts the DMD and stats in a left column beside the table;
+  portrait puts the DMD on top and the camera fits width as well as height. — Keeps the
+  arch visible on every aspect.
+

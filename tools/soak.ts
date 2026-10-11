@@ -57,6 +57,7 @@ function runRange(job: Job): Tally {
       if (e.t === 'drain') cause = e.cause;
     });
     const bot = new Bot(skill, 31 * i + 7);
+    bot.skillLane = () => s.game.machine.skillLane;
     const max = job.maxSeconds * 240;
     let cursor = 0;
     const stuckLimit = (s.sim.cfg.watchdog.stuckTime + 1.0) * 240;

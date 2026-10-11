@@ -48,6 +48,7 @@ export function playSessionBall(
   };
   const session = new BallSession(snap, onEvent);
   const bot = new Bot(skill, botSeed);
+  bot.skillLane = () => session.game.machine.skillLane;
   const max = maxSeconds * 240;
   while (!session.over && session.steps < max) session.step(bot.decide(session.sim));
   return {

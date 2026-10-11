@@ -97,8 +97,10 @@ export class Bot {
   readonly rng: Rng;
   skill: BotSkill;
   chooseTarget: TargetChooser | null = null;
-  /** Desired plunge pull, chosen per ball (null = full plunge). */
+  /** Desired plunge pull, chosen per ball (null = aim for the skill shot or full plunge). */
   plungePull: number | null = null;
+  /** Lit Roll Call lane (0..2) so the plunge can aim for it; null = always full plunge. */
+  skillLane: (() => number) | null = null;
   /** Counters for diagnostics. */
   readonly stats = { flips: 0, catches: 0, cradles: 0, aimed: 0, nudges: 0 };
   private brains: FlipBrain[];
@@ -164,9 +166,14 @@ export class Bot {
     }
     if (this.plungeTimer < 0) {
       this.plungeTimer = this.rng.int(40, 140);
-      const pull = this.plungePull ?? this.rng.range(0.92, 1.0);
+      let pull = this.plungePull ?? this.rng.range(0.92, 1.0);
+      let jitter = 2;
+      if (this.plungePull === null && this.skillLane && this.rng.chance(this.skill.aim)) {
+        pull = sim.cfg.plunger.lanePull[this.skillLane()];
+        jitter = this.skill.aimJitter * 2;
+      }
       this.plungeHoldSteps =
-        Math.round(pull * sim.cfg.plunger.pullTime * 240) + this.rng.int(-2, 2);
+        Math.round(pull * sim.cfg.plunger.pullTime * 240) + this.rng.int(-jitter, jitter);
     }
     if (this.plungeTimer > 0) {
       this.plungeTimer--;

@@ -96,14 +96,17 @@ export const PLUNGER = {
    */
   exitCurve: [
     [0, 0],
-    [0.2, 16.1],
-    [0.75, 23.9],
+    [0.2, 14],
+    [0.55, 22.0],
+    [0.85, 27.3],
     [1, 32.4],
   ] as [number, number][],
   /** Height the ball climbs from the plunger to the shooter lane exit. */
   climb: 25.75,
   /** Compensation for rolling losses on the way up. */
   lossComp: 1.015,
+  /** Pull centred on each top lane's window (A, B, C) for the Roll Call skill shot. */
+  lanePull: [0.805, 0.715, 0.605] as [number, number, number],
   /** Pull used for auto-launches (ball save, multiball): a full orbit to the right flipper. */
   autoPull: 0.92,
   /** Ball counts as resting in the shooter lane below this speed. */
