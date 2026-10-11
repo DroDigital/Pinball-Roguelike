@@ -192,6 +192,8 @@ export const COMBO = {
   /** Multiplier on the first shot of a chain; each further shot adds `step`. */
   start: 1,
   step: 1,
+  /** Pocket Watch: seconds the chain can't time out once the clock is stopped. */
+  watchHold: 10,
 };
 
 /** End-of-ball Bonus. */

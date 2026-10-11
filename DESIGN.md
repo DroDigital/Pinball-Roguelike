@@ -219,7 +219,7 @@ dominate Riot wins; samples are small (24 runs).
       combos, RIOT and Sentence rounds)
 - [x] Juice: hit-stop on the Hole and PAYDAY, shake, flash, score pops, bulb swing, a coin
       fountain from the coin return into the tray (the pile is your pocket; the ATM takes
-      it), slow motion on last-second saves (a ball dropping through the flipper gap sent
+      it), a reaction to last-second saves (a ball dropping through the flipper gap sent
       back up; ~1 per 5 balls for the bot)
 - [x] The Warden: lines on every cell screen plus reactions to play (center drain, big
       PAYDAY, RIOT, tilt, Job done, Sentence survived), rate-limited, as subtitles; an
@@ -416,8 +416,9 @@ Format: date — decision — why.
   the ball breakdown are the payoff beat; watching coins pile up says "pocket" better than
   a number, and the pile empties into the ATM, which makes depositing feel like a choice.
 - 2026-10-11 — Last-second saves are detected from ball state in presentation (falling
-  through the flipper gap, then up the table within 0.35 s) and slow the table to 0.3x for
-  0.55 s of real time. — No rules or replay impact; a 4 s cooldown keeps it special.
+  through the flipper gap, then up the table within 0.35 s). — No rules or replay impact;
+  a 4 s cooldown keeps it special. (The slow motion they first triggered was removed, see
+  below.)
 - 2026-10-11 — Warden reactions during play wait 12 s between lines; tilt always speaks. —
   The Warden should comment, not narrate; the voice is off by default (speech synthesis
   varies a lot by browser).

@@ -106,10 +106,8 @@ import { ASSIST, BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance'
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
-/** Last-second save: the table runs at this speed for DRAMA_SECS of real time. */
-const DRAMA_SCALE = 0.3;
-const DRAMA_SECS = 0.55;
-const DRAMA_COOLDOWN_MS = 4000;
+/** Last-second saves get one reaction per this many ms. */
+const SAVE_COOLDOWN_MS = 4000;
 /** Instant replay: seconds shown before and after the moment. */
 const REPLAY_LEAD = 6;
 const REPLAY_TAIL = 2.5;
@@ -172,10 +170,6 @@ export class GameApp {
   /** Dev: called after every frame (overlays). */
   onFrame: ((dt: number) => void) | null = null;
   private hitStop = 0;
-  /** Pocket Watch: sim seconds of half-speed time left (presentation only). */
-  private slowmoLeft = 0;
-  /** Real seconds of dramatic slow motion left (last-second saves). */
-  private dramaLeft = 0;
   private readonly saves = new SaveDetector();
   /** Coins the tray shows (poured or piled); follows the pocket between balls. */
   private trayCoins = 0;
@@ -427,17 +421,11 @@ export class GameApp {
           this.acc = this.stepRequests * STEP;
           this.stepRequests = 0;
         }
-        // Effective time scale: dev slow-mo times the Pocket Watch.
+        // Effective time scale: the dev panel's, times Assist mode's slower table.
         const scale =
           this.timeScale *
-          (this.slowmoLeft > 0 ? 0.5 : 1) *
-          (this.dramaLeft > 0 ? DRAMA_SCALE : 1) *
           (this.run?.assist && act.session === this.session ? ASSIST.timeScale : 1);
-        this.dramaLeft = Math.max(0, this.dramaLeft - dt);
-        if (!this.paused) {
-          this.acc += dt * scale;
-          this.slowmoLeft = Math.max(0, this.slowmoLeft - dt * scale);
-        }
+        if (!this.paused) this.acc += dt * scale;
         // Real time of the sim's current step: inputs are applied on the step they happened.
         this.wallClock = now - (this.acc / scale) * 1000;
         let budget = 60; // never spiral
@@ -741,9 +729,6 @@ export class GameApp {
           break;
         case 'jailbreak':
           this.onJailbreak(e.phase, e.n);
-          break;
-        case 'slowmo':
-          this.slowmoLeft = e.seconds;
           break;
         case 'active':
           audio.kick();
@@ -1195,14 +1180,13 @@ export class GameApp {
     else this.subs.react('THE WARDEN', () => this.warden(t), performance.now());
   }
 
-  private lastDrama = -1e9;
+  private lastSave = -1e9;
 
-  /** A ball dropping through the gap got sent back up: let the moment breathe. */
+  /** A ball dropping through the gap got sent back up. */
   private lastSecondSave(): void {
     const now = performance.now();
-    if (now - this.lastDrama < DRAMA_COOLDOWN_MS) return;
-    this.lastDrama = now;
-    this.dramaLeft = DRAMA_SECS;
+    if (now - this.lastSave < SAVE_COOLDOWN_MS) return;
+    this.lastSave = now;
     audio.creak();
     this.shake(0.3);
     this.input.buzz(40);
@@ -1927,7 +1911,6 @@ export class GameApp {
       });
     }
     this.world.sway = snap.ctx.moonshine ? 1 : 0;
-    this.slowmoLeft = 0;
     this.simCursor = 0;
     this.acc = 0;
     this.input.events.length = 0;
@@ -1941,7 +1924,6 @@ export class GameApp {
     this.world.restoreLights();
     this.cracks.style.display = 'none';
     this.world.sway = 0;
-    this.slowmoLeft = 0;
     const g = this.session!.game;
     this.outcome = g.outcome();
     if (!g.tilted) this.pourCoins(Math.floor(this.outcome.earned));

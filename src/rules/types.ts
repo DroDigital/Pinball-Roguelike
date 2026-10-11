@@ -40,7 +40,6 @@ export type GameEvent =
   | { t: 'extraBall' }
   | { t: 'active'; id: string; slot: number; charges: number }
   /** Presentation slows real time (Pocket Watch); the sim is unaffected. */
-  | { t: 'slowmo'; seconds: number }
   /** The neighbor's secret shot. */
   | { t: 'tunnel'; amount: number }
   /**

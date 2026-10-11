@@ -328,7 +328,7 @@ describe('Active charms', () => {
   });
   t('pocketWatch', () => {
     const h = press(['pocketWatch']);
-    expect(h.of('slowmo')[0].seconds).toBe(4);
+    expect(h.game.combo.held(h.game.time + COMBO.watchHold - 0.01)).toBe(true);
     expect(h.game.ctx.actives[0].charges).toBe(1);
   });
   t('crowbar', () => {

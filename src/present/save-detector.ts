@@ -1,7 +1,7 @@
 /**
  * Spots last-second saves: a ball falling through the drain gap (or low in an inlane/outlane
- * mouth) that is sent back up the table within a heartbeat. The app answers with a brief
- * slow-motion beat. Presentation-only: reads sim ball state, never touches it.
+ * mouth) that is sent back up the table within a heartbeat. The app celebrates it.
+ * Presentation-only: reads sim ball state, never touches it.
  */
 import type { SimBall } from '../sim/sim';
 

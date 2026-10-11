@@ -61,7 +61,7 @@ export interface ActiveDef {
   charges: number;
   /** Charges refill every round (default) or every deadline. */
   per: 'round' | 'deadline';
-  action: 'ballSave' | 'slowmo' | 'crowbar' | 'twinYolk';
+  action: 'ballSave' | 'stopClock' | 'crowbar' | 'twinYolk';
 }
 
 export interface CharmDef {
@@ -485,8 +485,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Chute'],
-    text: 'Active (2 charges): slows time to half speed for 4 s.',
-    active: { charges: 2, per: 'round', action: 'slowmo' },
+    text: 'Active (2 charges): stops the clock. For 10 s, combos don’t time out.',
+    active: { charges: 2, per: 'round', action: 'stopClock' },
   },
   {
     id: 'crowbar',

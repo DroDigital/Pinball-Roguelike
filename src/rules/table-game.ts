@@ -117,7 +117,7 @@ export interface ActiveSlot {
   /** 1-based charm slot (number keys). */
   slot: number;
   id: string;
-  action: 'ballSave' | 'slowmo' | 'crowbar' | 'twinYolk';
+  action: 'ballSave' | 'stopClock' | 'crowbar' | 'twinYolk';
   charges: number;
   max: number;
 }
@@ -201,7 +201,6 @@ export function defaultBallContext(): BallContext {
 
 const LANE_IDS = ['laneA', 'laneB', 'laneC'];
 const ACTIVE_SAVE = 10; // Panic Button seconds
-const ACTIVE_SLOWMO = 4; // Pocket Watch seconds at half speed
 const TWIN_SAVE = 6; // Twin Yolk multiball save
 const LADDER_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock'];
 const FAVOURITES = LADDER_SHOTS;
@@ -1033,9 +1032,9 @@ export class TableGame implements BallRules {
         this.ballSaveLeft = Math.max(this.ballSaveLeft, ACTIVE_SAVE);
         this.emit({ t: 'callout', text: 'PANIC BUTTON', sub: 'BALL SAVE ARMED', priority: 5 });
         break;
-      case 'slowmo':
-        this.emit({ t: 'slowmo', seconds: ACTIVE_SLOWMO });
-        this.emit({ t: 'callout', text: 'POCKET WATCH', sub: 'TIME DRAGS', priority: 4 });
+      case 'stopClock':
+        this.combo.hold(this.time + COMBO.watchHold);
+        this.emit({ t: 'callout', text: 'POCKET WATCH', sub: 'THE CLOCK STOPS', priority: 4 });
         break;
       case 'crowbar': {
         const drops = this.sim.dropStates();
