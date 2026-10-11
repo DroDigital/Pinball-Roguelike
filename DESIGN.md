@@ -251,12 +251,30 @@ dominate Riot wins; samples are small (24 runs).
 
 ### M7 — Polish
 
-- [ ] Onboarding, accessibility, settings, touch + gamepad
-- [ ] Phone performance, replays, balance pass
+- [x] Onboarding: first-time hint notes for every screen and idea (flippers, plunger,
+      nudge, Pocket, Jobs, buying, ATM, shop, phone, red calls, the neighbor, Lockup, RIOT,
+      Sentences, Keys, actives), touch wording on touch screens, never blocking play
+- [x] Settings (title and pause): volume per channel, Warden voice, shake, grain,
+      resolution, text size, camera, reduced flashing, assist, vibration, hint notes, key
+      rebinding; every control is a button so the flippers drive menus
+- [x] Pause (Esc / Start / on-screen II): the table freezes; held buttons carry over
+- [x] Accessibility: subtitles for the Warden and the neighbor, text size, reduced
+      flashing, rebinding, Assist mode (0.8x table, +5 s ball save, flagged run)
+- [x] Touch: menu taps no longer reach the flipper zones; on-screen lockbar and pause; compact
+      panels on short screens. Gamepad: Start pauses, B / Back back out
+- [x] Phone performance: about 180 draw calls and 3 ms of script per frame at 240p; a
+      watchdog drops to 180p if a device stays under 40 FPS for 5 s
+- [x] Instant replays of a ball's biggest moment (PAYDAY, SUPER PAYDAY, JAILBREAK, the
+      escape) by deterministic re-simulation; bug reports (run + ball snapshot + inputs) from
+      the pause menu, played back from the dev panel
+- [ ] Balance pass at Hard Time 0 (below)
 
 ### M8 — Stretch
 
-- [ ] Daily Sentence, seed sharing, offline PWA
+- [x] Daily Sentence: a date seed shared by everyone, with the day's local best
+- [x] Seed sharing: typed seeds on the lineup, shared links that carry inmate and Hard Time
+- [x] Offline PWA: manifest, icons, a service worker that precaches the shell and assets
+- [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
 
 ## Decisions log
 
@@ -434,3 +452,14 @@ Format: date — decision — why.
   another version of the run rules is dropped rather than migrated. — Round start is the one
   point where the run state alone describes the screen. Meta progress (the part players
   care about) is migrated.
+- 2026-10-11 — Quitting mid-ball forfeits that ball, and the run autosaves after every ball.
+  — Otherwise quitting would undo a bad drain (save-scumming), and a roguelike's bad ball
+  has to stick.
+- 2026-10-11 — Seeded and daily runs use the full charm collection. — A seed must play the
+  same for everyone it's shared with; locked charms would change the shops. Random-seed
+  runs keep the player's locks, so progression still matters where nobody compares.
+- 2026-10-11 — Menus are buttons only (steppers instead of sliders). — The flippers drive
+  every menu (pinball-cabinet style), and the same buttons work for touch and gamepad.
+- 2026-10-11 — Instant replays re-simulate the recorded ball from its snapshot instead of
+  storing frames. — Determinism makes it free (a few hundred KB of inputs at most), and the
+  same path plays back bug reports.

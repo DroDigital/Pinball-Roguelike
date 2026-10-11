@@ -4,6 +4,7 @@
  * copies them into the running sim's config for values read every step.
  */
 import * as THREE from 'three';
+import type { CamMode } from '../present/scene';
 import { Pane, type FolderApi } from 'tweakpane';
 import * as Essentials from '@tweakpane/plugin-essentials';
 import type { Body, Fixture } from 'planck';
@@ -208,6 +209,12 @@ export function attachDevPanel(app: GameApp): void {
   lines.visible = false;
   app.world.table.root.add(lines);
   view.addBinding(state, 'colliders').on('change', (e) => (lines.visible = e.value));
+  const cam = { camera: 'auto' };
+  view
+    .addBinding(cam, 'camera', {
+      options: { auto: 'auto', overhead: 'play', seated: 'seated', 'top-down': 'top' },
+    })
+    .on('change', (e) => (app.devCam = e.value === 'auto' ? null : (e.value as CamMode)));
   const triggerSegs: number[] = [];
   for (const t of TABLE.triggers) triggerSegs.push(t.a[0], t.a[1], t.b[0], t.b[1]);
 
