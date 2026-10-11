@@ -12,6 +12,7 @@ export interface FoldedFx {
   comboWindowAdd: number;
   comboStep: number;
   bonusMaxAdd: number;
+  bonusStartAdd: number;
   bonusShareMult: number;
   noBonusCap: boolean;
   noBonus: boolean;
@@ -51,6 +52,7 @@ export function emptyFx(): FoldedFx {
     comboWindowAdd: 0,
     comboStep: 0,
     bonusMaxAdd: 0,
+    bonusStartAdd: 0,
     bonusShareMult: 1,
     noBonusCap: false,
     noBonus: false,
@@ -89,6 +91,7 @@ function fold(out: FoldedFx, fx: CharmFx): void {
   if (fx.comboWindowAdd) out.comboWindowAdd += fx.comboWindowAdd;
   if (fx.comboStep) out.comboStep = Math.max(out.comboStep, fx.comboStep);
   if (fx.bonusMaxAdd) out.bonusMaxAdd += fx.bonusMaxAdd;
+  if (fx.bonusStartAdd) out.bonusStartAdd += fx.bonusStartAdd;
   if (fx.bonusShareMult) out.bonusShareMult *= fx.bonusShareMult;
   if (fx.noBonusCap) out.noBonusCap = true;
   if (fx.noBonus) out.noBonus = true;

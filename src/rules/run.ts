@@ -568,6 +568,7 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     comboStep: f.comboStep || base.comboStep,
     comboWindow: base.comboWindow + f.comboWindowAdd,
     bonusMaxMult: f.noBonusCap ? 999 : BONUS.maxMult + m.bonusMaxAdd + f.bonusMaxAdd,
+    bonusStart: 1 + f.bonusStartAdd,
     bonusShare: base.bonusShare * f.bonusShareMult,
     bonusKeep: f.noBonus ? 0 : 1,
     bonusTimes: owns(s, 'lastRites') && lastBall ? RUN_HOOK.lastRitesTimes : 1,

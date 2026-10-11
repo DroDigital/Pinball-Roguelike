@@ -250,3 +250,18 @@ describe('job tracking', () => {
     expect(h.game.jobProgress()).toBe(5);
   });
 });
+
+describe('top lanes', () => {
+  it('a Perimeter orbit spots the next top lane; three complete the set', () => {
+    const h = harness();
+    h.serve();
+    for (let i = 0; i < 3; i++) {
+      h.fire('trigger', 'perimL', { dir: 1 });
+      h.fire('trigger', 'perimLTop', { dir: 1 });
+      h.wait(3);
+    }
+    expect(h.game.stats.perimeters).toBe(3);
+    expect(h.game.stats.laneSets).toBe(1);
+    expect(h.game.bonusMult).toBe(2);
+  });
+});

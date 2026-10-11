@@ -21,6 +21,8 @@ export interface CharmFx {
   comboWindowAdd?: number;
   comboStep?: number;
   bonusMaxAdd?: number;
+  /** Added to the Bonus multiplier every ball starts at. */
+  bonusStartAdd?: number;
   bonusShareMult?: number;
   noBonusCap?: boolean;
   noBonus?: boolean;
@@ -84,8 +86,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Money'],
-    text: '+5% interest.',
-    fx: { interestAdd: 0.05 },
+    text: '+10% interest.',
+    fx: { interestAdd: 0.1 },
   },
   {
     id: 'sharkTooth',
@@ -102,8 +104,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Money'],
-    text: 'Pocket coins also earn 5% interest at round end.',
-    fx: { pocketInterest: 0.05 },
+    text: 'Pocket coins also earn 10% interest at round end.',
+    fx: { pocketInterest: 0.1 },
   },
   {
     id: 'pawnTicket',
@@ -250,8 +252,16 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Bonus'],
-    text: '+3 max Bonus multiplier.',
-    fx: { bonusMaxAdd: 3 },
+    text: 'Every ball starts at Bonus x2. +2 max Bonus multiplier.',
+    fx: { bonusStartAdd: 1, bonusMaxAdd: 2 },
+  },
+  {
+    id: 'rollCallSheet',
+    name: 'Roll Call Sheet',
+    rarity: 'uncommon',
+    cost: 3,
+    tags: ['Bonus'],
+    text: 'Every Hole shot lights a top lane.',
   },
   {
     id: 'cookedBooks',
@@ -323,7 +333,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Luck'],
-    text: '+6 luck on the last ball of each round.',
+    text: '+3 luck on every ball, +6 more on the last ball of each round.',
+    fx: { luck: 3 },
   },
   {
     id: 'wishbone',
@@ -345,8 +356,8 @@ export const CHARMS: CharmDef[] = [
   {
     id: 'crookedPenny',
     name: 'Crooked Penny',
-    rarity: 'rare',
-    cost: 5,
+    rarity: 'uncommon',
+    cost: 4,
     tags: ['Luck'],
     text: 'Each hit has a 5% chance (+luck) to pay 10x.',
   },
@@ -406,8 +417,8 @@ export const CHARMS: CharmDef[] = [
   {
     id: 'solitary',
     name: 'Solitary Confinement',
-    rarity: 'rare',
-    cost: 5,
+    rarity: 'uncommon',
+    cost: 4,
     tags: ['Lone'],
     text: 'If you buy no balls in a round, your free balls pay 4x.',
   },

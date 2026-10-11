@@ -64,7 +64,7 @@ const t = (id: string, fn: () => void) =>
 
 describe('Money charms', () => {
   t('piggyBank', () =>
-    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.05),
+    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.1),
   );
   t('sharkTooth', () => expect(loanCost(runWith(['sharkTooth']), 100)).toBe(110));
   t('mattress', () => {
@@ -73,7 +73,7 @@ describe('Money charms', () => {
     finishBall(s, emptyOutcome());
     s.pocket = 100;
     endRound(s);
-    expect(s.pocket).toBe(105);
+    expect(s.pocket).toBe(110);
   });
   t('pawnTicket', () => {
     const s = newRun('pawn');
@@ -170,7 +170,24 @@ describe('Combo charms', () => {
 });
 
 describe('Bonus charms', () => {
-  t('chippedAbacus', () => expect(ctxOf(['chippedAbacus']).bonusMaxMult).toBe(BONUS.maxMult + 3));
+  t('chippedAbacus', () => {
+    expect(ctxOf(['chippedAbacus']).bonusMaxMult).toBe(BONUS.maxMult + 2);
+    expect(ballOf(['chippedAbacus']).game.bonusMult).toBe(2);
+  });
+  t('rollCallSheet', () => {
+    const h = ballOf(['rollCallSheet']);
+    h.serve();
+    for (let i = 0; i < 3; i++) {
+      h.hole();
+      h.wait(3);
+    }
+    expect(h.game.stats.laneSets).toBe(1);
+    // Without the sheet the Hole lights nothing.
+    const b = ballOf([]);
+    b.serve();
+    b.hole();
+    expect(b.game.machine.lanes.some(Boolean)).toBe(false);
+  });
   t('cookedBooks', () => expect(ctxOf(['cookedBooks']).bonusShare).toBeCloseTo(BONUS.share * 2));
   t('heldBreath', () => {
     const h = ballOf(['heldBreath']);
@@ -213,9 +230,9 @@ describe('Riot charms', () => {
 describe('Luck charms', () => {
   t('candleStub', () => {
     const s = runWith(['candleStub'], 2);
-    expect(nextBall(s).ctx.luck).toBe(0);
+    expect(nextBall(s).ctx.luck).toBe(3);
     finishBall(s, emptyOutcome());
-    expect(nextBall(s).ctx.luck).toBe(RUN_HOOK.candleLuck);
+    expect(nextBall(s).ctx.luck).toBe(3 + RUN_HOOK.candleLuck);
   });
   t('wishbone', () => {
     const s = runWith(['wishbone'], 2);

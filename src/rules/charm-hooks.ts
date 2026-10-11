@@ -20,6 +20,8 @@ export interface BallRules {
   lucky(base: number): boolean;
   addBonusMult(n: number): void;
   levelUp(shot: ShotType): void;
+  /** Light the next unlit top lane. */
+  spotLane(): void;
 }
 
 export interface BallHooks {
@@ -48,6 +50,11 @@ export const BALL_HOOKS: Record<string, BallHooks> = {
   },
   crookedPenny: {
     hitMult: (g, shot) => (shot !== 'searchlight' && g.lucky(CRACK_PENNY_CHANCE) ? 10 : 1),
+  },
+  rollCallSheet: {
+    onHit: (g, shot) => {
+      if (shot === 'hole') g.spotLane();
+    },
   },
   goldFilling: {
     // The gold bumper is the mount's reference bumper (pop2).

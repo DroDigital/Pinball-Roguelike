@@ -73,6 +73,8 @@ export interface BallContext {
   comboStart: number;
   comboStep: number;
   bonusMaxMult: number;
+  /** The Bonus multiplier each ball starts at (Chipped Abacus 2). */
+  bonusStart: number;
   /** Bonus added per paid coin. */
   bonusShare: number;
   /** Fraction of the Bonus kept (Taxman 0.75, Hellfire Rubber 0) and times tallied. */
@@ -173,6 +175,7 @@ export function defaultBallContext(): BallContext {
     comboStart: COMBO.start,
     comboStep: COMBO.step,
     bonusMaxMult: BONUS.maxMult,
+    bonusStart: 1,
     bonusShare: BONUS.share,
     bonusKeep: 1,
     bonusTimes: 1,
@@ -310,9 +313,10 @@ export class TableGame implements BallRules {
     this.hooks = ctx.charms.map((id) => BALL_HOOKS[id]).filter((h): h is BallHooks => !!h);
     for (const s of SHOT_TYPES) this.hitCounts[s] = 0;
     this.luck = ctx.luck;
+    const start = Math.min(ctx.bonusStart, ctx.bonusMaxMult);
     this.bonusMult = ctx.holdBonusMult
-      ? Math.max(1, Math.min(machine.bonusMult, ctx.bonusMaxMult))
-      : 1;
+      ? Math.max(start, Math.min(machine.bonusMult, ctx.bonusMaxMult))
+      : start;
     this.combo = new ComboTracker(ctx.comboWindow, ctx.comboStart, ctx.comboStep);
     this.payday = ctx.paydayCarry > 0 ? ctx.paydayCarry : RIOT.paydayBase;
     if (ctx.lockdown) machine.lockLit = false;
@@ -551,6 +555,15 @@ export class TableGame implements BallRules {
     this.refreshLamps();
   }
 
+  /** Light the first unlit top lane (orbits, Roll Call Sheet); a full set completes. */
+  spotLane(x = 14.9, y = 35): void {
+    const i = this.machine.lanes.indexOf(false);
+    if (i < 0) return;
+    this.machine.lanes[i] = true;
+    if (this.machine.lanes.every(Boolean)) this.completeLanes(x, y);
+    this.refreshLamps();
+  }
+
   /** A top-lane set: Bonus multiplier up (unless Dead Lanes) and the Hole award lights. */
   private completeLanes(x: number, y: number): void {
     this.machine.lanes.fill(false);
@@ -568,6 +581,8 @@ export class TableGame implements BallRules {
 
   private onPerimeter(side: 'L' | 'R', e: SimEvent): void {
     this.jbShot(side === 'L' ? 'perimL' : 'perimR', e.x, e.y);
+    // The orbit runs past the top lanes: it spots the next one.
+    this.spotLane(e.x, e.y);
     this.stats.perimeters++;
     const mult = this.major();
     this.pay('perimeter', SCORE.perimeter * mult, e.x, e.y, mult);

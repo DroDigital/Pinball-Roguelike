@@ -17,6 +17,7 @@ import { ECONOMY } from '../src/content/balance';
 import {
   answerKnock,
   canHelp,
+  freeBalls,
   newRun,
   buyBalls,
   maxAffordableBalls,
@@ -177,7 +178,8 @@ function playRun(
       continue;
     }
     if (r.phase === 'buyBalls') {
-      buyBalls(r, maxAffordableBalls(r));
+      // With Solitary Confinement, play only the free balls (they pay 4x).
+      buyBalls(r, r.charms.includes('solitary') ? freeBalls(r) : maxAffordableBalls(r));
       continue;
     }
     if (r.phase === 'betweenBalls' && ballsLeft(r) > 0) {
@@ -342,5 +344,16 @@ if (IS_MAIN) {
     );
   }
   mkdirSync('tools/out', { recursive: true });
-  writeFileSync('tools/out/economy.json', JSON.stringify({ mode, skill, runs, report }, null, 2));
+  const arch = jobs[0]?.policy.arch ?? 'none';
+  const out = {
+    mode,
+    skill,
+    runs,
+    arch,
+    report,
+    winners: winners.map((w) => ({ result: w.result, charms: w.charms })),
+  };
+  writeFileSync('tools/out/economy.json', JSON.stringify(out, null, 2));
+  // Per-archetype copy: pool these to check charm dominance across all winning builds.
+  writeFileSync(`tools/out/economy-${arch}.json`, JSON.stringify(out, null, 2));
 }
