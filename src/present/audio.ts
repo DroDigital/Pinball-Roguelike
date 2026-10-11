@@ -5,6 +5,20 @@
 
 export type Channel = 'master' | 'sfx' | 'music' | 'ambience';
 
+/** Menu and screen cues, played by name from the UI layer. */
+export type UiCue =
+  | 'move'
+  | 'select'
+  | 'back'
+  | 'open'
+  | 'error'
+  | 'buy'
+  | 'sell'
+  | 'reward'
+  | 'toggle'
+  | 'deposit'
+  | 'tick';
+
 export class Audio {
   ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -345,6 +359,12 @@ export class Audio {
       dur: 0.12,
       gain: 0.12,
     });
+  }
+
+  ui(cue: UiCue): void {
+    if (cue === 'error') this.warn();
+    else if (cue === 'back') this.tone({ type: 'square', f0: 880, dur: 0.05, gain: 0.1 });
+    else this.atmBeep();
   }
 
   atmBeep(): void {
