@@ -15,6 +15,7 @@ import {
   newRun,
   nextBall,
   pickJob,
+  roundsIn,
   sentenceActive,
   settleDeadline,
   startDeadline,
@@ -256,6 +257,18 @@ describe('endings', () => {
     expect(s.phase).toBe('over');
     expect(s.result).toBe('breakout');
   });
+
+  it('JAILBREAK is not lit while a Sentence bolts the Hole', () => {
+    const s = newRun('JB');
+    s.deadline = s.deadlines - 1;
+    startDeadline(s);
+    s.keys = JAILBREAK.keys;
+    s.sentences = ['boltedHole'];
+    s.round = roundsIn(s) - 1;
+    expect(jailbreakLit(s)).toBe(false);
+    s.round = 0;
+    expect(jailbreakLit(s)).toBe(true);
+  });
 });
 
 describe('the Tunnel (secret shot)', () => {
@@ -284,6 +297,20 @@ describe('the Tunnel (secret shot)', () => {
     expect(u.of('tunnel')).toHaveLength(0);
   });
 
+  it('two targets falling in the clearing step do not spoil the next bank', () => {
+    const h = harness({ tunnel: true });
+    h.sim.knockDrop(2);
+    h.game.postStep();
+    // The Crowbar (or one hit across the gap) drops the last two in the same step.
+    h.sim.knockDrop(0);
+    h.sim.knockDrop(1);
+    h.game.postStep();
+    h.sim.stepOnce(emptyInput());
+    h.game.postStep();
+    knock(h, [2, 1, 0]);
+    expect(h.of('tunnel')).toHaveLength(1);
+  });
+
   it('a bank that starts part-down cannot be a Tunnel', () => {
     const h = harness({ tunnel: true }, { drops: [true, true, false] });
     knock(h, [1, 0]);
@@ -304,6 +331,16 @@ describe('JAILBREAK', () => {
     h.fire('trigger', `perim${side}Top`, { dir: 1 });
   };
   const gap = () => COMBO.window + 0.1;
+
+  it('a tilted ball falling into the Hole does not start it', () => {
+    const h = harness({ jailbreak: true }, { awardLit: false });
+    h.serve();
+    while (!h.game.tilted) h.fire('nudge');
+    h.sim.clearBalls();
+    h.hole();
+    expect(h.game.jailbreak).toBe(false);
+    expect(h.game.outcome().jailbreak).toBe('none');
+  });
 
   it('starts at the Hole: four balls, every shot lit', () => {
     const h = start();

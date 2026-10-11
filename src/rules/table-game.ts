@@ -440,6 +440,8 @@ export class TableGame implements BallRules {
         break;
       case 'dropsReset':
         this.cellCleared = false;
+        // The bank is fully up again: the Tunnel order restarts with it.
+        this.dropSeq = [];
         break;
       case 'spin':
         this.stats.spins += e.value;
@@ -645,7 +647,7 @@ export class TableGame implements BallRules {
     let locked = false;
     if (this.jailbreak) {
       this.jbShot('hole', e.x, e.y);
-    } else if (this.ctx.jailbreak && this.jbResult === 'none' && !this.riot) {
+    } else if (this.ctx.jailbreak && this.jbResult === 'none' && !this.riot && !this.tilted) {
       this.startJailbreak();
     } else if (this.riot && this.superLit) {
       const amount =
@@ -796,7 +798,8 @@ export class TableGame implements BallRules {
     this.pay('cellblock', SCORE.drop, e.x, e.y);
     this.endSkill();
     this.jbShot('cellblock', e.x, e.y);
-    this.dropSeq?.push(e.value);
+    // Targets falling in the step that clears the bank belong to the cleared bank.
+    if (!this.cellCleared) this.dropSeq?.push(e.value);
     const states = this.sim.dropStates();
     this.machine.drops = states;
     // The sim resets the bank after the step; one clear per reset.
