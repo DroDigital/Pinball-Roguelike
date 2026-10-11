@@ -31,6 +31,8 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 
 export class UI {
   private panel: HTMLElement | null = null;
+  /** Panels covered by push() (pause, settings), restored by pop(). */
+  private readonly stack: HTMLElement[] = [];
   private toastTimer = 0;
   /** Called when any button is activated (for UI sounds). */
   onClick: (() => void) | null = null;
@@ -46,11 +48,54 @@ export class UI {
 
   show(el: HTMLElement): void {
     this.hide();
-    el.classList.add('fade');
+    this.stack.length = 0;
+    this.mount(el);
+  }
+
+  /** Show a panel over the current one (or over play). */
+  push(el: HTMLElement): void {
+    if (this.panel) {
+      this.stack.push(this.panel);
+      this.panel.remove();
+      this.panel = null;
+    }
+    this.mount(el);
+  }
+
+  /** Swap the top panel in place (a panel re-rendering itself), keeping the stack. */
+  replace(el: HTMLElement, focusKey?: string | null): void {
+    this.hide();
+    this.mount(el);
+    if (focusKey)
+      el.querySelector<HTMLButtonElement>(`button[data-k="${focusKey}"]`)?.focus({
+        preventScroll: true,
+      });
+  }
+
+  /** Close the top panel and bring back the one beneath (if any). */
+  pop(): void {
+    this.hide();
+    const prev = this.stack.pop();
+    if (prev) this.mount(prev, false);
+  }
+
+  get depth(): number {
+    return this.stack.length;
+  }
+
+  /** The focused button's data-k (to keep focus across a re-render). */
+  focusKey(): string | null {
+    const el = document.activeElement as HTMLElement | null;
+    return el && this.panel?.contains(el) ? (el.dataset.k ?? null) : null;
+  }
+
+  private mount(el: HTMLElement, fresh = true): void {
+    if (fresh) el.classList.add('fade');
     this.root.append(el);
     this.panel = el;
-    for (const b of Array.from(el.querySelectorAll('button')))
-      b.addEventListener('click', () => this.onClick?.(), { capture: true });
+    if (fresh)
+      for (const b of Array.from(el.querySelectorAll('button')))
+        b.addEventListener('click', () => this.onClick?.(), { capture: true });
     const first =
       el.querySelector<HTMLButtonElement>('button.primary:not([disabled])') ??
       el.querySelector<HTMLButtonElement>('button:not([disabled])');

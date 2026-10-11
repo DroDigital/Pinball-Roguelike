@@ -356,6 +356,12 @@ export const JAILBREAK = {
   glassCracksAt: 9,
 };
 
+/** Assist mode: a slower table and a longer ball save; such runs skip the daily best. */
+export const ASSIST = {
+  timeScale: 0.8,
+  ballSaveAdd: 5,
+};
+
 /** Endless (unlocked by Paid in Full): deadlines keep coming. */
 export const ENDLESS = {
   deadlines: 99,

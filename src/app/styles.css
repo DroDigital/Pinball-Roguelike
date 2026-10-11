@@ -296,6 +296,44 @@ body {
   }
 }
 
+/* ---- M7: settings and pause */
+.panel.settings {
+  max-width: min(620px, 96vw);
+}
+.panel.settings h3 {
+  color: var(--amber);
+  margin: 14px 0 4px;
+  font-size: 0.9rem;
+}
+.panel .setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+}
+.panel .setting > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.panel .setting small {
+  color: var(--dim);
+  text-transform: none;
+  font-size: 0.7rem;
+}
+.panel .setting b {
+  min-width: 4.5em;
+  text-align: center;
+  color: var(--amber);
+}
+.panel .setting button {
+  min-width: 2.4em;
+  padding: 4px 8px;
+}
+.panel .setting button.wide {
+  min-width: 11em;
+}
+
 /* ---- M6: lineup, knock, rap sheet, JAILBREAK glass, endings */
 .panel.lineup {
   max-width: min(760px, 96vw);

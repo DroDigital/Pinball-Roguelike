@@ -18,6 +18,8 @@ import { Input, type Action } from './input';
 import { UI, h } from './ui';
 import { loadSave, writeSave, type SaveData } from './save';
 import { lineupPanel, rapSheetPanel, type LineupChoice } from './meta-screens';
+import { pausePanel, settingsPanel } from './settings-screen';
+import type { Settings } from './settings';
 import { EndingDirector, type EndingKind } from '../present/endings';
 import { paintCracks } from '../present/cracks';
 import {
@@ -96,7 +98,7 @@ import { perkDef, bargainDef } from '../content/phone';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
 import { SaveDetector } from '../present/save-detector';
-import { BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
+import { ASSIST, BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
@@ -172,6 +174,9 @@ export class GameApp {
   private fresh: UnlockDef[] = [];
   private lineup: LineupChoice = { inmate: 'debtor', hardTime: 0, endless: false };
   private readonly cracks: HTMLCanvasElement;
+  /** Panels pushed over the screen (pause, settings); play freezes while any is up. */
+  private overlays = 0;
+  private menuOpen = false;
   readonly subs: Subtitles;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
@@ -349,7 +354,11 @@ export class GameApp {
     const act = this.activeSession();
     let alpha = 1;
     if (act) {
-      if (this.hitStop > 0) {
+      if (this.menuOpen) {
+        // Paused: nothing moves; presses go to the menu.
+        this.wallClock = now;
+        this.input.events.length = 0;
+      } else if (this.hitStop > 0) {
         // Freeze the table; inputs made meanwhile apply on the first step after.
         this.hitStop -= dt;
         this.wallClock = now;
@@ -360,7 +369,10 @@ export class GameApp {
         }
         // Effective time scale: dev slow-mo times the Pocket Watch.
         const scale =
-          this.timeScale * (this.slowmoLeft > 0 ? 0.5 : 1) * (this.dramaLeft > 0 ? DRAMA_SCALE : 1);
+          this.timeScale *
+          (this.slowmoLeft > 0 ? 0.5 : 1) *
+          (this.dramaLeft > 0 ? DRAMA_SCALE : 1) *
+          (this.run?.assist && act.session === this.session ? ASSIST.timeScale : 1);
         this.dramaLeft = Math.max(0, this.dramaLeft - dt);
         if (!this.paused) {
           this.acc += dt * scale;
@@ -713,6 +725,12 @@ export class GameApp {
 
   private onPress(a: Action): void {
     audio.unlock();
+    if (a === 'pause' || (a === 'back' && this.overlays > 0)) {
+      if (this.overlays > 0) this.closeOverlay();
+      else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending')
+        this.openPause();
+      return;
+    }
     if (this.ui.open) {
       if (a === 'left' || a === 'lookLeft') this.ui.moveFocus(-1);
       else if (a === 'right' || a === 'lookRight') this.ui.moveFocus(1);
@@ -762,16 +780,7 @@ export class GameApp {
             saved ? 'New run' : 'Wake up',
           ),
           h('button', { onclick: () => this.enterMeta() }, 'Rap sheet'),
-          h(
-            'button',
-            {
-              onclick: (ev: Event) => {
-                this.setVoice(!this.save.settings.voice);
-                (ev.currentTarget as HTMLElement).textContent = this.voiceLabel();
-              },
-            },
-            this.voiceLabel(),
-          ),
+          h('button', { onclick: () => this.openSettings() }, 'Settings'),
         ),
         h(
           'p',
@@ -782,15 +791,136 @@ export class GameApp {
     );
   }
 
-  private voiceLabel(): string {
-    return `Warden voice: ${this.save.settings.voice ? 'on' : 'off'}`;
+  // ------------------------------------------------------------------ pause / settings
+
+  openPause(): void {
+    this.menuOpen = this.mode === 'play';
+    this.overlays++;
+    this.ui.push(
+      pausePanel(
+        {
+          resume: () => this.closeOverlay(),
+          settings: () => this.openSettings(),
+          bugReport: () => this.copyBugReport(),
+          quit: () => this.quitToTitle(),
+        },
+        !!this.run && this.run.phase !== 'over',
+      ),
+    );
   }
 
-  setVoice(on: boolean): void {
-    this.save.settings.voice = on;
-    this.subs.voice = on;
+  private closeOverlay(): void {
+    if (this.input.capture) {
+      this.input.capture = null;
+      return;
+    }
+    this.ui.pop();
+    this.overlays = Math.max(0, this.overlays - 1);
+    if (this.overlays === 0 && this.menuOpen) {
+      this.menuOpen = false;
+      // Buttons may have changed while paused: carry over what is held now.
+      const inp = this.simInput;
+      inp.left = this.input.isHeld('left');
+      inp.right = this.input.isHeld('right');
+      inp.plunger = this.input.isHeld('plunger');
+      this.input.events.length = 0;
+    }
+  }
+
+  openSettings(): void {
+    this.overlays++;
+    this.ui.push(this.settingsEl(null));
+  }
+
+  private settingsEl(waiting: Action | null): HTMLElement {
+    return settingsPanel(
+      this.save.settings,
+      this.input.bindings,
+      {
+        change: (s) => this.changeSettings(s),
+        capture: (done) => {
+          this.ui.replace(this.settingsEl(this.captureTarget()), this.ui.focusKey());
+          this.input.capture = (code) => {
+            if (code !== 'Escape') done(code);
+            this.changeSettings({
+              ...this.save.settings,
+              bindings: structuredClone(this.input.bindings),
+            });
+          };
+        },
+        back: () => this.closeOverlay(),
+      },
+      waiting,
+    );
+  }
+
+  /** The action whose rebind button has focus. */
+  private captureTarget(): Action | null {
+    const k = this.ui.focusKey();
+    return k?.startsWith('bind-') ? (k.slice(5) as Action) : null;
+  }
+
+  private changeSettings(s: Settings): void {
+    const voiceOn = s.voice && !this.save.settings.voice;
+    this.save.settings = s;
+    this.input.rebuildKeyMap();
+    this.applySettings();
+    this.subs.voice = s.voice;
     this.persist();
-    if (on) this.subs.say('THE WARDEN', 'You will hear me now.');
+    if (voiceOn) this.subs.say('THE WARDEN', 'You will hear me now.');
+    this.ui.replace(this.settingsEl(null), this.ui.focusKey());
+  }
+
+  /** Leave for the title. A ball in play is lost (no quitting out of a bad ball). */
+  private quitToTitle(): void {
+    const r = this.run;
+    this.overlays = 0;
+    this.menuOpen = false;
+    if (r && r.phase === 'ball') {
+      // Mid-ball the ball is forfeit; during the tally it counts as played.
+      const live = this.session && !this.session.over;
+      const o = live
+        ? { ...this.session!.game.outcome(), earned: 0, bonus: 0, tilted: true }
+        : this.outcome;
+      if (o) finishBall(r, o);
+      this.session = null;
+      if ((r.phase as string) === 'over') {
+        this.endRun();
+        return;
+      }
+    }
+    this.autosave();
+    this.enterTitle();
+  }
+
+  /** Bug report: the run and the current ball (snapshot + recorded inputs) as JSON. */
+  private copyBugReport(): void {
+    const s = this.session;
+    const report = JSON.stringify({
+      game: 'ball-and-chain',
+      version: 1,
+      at: new Date().toISOString(),
+      ua: navigator.userAgent,
+      run: this.run,
+      ball: s ? { snapshot: s.snapshot, inputs: s.recording.toJSON(), steps: s.steps } : null,
+    });
+    if (!navigator.clipboard) {
+      this.downloadReport(report);
+      return;
+    }
+    navigator.clipboard.writeText(report).then(
+      () => this.ui.toast('Bug report copied to the clipboard'),
+      () => this.downloadReport(report),
+    );
+  }
+
+  private downloadReport(text: string): void {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = `ball-and-chain-report-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    this.ui.toast('Bug report saved');
   }
 
   private newAttractBall(): void {
@@ -833,6 +963,7 @@ export class GameApp {
       inmate: c.inmate,
       hardTime: c.hardTime,
       endless: c.endless,
+      assist: this.save.settings.assist,
       locked: lockedCharms(this.save.meta),
     });
     this.save.lastInmate = c.inmate;
@@ -856,13 +987,14 @@ export class GameApp {
     this.world.coins.setPile(this.run.pocket);
     this.trayCoins = this.run.pocket;
     this.world.setDecay(this.run.deadline / Math.max(1, Math.min(8, this.run.deadlines) - 1));
-    if (this.run.round === 0 && !this.run.neighbor.knock) this.enterDeadlineIntro();
+    if (this.run.phase === 'betweenBalls') this.afterBall();
+    else if (this.run.round === 0 && !this.run.neighbor.knock) this.enterDeadlineIntro();
     else this.enterJobs();
   }
 
   /** Autosave: the run as it stands at the start of a round. */
   private autosave(): void {
-    if (!this.run || this.run.phase !== 'pickJob') return;
+    if (!this.run || (this.run.phase !== 'pickJob' && this.run.phase !== 'betweenBalls')) return;
     this.save.run = JSON.parse(JSON.stringify(this.run)) as RunState;
     this.persist();
   }
@@ -1745,6 +1877,7 @@ export class GameApp {
     if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
     recordBall(this.save.meta, o, res.gained);
     this.unlockCheck();
+    this.autosave();
     this.persist();
     if (r.phase === 'over') {
       // JAILBREAK made it out: straight to the ending.

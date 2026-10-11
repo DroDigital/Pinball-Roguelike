@@ -5,6 +5,7 @@
  */
 import { Rng, hashString, type RngState } from '../core/rng';
 import {
+  ASSIST,
   BALL,
   BONUS,
   CONTRABAND_FX,
@@ -127,6 +128,8 @@ export interface RunOptions {
   locked?: string[];
   /** Endless: deadlines keep coming (unlocked by Paid in Full). */
   endless?: boolean;
+  /** Assist mode: longer ball save (the app also slows the table). */
+  assist?: boolean;
 }
 
 export const RUN_VERSION = 3;
@@ -137,6 +140,7 @@ export interface RunState {
   inmate: string;
   hardTime: number;
   endless: boolean;
+  assist: boolean;
   /** Locked charms (meta progression) never appear in the shop or on the phone. */
   locked: string[];
   neighbor: NeighborState;
@@ -215,6 +219,7 @@ export function newRun(seed: string, opts: RunOptions = {}): RunState {
     inmate: opts.inmate ?? 'debtor',
     hardTime: Math.max(0, Math.min(MAX_HARD_TIME, opts.hardTime ?? 0)),
     endless,
+    assist: !!opts.assist,
     locked: [...(opts.locked ?? [])],
     neighbor: { asked: 0, helped: 0, tip: false, knocked: false, knock: null },
     rng: rng.getState(),
@@ -535,7 +540,11 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     shotMult,
     ballSave: f.noBallSave
       ? 0
-      : Math.max(0, (BALL.ballSave + m.ballSaveAdd + f.ballSaveAdd) * m.ballSaveMult),
+      : Math.max(
+          0,
+          (BALL.ballSave + m.ballSaveAdd + f.ballSaveAdd + (s.assist ? ASSIST.ballSaveAdd : 0)) *
+            m.ballSaveMult,
+        ),
     tiltSensitivity: m.tiltSensitivity,
     extraWarnings: m.extraWarnings + f.extraWarnings,
     payMult:
