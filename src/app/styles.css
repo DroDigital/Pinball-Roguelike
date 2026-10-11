@@ -307,6 +307,40 @@ body {
   }
 }
 
+/* ---- M7: hint notes */
+#hint {
+  position: fixed;
+  left: 14px;
+  bottom: 12%;
+  max-width: min(360px, 80vw);
+  padding: 8px 12px;
+  background: #e8dcbc;
+  color: #2a1c10;
+  font-family: Georgia, serif;
+  font-size: calc(0.92rem * var(--text-scale, 1));
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  transform: rotate(-1.2deg) translateY(12px);
+  opacity: 0;
+  transition:
+    opacity 0.35s,
+    transform 0.35s;
+  pointer-events: none;
+  z-index: 15;
+}
+#hint.on {
+  opacity: 1;
+  transform: rotate(-1.2deg);
+  pointer-events: auto;
+}
+#hint b {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7em;
+  letter-spacing: 0.2em;
+  color: #8a2a1a;
+}
+
 /* ---- M7: instant replay letterbox */
 body.replaying::before,
 body.replaying::after {

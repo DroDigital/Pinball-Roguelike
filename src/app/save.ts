@@ -21,6 +21,8 @@ export interface SaveData {
   /** Last pick on the mugshot lineup. */
   lastInmate: string;
   lastHardTime: number;
+  /** Hint notes already shown. */
+  seenHints: string[];
 }
 
 export function freshSave(): SaveData {
@@ -32,6 +34,7 @@ export function freshSave(): SaveData {
     run: null,
     lastInmate: 'debtor',
     lastHardTime: 0,
+    seenHints: [],
   };
 }
 

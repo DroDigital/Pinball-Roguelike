@@ -148,6 +148,7 @@ export function settingsPanel(
       'Slower table, longer ball save. Runs started with it don’t count for the daily best.',
     ),
     toggle('vib', 'Vibration', s.vibration ? 'On' : 'Off', () => set({ vibration: !s.vibration })),
+    toggle('hints', 'Hint notes', s.hints ? 'On' : 'Off', () => set({ hints: !s.hints })),
     h('h3', null, 'Controls'),
     ...binds,
     toggle('bind-reset', 'Keys', 'Reset to defaults', () => {

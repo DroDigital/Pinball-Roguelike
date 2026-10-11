@@ -19,6 +19,7 @@ import { UI, h } from './ui';
 import { loadSave, writeSave, type SaveData } from './save';
 import { lineupPanel, rapSheetPanel, type LineupChoice } from './meta-screens';
 import { pausePanel, settingsPanel } from './settings-screen';
+import { Hints } from './hints';
 import type { Settings } from './settings';
 import { EndingDirector, type EndingKind } from '../present/endings';
 import { paintCracks } from '../present/cracks';
@@ -185,6 +186,7 @@ export class GameApp {
   /** Panels pushed over the screen (pause, settings); play freezes while any is up. */
   private overlays = 0;
   private menuOpen = false;
+  readonly hints: Hints;
   /** This ball's big moments (sim step), offered as an instant replay afterwards. */
   private moments: { step: number; label: string; value: number }[] = [];
   private replay: {
@@ -280,6 +282,8 @@ export class GameApp {
       glass.position.set(0, 2.6, 2.05);
       backbox.add(glass);
     }
+    this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
+    this.hints.enabled = this.save.settings.hints;
     this.endings = new EndingDirector(this.world, document.body, this.glassTex);
     this.endings.onCue = (who, text) => this.endingCue(who, text);
     this.cracks = h('canvas', { class: 'cracks' });
@@ -654,6 +658,7 @@ export class GameApp {
           break;
         }
         case 'callout':
+          if (e.sub === 'LOCKUP IS LIT' && this.mode === 'play') this.hints.show('lockup');
           this.dmd.show({
             text: e.text,
             sub: e.sub,
@@ -679,6 +684,7 @@ export class GameApp {
         case 'riot':
           if (e.on) {
             this.react('riot');
+            if (this.mode === 'play') this.hints.show('riot');
             this.shows.play('riot');
             audio.knocker();
             this.flash(0.4);
@@ -934,6 +940,7 @@ export class GameApp {
     this.input.rebuildKeyMap();
     this.applySettings();
     this.subs.voice = s.voice;
+    this.hints.enabled = s.hints;
     this.persist();
     if (voiceOn) this.subs.say('THE WARDEN', 'You will hear me now.');
     this.ui.replace(this.settingsEl(null), this.ui.focusKey());
@@ -1239,6 +1246,7 @@ export class GameApp {
     this.mode = 'phone';
     this.world.setMode('seated');
     audio.phoneRing();
+    this.hints.show(call.kind === 'perks' ? 'phone' : 'redCall');
     if (call.kind === 'perks') {
       const line = this.warden('deadlinePaid');
       this.dmd.say(`THE WARDEN: ${line}`);
@@ -1344,6 +1352,8 @@ export class GameApp {
       return;
     }
     this.mode = 'jobs';
+    this.hints.show('jobs');
+    if (sentenceActive(r)) this.hints.show('sentence');
     this.world.setMode('seated');
     audio.atmBeep();
     const cards = r.jobOffers.map((o, i) => {
@@ -1396,6 +1406,7 @@ export class GameApp {
 
   /** Knocking through the wall: the neighbor asks, and offers something back. */
   private enterKnock(): void {
+    this.hints.show('knock');
     const r = this.run!;
     const k = r.neighbor.knock!;
     this.mode = 'knock';
@@ -1468,6 +1479,7 @@ export class GameApp {
   }
 
   private enterBuy(): void {
+    this.hints.show('buy');
     const r = this.run!;
     this.mode = 'buy';
     this.world.setMode('seated');
@@ -1581,6 +1593,7 @@ export class GameApp {
   }
 
   enterAtm(back: 'cell' | 'deadline'): void {
+    this.hints.show('atm');
     const r = this.run!;
     this.mode = 'atm';
     this.world.setMode('seated');
@@ -1759,6 +1772,7 @@ export class GameApp {
   }
 
   enterShop(): void {
+    this.hints.show('shop');
     const r = this.run!;
     this.mode = 'shop';
     this.world.setMode('seated');
@@ -1862,6 +1876,9 @@ export class GameApp {
     this.session = new BallSession(snap, this.onGameEvent);
     this.saves.reset();
     this.moments = [];
+    this.hints.show('flippers');
+    this.hints.show('plunger');
+    if (snap.ctx.actives.length) this.hints.show('actives');
     if (this.autoBot) attachBot(this.autoBot, this.session);
     this.world.setBlackout(snap.ctx.blackout);
     this.world.table.setTags(new Set(snap.tags));
@@ -1951,6 +1968,7 @@ export class GameApp {
     const res = finishBall(r, o);
     if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
     recordBall(this.save.meta, o, res.gained);
+    this.hints.show('pocket');
     this.unlockCheck();
     this.autosave();
     this.persist();
@@ -2480,6 +2498,8 @@ export class GameApp {
         const done = r.job.done || (g?.jobDone ?? false);
         right += `<div class="job${done ? ' done' : ''}">${jobText(def, r.job.target)}<br><b>${done ? 'DONE' : `${formatCoins(Math.min(prog, r.job.target))}/${r.job.target}`}</b></div>`;
       }
+      if (r.keys) this.hints.show('keys');
+      if (g && g.stats.seconds > 25) this.hints.show('nudge');
       if (r.tickets || r.keys)
         right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
       if (r.neighbor.tip && !g?.jailbreak)

@@ -15,6 +15,8 @@ export interface Settings {
   assist: boolean;
   vibration: boolean;
   voice: boolean;
+  /** First-time hint notes. */
+  hints: boolean;
   bindings: Record<string, string[]> | null;
 }
 
@@ -30,6 +32,7 @@ export function defaultSettings(): Settings {
     assist: false,
     vibration: true,
     voice: false,
+    hints: true,
     bindings: null,
   };
 }
