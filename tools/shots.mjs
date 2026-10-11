@@ -1,4 +1,4 @@
-/* global console, process, globalThis */
+/* global console, process */
 /**
  * Screenshot tour for visual and UI work. It walks title -> lineup -> deadline -> Jobs ->
  * buy -> cell -> play (the bot plays) -> ball end, then opens the ATM, shop, phone, settings,
