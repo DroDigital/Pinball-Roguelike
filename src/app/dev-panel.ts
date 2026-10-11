@@ -156,6 +156,15 @@ export function attachDevPanel(app: GameApp): void {
     r.keys = Math.max(r.keys, 3);
     while (r.deadline < r.deadlines - 1 && r.phase !== 'over') app.devSkipDeadline();
   });
+  run.addButton({ title: 'Play bug report (clipboard)' }).on('click', () => {
+    navigator.clipboard
+      .readText()
+      .then((t) => app.devPlayReport(t))
+      .catch(() => {
+        const t = window.prompt('Paste a bug report');
+        if (t) app.devPlayReport(t);
+      });
+  });
   for (const k of ['paidInFull', 'breakout', 'cellmate'] as const)
     run.addButton({ title: `Ending: ${k}` }).on('click', () => app.devEnding(k));
 

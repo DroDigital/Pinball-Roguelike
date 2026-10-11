@@ -307,6 +307,25 @@ body {
   }
 }
 
+/* ---- M7: instant replay letterbox */
+body.replaying::before,
+body.replaying::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 7vh;
+  background: #000;
+  z-index: 7;
+  pointer-events: none;
+}
+body.replaying::before {
+  top: 0;
+}
+body.replaying::after {
+  bottom: 0;
+}
+
 /* ---- M7: settings and pause */
 .panel.settings {
   max-width: min(620px, 96vw);

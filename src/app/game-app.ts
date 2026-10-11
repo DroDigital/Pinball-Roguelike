@@ -38,7 +38,7 @@ import {
 import type { UnlockDef } from '../content/unlocks';
 import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
-import { BallSession } from '../rules/session';
+import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
 import { Lamp, type GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
@@ -106,6 +106,9 @@ const STEP_MS = 1000 / 240;
 const DRAMA_SCALE = 0.3;
 const DRAMA_SECS = 0.55;
 const DRAMA_COOLDOWN_MS = 4000;
+/** Instant replay: seconds shown before and after the moment. */
+const REPLAY_LEAD = 6;
+const REPLAY_TAIL = 2.5;
 /** Below this FPS for this long, drop to the lowest internal resolution. */
 const LOW_FPS = 40;
 const LOW_FPS_SECS = 5;
@@ -132,7 +135,8 @@ export type AppMode =
   | 'lineup'
   | 'knock'
   | 'ending'
-  | 'meta';
+  | 'meta'
+  | 'replay';
 
 export class GameApp {
   readonly renderer: RetroRenderer;
@@ -181,6 +185,14 @@ export class GameApp {
   /** Panels pushed over the screen (pause, settings); play freezes while any is up. */
   private overlays = 0;
   private menuOpen = false;
+  /** This ball's big moments (sim step), offered as an instant replay afterwards. */
+  private moments: { step: number; label: string; value: number }[] = [];
+  private replay: {
+    session: BallSession;
+    play: (step: number) => SimInput;
+    end: number;
+    back: () => void;
+  } | null = null;
   readonly subs: Subtitles;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
@@ -365,6 +377,7 @@ export class GameApp {
   }
 
   private activeSession(): { session: BallSession; bot: Bot | null } | null {
+    if (this.mode === 'replay' && this.replay) return { session: this.replay.session, bot: null };
     if (this.mode === 'play' && this.session) return { session: this.session, bot: this.autoBot };
     if (this.attract) return { session: this.attract.session, bot: this.attract.bot };
     return null;
@@ -418,7 +431,13 @@ export class GameApp {
         let budget = 60; // never spiral
         while (this.acc >= STEP && budget-- > 0) {
           this.wallClock += STEP_MS / scale;
-          const inp = act.bot ? act.bot.decide(act.session.sim) : this.stepInput(this.wallClock);
+          const rp = this.replay;
+          const inp =
+            rp && act.session === rp.session
+              ? rp.play(act.session.steps)
+              : act.bot
+                ? act.bot.decide(act.session.sim)
+                : this.stepInput(this.wallClock);
           act.session.step(inp);
           this.consumeSimEvents(act.session);
           this.acc -= STEP;
@@ -434,6 +453,9 @@ export class GameApp {
       }
       if (act.session === this.session && this.session.over && this.mode === 'play')
         this.onBallOver();
+      const rp = this.replay;
+      if (rp && act.session === rp.session && (rp.session.over || rp.session.steps >= rp.end))
+        this.endReplay();
       if (this.attract && act.session === this.attract.session && this.attract.session.over)
         this.newAttractBall();
     } else {
@@ -535,7 +557,7 @@ export class GameApp {
   // ------------------------------------------------------------------ events -> presentation
 
   private consumeSimEvents(s: BallSession): void {
-    const quiet = s !== this.session;
+    const quiet = s !== this.session && s !== this.replay?.session;
     this.simCursor = s.sim.events.read(Math.max(this.simCursor, s.sim.events.head - 200), (e) =>
       this.onSimEvent(e, quiet),
     );
@@ -665,6 +687,12 @@ export class GameApp {
           }
           break;
         case 'payday':
+          if (this.mode === 'play' && this.session)
+            this.moments.push({
+              step: this.session.steps,
+              label: `${e.super ? 'SUPER PAYDAY' : 'PAYDAY'} +${formatCoins(e.amount)}`,
+              value: e.amount,
+            });
           if (e.super || (this.run && e.amount >= BIG_PAYDAY_SHARE * this.run.debt))
             this.react('bigPayday');
           this.shows.play('payday');
@@ -778,6 +806,7 @@ export class GameApp {
     )
       this.enterLineup();
     else if (this.mode === 'ending' && (a === 'confirm' || a === 'plunger')) this.rapSheet();
+    else if (this.mode === 'replay' && (a === 'confirm' || a === 'plunger')) this.endReplay();
   }
 
   // ------------------------------------------------------------------ flow
@@ -1072,6 +1101,12 @@ export class GameApp {
 
   /** JAILBREAK on the table: every lit shot shakes something loose. */
   private onJailbreak(phase: string, n: number): void {
+    if (this.mode === 'play' && this.session && (phase === 'escaped' || phase === 'start'))
+      this.moments.push({
+        step: this.session.steps,
+        label: phase === 'escaped' ? 'THE ESCAPE' : 'JAILBREAK',
+        value: phase === 'escaped' ? 1e12 : 1e11,
+      });
     switch (phase) {
       case 'start':
         this.shows.play('jailbreak');
@@ -1826,6 +1861,7 @@ export class GameApp {
     const snap = nextBall(r);
     this.session = new BallSession(snap, this.onGameEvent);
     this.saves.reset();
+    this.moments = [];
     if (this.autoBot) attachBot(this.autoBot, this.session);
     this.world.setBlackout(snap.ctx.blackout);
     this.world.table.setTags(new Set(snap.tags));
@@ -1981,8 +2017,101 @@ export class GameApp {
           'div',
           { class: 'row' },
           h('button', { class: 'primary', onclick: () => this.afterBall() }, 'Continue'),
+          this.replayButton(() => this.finishBallPanelAgain()),
         ),
       ),
+    );
+    this.ballEndPanel = this.ui.current;
+  }
+
+  private ballEndPanel: HTMLElement | null = null;
+
+  private finishBallPanelAgain(): void {
+    this.mode = 'ballEnd';
+    if (this.ballEndPanel) this.ui.show(this.ballEndPanel);
+  }
+
+  /** "Watch the replay" for this ball's biggest moment, if it had one. */
+  private replayButton(back: () => void, before?: () => void): HTMLElement | null {
+    const s = this.session;
+    if (!s || !this.moments.length) return null;
+    const m = this.moments.reduce((a, b) => (b.value > a.value ? b : a));
+    return h(
+      'button',
+      {
+        onclick: () => {
+          before?.();
+          this.startReplay(
+            s.snapshot,
+            s.recording,
+            Math.max(0, m.step - Math.round(REPLAY_LEAD / STEP)),
+            m.step + Math.round(REPLAY_TAIL / STEP),
+            m.label,
+            back,
+          );
+        },
+      },
+      `Replay: ${m.label}`,
+    );
+  }
+
+  /** Re-simulate a recorded ball silently up to `from`, then show it live until `to`. */
+  startReplay(
+    snap: BallSnapshot,
+    rec: InputRecording,
+    from: number,
+    to: number,
+    label: string,
+    back: () => void,
+  ): void {
+    let live = false;
+    const s = new BallSession(snap, (e) => {
+      if (live) this.onGameEvent(e);
+    });
+    const play = rec.player();
+    while (s.steps < from && !s.over) s.step(play(s.steps));
+    live = true;
+    this.replay = { session: s, play, end: to, back };
+    this.mode = 'replay';
+    this.ui.hide();
+    this.simCursor = s.sim.events.head;
+    this.acc = 0;
+    this.world.table.setTags(new Set(s.sim.tags));
+    document.body.classList.add('replaying');
+    this.dmd.show({
+      text: 'INSTANT REPLAY',
+      sub: label,
+      priority: 9,
+      duration: (to - from) * STEP,
+    });
+  }
+
+  private endReplay(): void {
+    const rp = this.replay;
+    if (!rp) return;
+    this.replay = null;
+    document.body.classList.remove('replaying');
+    this.world.restoreLights();
+    this.cracks.style.display = 'none';
+    this.dmd.cut();
+    rp.back();
+  }
+
+  /** Dev: play back a pasted bug report's ball from the start. */
+  devPlayReport(json: string): void {
+    const r = JSON.parse(json) as {
+      ball?: { snapshot: BallSnapshot; inputs: number[]; steps: number };
+    };
+    if (!r.ball) return;
+    const mode = this.mode;
+    this.attract = null;
+    this.startReplay(
+      r.ball.snapshot,
+      InputRecording.fromJSON(r.ball.inputs),
+      0,
+      r.ball.steps,
+      'BUG REPORT',
+      () => (mode === 'title' ? this.enterTitle() : this.ui.toast('Report played back')),
     );
   }
 
@@ -2220,6 +2349,15 @@ export class GameApp {
           'div',
           { class: 'row' },
           h('button', { class: 'primary', onclick: () => this.enterTitle() }, 'Again'),
+          r.result === 'breakout'
+            ? this.replayButton(
+                () => this.rapSheet(),
+                () => {
+                  this.endings.stop();
+                  this.ending = null;
+                },
+              )
+            : null,
         ),
       ),
     );
@@ -2229,7 +2367,11 @@ export class GameApp {
   private updateMusic(): void {
     const m = this.mode;
     music.setMode(
-      m === 'play' || m === 'tally' ? 'table' : m === 'fall' || m === 'rapsheet' ? 'off' : 'cell',
+      m === 'play' || m === 'tally' || m === 'replay'
+        ? 'table'
+        : m === 'fall' || m === 'rapsheet'
+          ? 'off'
+          : 'cell',
     );
     const g = this.mode === 'play' ? this.session?.game : null;
     const r = this.run;
@@ -2253,7 +2395,7 @@ export class GameApp {
       return;
     }
     const m: CamMode =
-      this.mode === 'play'
+      this.mode === 'play' || this.mode === 'replay'
         ? (this.devCam ?? (this.save.settings.camera === 'seated' ? 'seated' : 'play'))
         : (CAMERA_FOR[this.mode] ?? 'seated');
     if (this.world.mode !== m) this.world.setMode(m);
@@ -2318,7 +2460,7 @@ export class GameApp {
     this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
     this.hud.classList.toggle('playing', m === 'play');
     // Endings keep the DMD (it shows the title) but drop the run's numbers.
-    const quiet = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
+    const quiet = m === 'ending' || m === 'replay' || (m === 'rapsheet' && this.ending !== null);
     this.hudStats.style.display = this.hudRight.style.display = quiet ? 'none' : '';
     if (r) {
       const g = shown && playing ? shown.game : null;

@@ -79,6 +79,11 @@ export class UI {
     if (prev) this.mount(prev, false);
   }
 
+  /** The panel on screen (to show it again later). */
+  get current(): HTMLElement | null {
+    return this.panel;
+  }
+
   get depth(): number {
     return this.stack.length;
   }
@@ -93,9 +98,11 @@ export class UI {
     if (fresh) el.classList.add('fade');
     this.root.append(el);
     this.panel = el;
-    if (fresh)
+    if (fresh && !el.dataset.wired) {
+      el.dataset.wired = '1';
       for (const b of Array.from(el.querySelectorAll('button')))
         b.addEventListener('click', () => this.onClick?.(), { capture: true });
+    }
     const first =
       el.querySelector<HTMLButtonElement>('button.primary:not([disabled])') ??
       el.querySelector<HTMLButtonElement>('button:not([disabled])');
