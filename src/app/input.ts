@@ -85,7 +85,7 @@ export class Input {
   }
 
   private key(e: KeyboardEvent, down: boolean): void {
-    if (this.capture && down) {
+    if (this.capture && down && !e.repeat) {
       e.preventDefault();
       const cb = this.capture;
       this.capture = null;

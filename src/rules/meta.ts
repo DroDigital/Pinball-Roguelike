@@ -56,6 +56,8 @@ export function lockedCharms(meta: MetaState): string[] {
 
 /** Inmates on the lineup; locked ones show their condition instead. */
 export function inmateUnlocked(meta: MetaState, id: string): boolean {
+  // A mangled link or stale save can name an inmate that doesn't exist.
+  if (!INMATES.some((i) => i.id === id)) return false;
   const u = UNLOCKS.find((x) => x.inmate === id);
   return !u || reached(meta, u);
 }

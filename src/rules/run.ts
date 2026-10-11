@@ -25,7 +25,7 @@ import type { NeighborAsk, NeighborOffer } from '../content/neighbor';
 import { CHARMS, charmDef } from '../content/charms';
 import { foldCharms, type FoldedFx } from './charms';
 import { RUN_HOOK } from './charm-hooks';
-import { restock } from './shop';
+import { contrabandSlots, restock } from './shop';
 import { JOB_DEFS, emptyBallStats, jobDef, type BallStats, type JobDef } from '../content/jobs';
 import { SENTENCES, maxTier, minTier, sentenceDef } from '../content/sentences';
 import { BARGAINS, PERKS, PERK_SHOTS, bargainDef, perkDef } from '../content/phone';
@@ -1040,7 +1040,7 @@ export function answerKnock(s: RunState, help: boolean): boolean {
       s.keys++;
       break;
     case 'contraband':
-      if (k.item && s.contraband.length < s.mods.contrabandSlots) s.contraband.push(k.item);
+      if (k.item && s.contraband.length < contrabandSlots(s)) s.contraband.push(k.item);
       else s.tickets += NEIGHBOR.ticketsOffered;
       break;
     case 'tickets':

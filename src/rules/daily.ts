@@ -27,7 +27,11 @@ export function dailySeed(d: Date): string {
 }
 
 export function dailyScore(r: RunState): DailyScore {
-  return { deadlines: r.deadline, coins: r.stats.coinsEarned };
+  // A Breakout ends the run inside Last Call, so it counts as clearing it.
+  return {
+    deadlines: r.result === 'breakout' ? r.deadline + 1 : r.deadline,
+    coins: r.stats.coinsEarned,
+  };
 }
 
 /** Deadlines first, then coins. */

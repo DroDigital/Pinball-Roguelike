@@ -114,6 +114,9 @@ export class BallSession {
 
   step(input: SimInput): void {
     if (this.game.over) return;
+    // The recording keeps the analog pull to 3 decimals, so simulate that same value:
+    // otherwise a touch or gamepad plunge replays slightly differently.
+    if (input.pull >= 0) input.pull = Math.round(input.pull * 1000) / 1000;
     this.recording.record(this.steps, input);
     this.game.preStep(input);
     this.sim.stepOnce(input);

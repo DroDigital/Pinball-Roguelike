@@ -39,6 +39,20 @@ describe('Daily Sentence', () => {
     expect(rec.plays).toBe(1);
   });
 
+  it('escaping through JAILBREAK beats falling at Last Call, even with fewer coins', () => {
+    const rec: DailyRecord = { date: '', best: null, plays: 0 };
+    const fell = newRun('DAILY-2026-10-11', { kind: 'daily' });
+    fell.deadline = fell.deadlines - 1;
+    fell.stats.coinsEarned = 5000;
+    expect(recordDaily(rec, fell, '2026-10-11')).toBe(true);
+    const out = newRun('DAILY-2026-10-11', { kind: 'daily' });
+    out.deadline = out.deadlines - 1;
+    out.result = 'breakout';
+    out.stats.coinsEarned = 4000;
+    expect(recordDaily(rec, out, '2026-10-11')).toBe(true);
+    expect(rec.best?.deadlines).toBe(out.deadlines);
+  });
+
   it("assisted runs, other days and ordinary runs don't count", () => {
     const rec: DailyRecord = { date: '2026-10-11', best: null, plays: 0 };
     expect(
