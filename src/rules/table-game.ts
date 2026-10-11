@@ -23,6 +23,7 @@ import {
 } from '../content/balance';
 import { emptyBallStats, type BallStats } from '../content/jobs';
 import { ComboTracker, comboName } from './combo';
+import { BALL_HOOKS, type BallHooks, type BallRules } from './charm-hooks';
 import { bonusTotal } from './bonus';
 import { Lamp, type AwardId, type GameEvent, type GameEventSink } from './types';
 import type { BallOutcome } from './run';
@@ -91,7 +92,26 @@ export interface BallContext {
   noKickback: boolean;
   /** Blackout Sentence: lamps out except the ball's halo (presentation only). */
   blackout: boolean;
+  /** Owned charm ids (behaviour hooks). */
+  charms: string[];
+  /** Active charms by charm slot, with charges left. */
+  actives: ActiveSlot[];
+  /** Seconds added to the Hole's hold (Feeding Bowl -1). */
+  holeHoldAdd: number;
+  /** Chalk: the top lanes start complete. */
+  chalk: boolean;
+  /** Moonshine: the camera sways (presentation). */
+  moonshine: boolean;
   job: BallJob | null;
+}
+
+export interface ActiveSlot {
+  /** 1-based charm slot (number keys). */
+  slot: number;
+  id: string;
+  action: 'ballSave' | 'slowmo' | 'crowbar' | 'twinYolk';
+  charges: number;
+  max: number;
 }
 
 /** Machine state that persists between balls within a round. */
@@ -159,11 +179,19 @@ export function defaultBallContext(): BallContext {
     holdBonusMult: false,
     noKickback: false,
     blackout: false,
+    charms: [],
+    actives: [],
+    holeHoldAdd: 0,
+    chalk: false,
+    moonshine: false,
     job: null,
   };
 }
 
 const LANE_IDS = ['laneA', 'laneB', 'laneC'];
+const ACTIVE_SAVE = 10; // Panic Button seconds
+const ACTIVE_SLOWMO = 4; // Pocket Watch seconds at half speed
+const TWIN_SAVE = 6; // Twin Yolk multiball save
 const LADDER_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock'];
 const FAVOURITES = LADDER_SHOTS;
 const PERIM_WINDOW = 2.2; // seconds between orbit entry and top switch
@@ -178,7 +206,7 @@ export const AWARD_NAMES: Record<AwardId, string> = {
   extraBall: 'EXTRA BALL',
 };
 
-export class TableGame {
+export class TableGame implements BallRules {
   /** Fractional coins earned on the table this ball (committed on a clean drain). */
   earned = 0;
   /** Bonus collected so far this ball and the Bonus multiplier. */
@@ -230,6 +258,12 @@ export class TableGame {
   private cursor = 0;
   private readonly dt: number;
   private readonly rng: Rng;
+  private readonly hooks: BallHooks[];
+  private readonly owned: ReadonlySet<string>;
+  /** Extra-ball multiball (Twin Yolk) save seconds left. */
+  private multiSaveLeft = 0;
+  /** Cell Block cleared and waiting for the sim to reset the targets. */
+  private cellCleared = false;
 
   constructor(
     readonly sim: PinballSim,
@@ -243,6 +277,8 @@ export class TableGame {
     const st = sim.rng.getState();
     this.rng = new Rng((st.a ^ Math.imul(st.b, 0x9e3779b1) ^ 0x51ed270b) >>> 0);
     this.levels = { ...ctx.shotLevels };
+    this.owned = new Set(ctx.charms);
+    this.hooks = ctx.charms.map((id) => BALL_HOOKS[id]).filter((h): h is BallHooks => !!h);
     for (const s of SHOT_TYPES) this.hitCounts[s] = 0;
     this.luck = ctx.luck;
     this.bonusMult = ctx.holdBonusMult
@@ -263,6 +299,7 @@ export class TableGame {
   start(): void {
     this.sim.serveBall(false);
     this.skillArmed = true;
+    if (this.ctx.chalk) this.completeLanes(9.2, 33);
     this.emit({
       t: 'callout',
       text: 'ROLL CALL',
@@ -281,6 +318,7 @@ export class TableGame {
     this.prevLeft = input.left;
     this.prevRight = input.right;
     if (!this.tilted && (leftEdge || rightEdge)) this.laneChange(leftEdge ? -1 : 1);
+    if (input.active && !this.tilted && !this.over) this.activate(input.active);
     this.tiltMeter = Math.max(0, this.tiltMeter - TILT.decay * this.dt);
   }
 
@@ -296,6 +334,7 @@ export class TableGame {
         this.refreshLamps();
     }
     if (this.riotSaveLeft > 0) this.riotSaveLeft -= dt;
+    if (this.multiSaveLeft > 0) this.multiSaveLeft -= dt;
     if (this.skillTimer >= 0) {
       this.skillTimer += dt;
       if (this.skillTimer > SKILL_WINDOW) this.endSkill();
@@ -355,7 +394,7 @@ export class TableGame {
         break;
       case 'pop':
         this.stats.yardHits++;
-        this.pay('yard', SCORE.pop, e.x, e.y);
+        this.pay('yard', SCORE.pop, e.x, e.y, 1, e.id);
         this.endSkill();
         break;
       case 'sling':
@@ -364,6 +403,9 @@ export class TableGame {
         break;
       case 'drop':
         this.onDrop(e);
+        break;
+      case 'dropsReset':
+        this.cellCleared = false;
         break;
       case 'spin':
         this.stats.spins += e.value;
@@ -474,23 +516,22 @@ export class TableGame {
     }
     this.pay('lanes', SCORE.lane, x, y);
     this.machine.lanes[lane] = true;
-    if (this.machine.lanes.every(Boolean)) {
-      this.machine.lanes.fill(false);
-      this.stats.laneSets++;
-      this.pay('lanes', SCORE.laneSet, x, y);
-      this.emit({ t: 'laneComplete' });
-      if (!this.ctx.deadLanes && this.bonusMult < this.ctx.bonusMaxMult) {
-        this.bonusMult++;
-        this.emit({ t: 'bonusMult', mult: this.bonusMult });
-        this.emit({
-          t: 'callout',
-          text: 'HEADCOUNT',
-          sub: `BONUS X${this.bonusMult}`,
-          priority: 3,
-        });
-      } else this.emit({ t: 'callout', text: 'HEADCOUNT', sub: 'LANES COMPLETE', priority: 2 });
-      this.setComplete();
-    }
+    if (this.machine.lanes.every(Boolean)) this.completeLanes(x, y);
+    this.refreshLamps();
+  }
+
+  /** A top-lane set: Bonus multiplier up (unless Dead Lanes) and the Hole award lights. */
+  private completeLanes(x: number, y: number): void {
+    this.machine.lanes.fill(false);
+    this.stats.laneSets++;
+    this.pay('lanes', SCORE.laneSet, x, y);
+    this.emit({ t: 'laneComplete' });
+    if (!this.ctx.deadLanes && this.bonusMult < this.ctx.bonusMaxMult) {
+      this.bonusMult++;
+      this.emit({ t: 'bonusMult', mult: this.bonusMult });
+      this.emit({ t: 'callout', text: 'HEADCOUNT', sub: `BONUS X${this.bonusMult}`, priority: 3 });
+    } else this.emit({ t: 'callout', text: 'HEADCOUNT', sub: 'LANES COMPLETE', priority: 2 });
+    this.setComplete('lanes');
     this.refreshLamps();
   }
 
@@ -521,7 +562,7 @@ export class TableGame {
     const mult = this.major();
     this.pay('chute', SCORE.chute * mult, e.x, e.y, mult);
     if (this.riot) {
-      const amount = this.shotValue('chute', this.payday) * mult;
+      const amount = this.shotValue('chute', this.payday) * mult * this.paydayMult();
       this.stats.paydays++;
       this.stats.biggestPayday = Math.max(this.stats.biggestPayday, amount);
       this.payRaw(amount, e.x, e.y);
@@ -530,6 +571,7 @@ export class TableGame {
       this.payday = RIOT.paydayBase;
       this.superLit = true;
       this.emit({ t: 'payday', amount, super: false });
+      this.onPaydayHooks(false);
       this.emit({
         t: 'callout',
         text: 'PAYDAY!',
@@ -555,12 +597,14 @@ export class TableGame {
     this.pay('hole', SCORE.hole * mult, e.x, e.y, mult);
     let locked = false;
     if (this.riot && this.superLit) {
-      const amount = this.shotValue('hole', this.superValue * RIOT.superMult) * mult;
+      const amount =
+        this.shotValue('hole', this.superValue * RIOT.superMult) * mult * this.paydayMult();
       this.superLit = false;
       this.stats.superPaydays++;
       this.stats.biggestPayday = Math.max(this.stats.biggestPayday, amount);
       this.payRaw(amount, e.x, e.y);
       this.emit({ t: 'payday', amount, super: true });
+      this.onPaydayHooks(true);
       this.emit({
         t: 'callout',
         text: 'SUPER PAYDAY!',
@@ -573,7 +617,7 @@ export class TableGame {
     } else if (this.machine.awardLit) {
       this.collectAward();
     } else if (mult === 1) this.emit({ t: 'callout', text: 'THE HOLE', priority: 2 });
-    if (!locked) this.holeHolds.set(e.ballId, Math.round(HOLE.holdTime / this.dt));
+    if (!locked) this.holeHolds.set(e.ballId, Math.round(this.holeHold() / this.dt));
     this.refreshLamps();
   }
 
@@ -608,11 +652,13 @@ export class TableGame {
     this.superLit = false;
     this.combo.reset();
     // The captured ball ejects after its hold; the other balls come out one by one.
-    const hold = Math.round(HOLE.holdTime / this.dt);
+    const hold = Math.round(this.holeHold() / this.dt);
     const gap = Math.round(RIOT.releaseGap / this.dt);
     for (let i = 1; i < this.ctx.riotBalls; i++)
       this.releases.push({ steps: hold + gap * i, fromHole: i === 1 });
-    this.riotSaveLeft = RIOT.ballSave + HOLE.holdTime + RIOT.releaseGap * this.ctx.riotBalls;
+    let save = RIOT.ballSave;
+    for (const h of this.hooks) save = Math.max(save, h.riotSave?.(this) ?? 0);
+    this.riotSaveLeft = save + this.holeHold() + RIOT.releaseGap * this.ctx.riotBalls;
     this.emit({ t: 'riot', on: true });
     this.emit({
       t: 'callout',
@@ -660,9 +706,7 @@ export class TableGame {
         break;
       case 'shotLevel': {
         const shot = this.favouriteShot();
-        this.levels[shot]++;
-        this.levelUps.push(shot);
-        this.refreshLamps();
+        this.levelUp(shot);
         sub = `${shot.toUpperCase()} LEVEL ${this.levels[shot]}`;
         break;
       }
@@ -689,7 +733,8 @@ export class TableGame {
   }
 
   /** A set (top lanes or Cell Block) completed: light the Hole award if it isn't. */
-  private setComplete(): void {
+  private setComplete(set: 'lanes' | 'cellblock'): void {
+    for (const h of this.hooks) h.onSetComplete?.(this, set);
     if (this.machine.awardLit) return;
     this.machine.awardLit = true;
     const award = AWARDS.ladder[this.machine.award % AWARDS.ladder.length] as AwardId;
@@ -701,7 +746,9 @@ export class TableGame {
     this.endSkill();
     const states = this.sim.dropStates();
     this.machine.drops = states;
-    if (states.every((u) => !u)) {
+    // The sim resets the bank after the step; one clear per reset.
+    if (states.every((u) => !u) && !this.cellCleared) {
+      this.cellCleared = true;
       this.stats.cellBlocks++;
       this.pay('cellblock', SCORE.cellBlock, e.x, e.y);
       this.sim.resetDrops();
@@ -710,7 +757,7 @@ export class TableGame {
         this.machine.lockLit = true;
         this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'LOCKUP IS LIT', priority: 4 });
       } else this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'CLEARED', priority: 3 });
-      this.setComplete();
+      this.setComplete('cellblock');
     }
     this.refreshLamps();
   }
@@ -739,7 +786,7 @@ export class TableGame {
     this.drainCause = e.id;
     this.emit({ t: 'drain', cause: e.id, x: e.x, y: e.y });
     if (this.tilted) return;
-    if (this.riot && this.riotSaveLeft > 0) {
+    if ((this.riot && this.riotSaveLeft > 0) || this.multiSaveLeft > 0) {
       this.sim.serveBall(true);
       this.emit({ t: 'ballSaved' });
       return;
@@ -766,9 +813,11 @@ export class TableGame {
     if (this.tilted) return;
     // The left kickback handles its own outlane.
     if (e.id === 'outlaneL' && this.sim.kickbackArmed) return;
-    if (!this.rng.chance(this.chance(LUCK.luckyBounce))) return;
+    const forced = this.hooks.some((h) => h.forceBounce?.(this));
+    if (!forced && !this.rng.chance(this.chance(LUCK.luckyBounce))) return;
     this.sim.luckyKick(e.ballId);
     this.stats.luckyBounces++;
+    for (const h of this.hooks) h.onLuckyBounce?.(this);
     this.emit({ t: 'luck', kind: 'bounce', amount: 0 });
     this.emit({ t: 'callout', text: 'LUCKY BOUNCE', priority: 6 });
   }
@@ -859,6 +908,86 @@ export class TableGame {
     this.emit({ t: 'ballOver', earned: this.earned + this.bonusPaid, tilted: this.tilted });
   }
 
+  // ------------------------------------------------------------------ charm API (BallRules)
+
+  lucky(base: number): boolean {
+    return this.rng.chance(this.chance(base));
+  }
+
+  addBonusMult(n: number): void {
+    const cap = this.ctx.bonusMaxMult;
+    const before = this.bonusMult;
+    this.bonusMult = Math.min(cap, this.bonusMult + n);
+    if (this.bonusMult !== before) {
+      this.emit({ t: 'bonusMult', mult: this.bonusMult });
+      this.refreshLamps();
+    }
+  }
+
+  levelUp(shot: ShotType): void {
+    this.levels[shot]++;
+    this.levelUps.push(shot);
+    this.refreshLamps();
+  }
+
+  has(id: string): boolean {
+    return this.owned.has(id);
+  }
+
+  private holeHold(): number {
+    return Math.max(0.3, HOLE.holdTime + this.ctx.holeHoldAdd);
+  }
+
+  private paydayMult(): number {
+    let m = 1;
+    for (const h of this.hooks) if (h.paydayMult) m *= h.paydayMult(this);
+    return m;
+  }
+
+  private onPaydayHooks(isSuper: boolean): void {
+    for (const h of this.hooks) h.onPayday?.(this, isSuper);
+    // Hand-Crank Generator: PAYDAY recharges every active charm.
+    if (this.has('handCrank') && !isSuper) {
+      for (const a of this.ctx.actives) a.charges = a.max;
+      this.emit({ t: 'callout', text: 'RECHARGED', sub: 'HAND-CRANK GENERATOR', priority: 4 });
+    }
+  }
+
+  /** Fire an active charm: slot 1-5, or 6 for the lockbar (leftmost with charges). */
+  private activate(code: number): void {
+    const a =
+      code >= 6
+        ? this.ctx.actives.find((x) => x.charges > 0)
+        : this.ctx.actives.find((x) => x.slot === code && x.charges > 0);
+    if (!a) return;
+    a.charges--;
+    this.emit({ t: 'active', id: a.id, slot: a.slot, charges: a.charges });
+    switch (a.action) {
+      case 'ballSave':
+        this.saveStarted = true;
+        this.saved = false;
+        this.ballSaveLeft = Math.max(this.ballSaveLeft, ACTIVE_SAVE);
+        this.emit({ t: 'callout', text: 'PANIC BUTTON', sub: 'BALL SAVE ARMED', priority: 5 });
+        break;
+      case 'slowmo':
+        this.emit({ t: 'slowmo', seconds: ACTIVE_SLOWMO });
+        this.emit({ t: 'callout', text: 'POCKET WATCH', sub: 'TIME DRAGS', priority: 4 });
+        break;
+      case 'crowbar': {
+        const drops = this.sim.dropStates();
+        for (let i = 0; i < drops.length; i++) if (drops[i]) this.sim.knockDrop(i);
+        this.emit({ t: 'callout', text: 'CROWBAR', priority: 4 });
+        break;
+      }
+      case 'twinYolk':
+        this.sim.serveBall(true);
+        this.multiSaveLeft = TWIN_SAVE;
+        this.emit({ t: 'callout', text: 'TWIN YOLK', sub: 'TWO-BALL MULTIBALL', priority: 6 });
+        break;
+    }
+    this.refreshLamps();
+  }
+
   /** What the run needs from a finished ball. */
   outcome(): BallOutcome {
     return {
@@ -871,6 +1000,7 @@ export class TableGame {
       levelUps: [...this.levelUps],
       extraBalls: this.extraBalls,
       paydayEnd: this.paydayEnd,
+      charges: Object.fromEntries(this.ctx.actives.map((a) => [a.id, a.charges])),
     };
   }
 
@@ -889,11 +1019,20 @@ export class TableGame {
   }
 
   /** Pay a hit: scaled by level; adds to Bonus (excluding the combo part) and to PAYDAY. */
-  private pay(shot: ShotType, base: number, x: number, y: number, comboMult = 1): void {
+  private pay(
+    shot: ShotType,
+    base: number,
+    x: number,
+    y: number,
+    comboMult = 1,
+    source = '',
+  ): void {
     if (this.tilted) return;
-    const v = this.shotValue(shot, base);
+    let v = this.shotValue(shot, base);
     if (v <= 0) return;
+    for (const h of this.hooks) if (h.hitMult) v *= h.hitMult(this, shot, source);
     this.hitCounts[shot]++;
+    for (const h of this.hooks) h.onHit?.(this, shot, source);
     this.bonus += (v / comboMult) * this.ctx.bonusShare;
     if (this.riot) this.payday += RIOT.paydayPerHit;
     this.earned += v;

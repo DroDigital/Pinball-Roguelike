@@ -26,6 +26,8 @@ export function litChooser(game: TableGame): TargetChooser {
 export function attachBot(bot: Bot, session: BallSession): Bot {
   bot.skillLane = () => session.game.machine.skillLane;
   bot.chooseTarget = litChooser(session.game);
+  const g = session.game;
+  bot.hurry = () => g.combo.active(g.time) || g.hurryLeft > 0 || g.riot;
   return bot;
 }
 

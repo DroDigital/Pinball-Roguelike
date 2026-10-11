@@ -3,6 +3,7 @@
  * clear each deadline.
  *   npm run economy -- [--runs 2000] [--skill average] [--mode sampled|physics] [--workers N]
  *     [--red] (accept red-call bargains) [--loans] (borrow to cover a shortfall)
+ *     [--arch none|random|yard|chute|riot|bonus|luck|money|lone] (shop policy)
  * sampled: ball earnings drawn from tools/out/botstats.json (run `npm run botstats` first).
  *          Fast; good for tuning debt curves, prices and interest.
  * physics: every ball is played by the bot on the real table (slow; use few runs).
@@ -35,6 +36,17 @@ import {
   type RunState,
 } from '../src/rules/run';
 import { attachBot } from '../src/bot/autoplay';
+import { charmDef, type CharmTag } from '../src/content/charms';
+import {
+  buyCharm,
+  buyContraband,
+  contrabandPrice,
+  reroll,
+  rerollCost,
+  useContraband,
+} from '../src/rules/shop';
+import type { ShotType } from '../src/sim/table-def';
+import type { ShotTarget } from '../src/bot/shot-table';
 import { emptyBallStats } from '../src/content/jobs';
 import {
   IS_MAIN,
@@ -61,9 +73,68 @@ interface Job {
 interface Policy {
   red: boolean;
   loans: boolean;
+  /** Shop archetype: buy charms with this tag ('none' buys nothing, 'random' anything). */
+  arch: string;
+}
+
+/** Shot each archetype levels with Oil Cans and aims the bot at. */
+const ARCH: Record<
+  string,
+  { tag?: CharmTag; shot: ShotType; left?: ShotTarget; right?: ShotTarget }
+> = {
+  none: { shot: 'chute' },
+  random: { shot: 'chute' },
+  yard: { tag: 'Yard', shot: 'yard' },
+  chute: { tag: 'Chute', shot: 'chute', left: 'perimeter', right: 'chute' },
+  riot: { tag: 'Riot', shot: 'hole', left: 'cellblock', right: 'hole' },
+  bonus: { tag: 'Bonus', shot: 'lanes' },
+  luck: { tag: 'Luck', shot: 'hole' },
+  money: { tag: 'Money', shot: 'chute' },
+  lone: { tag: 'Lone', shot: 'chute' },
+};
+const RARITY_RANK: Record<string, number> = {
+  legendary: 4,
+  rare: 3,
+  uncommon: 2,
+  common: 1,
+  devil: 0,
+};
+
+/** Shop policy: matching charms first (rarest), then an Oil Can for the main shot. */
+function shopFor(r: RunState, policy: Policy): void {
+  if (policy.arch === 'none') return;
+  const a = ARCH[policy.arch];
+  const reserve = () => ballPrice(r) * (ECONOMY.maxBallsPerRound - 1);
+  const matches = () =>
+    r.shop.charms.some(
+      (id) => policy.arch === 'random' || (a.tag && charmDef(id).tags.includes(a.tag)),
+    );
+  // Reroll (a few times) for a matching charm while tickets wait and coins allow.
+  for (let k = 0; k < 3 && r.tickets >= 2 && !matches(); k++)
+    if (r.pocket - rerollCost(r) < reserve() || !reroll(r)) break;
+  for (;;) {
+    let best = -1;
+    let score = -1;
+    r.shop.charms.forEach((id, i) => {
+      const c = charmDef(id);
+      if (c.cost > r.tickets) return;
+      const match = policy.arch === 'random' || (a.tag && c.tags.includes(a.tag));
+      if (!match) return;
+      const sc = RARITY_RANK[c.rarity] * 10 - c.cost;
+      if (sc > score) {
+        score = sc;
+        best = i;
+      }
+    });
+    if (best < 0 || !buyCharm(r, best)) break;
+  }
+  const oil = r.shop.contraband.indexOf('oilCan');
+  if (oil >= 0 && r.pocket - contrabandPrice(r, 'oilCan') >= reserve() && buyContraband(r, oil))
+    useContraband(r, r.contraband.indexOf('oilCan'), { shot: a.shot });
 }
 
 interface RunRow {
+  charms: string[];
   reached: number;
   result: string;
   balls: number;
@@ -87,6 +158,7 @@ function playRun(
   const funds: number[] = [];
   while (r.phase !== 'over') {
     if (r.phase === 'pickJob') {
+      shopFor(r, policy);
       if (canPayEarly(r)) {
         funds.push(r.bank);
         payEarly(r);
@@ -140,7 +212,13 @@ function playRun(
       else hangUp(r);
     }
   }
-  return { reached: r.deadline, result: r.result ?? 'fell', balls: r.stats.balls, funds };
+  return {
+    charms: [...r.charms],
+    reached: r.deadline,
+    result: r.result ?? 'fell',
+    balls: r.stats.balls,
+    funds,
+  };
 }
 
 function work(job: Job): RunRow[] {
@@ -161,10 +239,14 @@ function work(job: Job): RunRow[] {
             levelUps: [],
             extraBalls: 0,
             paydayEnd: 0,
+            charges: {},
           })
         : (snap: BallSnapshot): BallOutcome => {
             const s = new BallSession(snap);
             const bot = attachBot(new Bot(job.skill, i * 1000 + n++), s);
+            const a = ARCH[job.policy.arch];
+            const lit = bot.chooseTarget!;
+            bot.chooseTarget = (side) => lit(side) ?? (side === 'left' ? a.left : a.right) ?? null;
             while (!s.over && s.steps < 240 * 600) s.step(bot.decide(s.sim));
             return s.game.outcome();
           };
@@ -204,7 +286,11 @@ if (IS_MAIN) {
     mode,
     samples,
     scale,
-    policy: { red: args.includes('--red'), loans: args.includes('--loans') },
+    policy: {
+      red: args.includes('--red'),
+      loans: args.includes('--loans'),
+      arch: argStr(args, '--arch', 'none'),
+    },
   }));
   const rows = (await runPool<Job, RunRow[]>(import.meta.url, jobs)).flat();
 
@@ -228,6 +314,21 @@ if (IS_MAIN) {
   }
   const balls = rows.map((r) => r.balls).sort((a, b) => a - b);
   console.log(`\nBalls per run: median ${quantile(balls, 0.5)}, p90 ${quantile(balls, 0.9)}`);
+  const winners = rows.filter((r) => r.result === 'paidInFull');
+  console.log(
+    `Wins: ${winners.length}/${rows.length} (${((winners.length / rows.length) * 100).toFixed(1)}%)`,
+  );
+  if (winners.length) {
+    const freq: Record<string, number> = {};
+    for (const w of winners) for (const c of w.charms) freq[c] = (freq[c] ?? 0) + 1;
+    console.log(
+      `In winning builds: ${Object.entries(freq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([k, v]) => `${k} ${Math.round((v / winners.length) * 100)}%`)
+        .join(', ')}`,
+    );
+  }
   mkdirSync('tools/out', { recursive: true });
   writeFileSync('tools/out/economy.json', JSON.stringify({ mode, skill, runs, report }, null, 2));
 }

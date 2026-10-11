@@ -131,8 +131,9 @@ const flippers: FlipperDef[] = [
   // Third Arm hardware mount: upper-right flipper on the right button.
   {
     id: 'U',
-    x: 16.35,
-    y: 24.4,
+    // Against the column wall, clear of the Cell Block roof: balls roll off its back.
+    x: 18.05,
+    y: 26.4,
     len: 2.0,
     r0: 0.38,
     r1: 0.2,
@@ -167,6 +168,15 @@ const GUIDE_CORNER = guideAt(sCorner);
 const DIV_TOP = 10.9; // permanent divider top
 const POST_Y = 12.5; // outlane post (removable by Wide Open), level with the sling tops
 const POST_R = 0.3;
+/** Rubber Cement plug (left side): a sloped top running over the outlane post. */
+const PLUG_POST_X = DIV_X - DIV_T / 2;
+const PLUG_PTS: P2[] = [
+  [0, 12.35],
+  [PLUG_POST_X - 0.25, 12.35],
+  // Past the post's top, so a ball rolls over it into the inlane instead of wedging.
+  [PLUG_POST_X + 0.1, POST_Y + POST_R + 0.02],
+  [0, 13.55],
+];
 
 // Clearance arc around the flipper pivot so the apron never touches the flipper base.
 const pivotArc = arc(
@@ -493,12 +503,8 @@ const walls: WallDef[] = [
   // Rubber Cement: plugs over both outlane entrances.
   {
     id: 'plugL',
-    pts: [
-      [0, 12.35],
-      [DIV_X - DIV_T, 12.35],
-      [DIV_X - DIV_T, 12.65],
-      [0, 12.65],
-    ],
+    // Sloped top running over the outlane post, so balls roll into the inlane.
+    pts: PLUG_PTS,
     loop: true,
     mat: 'rubber',
     look: 'plug',
@@ -507,12 +513,7 @@ const walls: WallDef[] = [
   },
   {
     id: 'plugR',
-    pts: mps([
-      [0, 12.35],
-      [DIV_X - DIV_T, 12.35],
-      [DIV_X - DIV_T, 12.65],
-      [0, 12.65],
-    ]),
+    pts: mps(PLUG_PTS),
     loop: true,
     mat: 'rubber',
     look: 'plug',

@@ -37,7 +37,10 @@ export type GameEvent =
   | { t: 'hurry'; on: boolean }
   | { t: 'luck'; kind: 'spark' | 'bounce'; amount: number }
   | { t: 'jobDone'; id: string }
-  | { t: 'extraBall' };
+  | { t: 'extraBall' }
+  | { t: 'active'; id: string; slot: number; charges: number }
+  /** Presentation slows real time (Pocket Watch); the sim is unaffected. */
+  | { t: 'slowmo'; seconds: number };
 
 export type AwardId = 'bonusX' | 'kickback' | 'hurryUp' | 'shotLevel' | 'extraBall';
 

@@ -13,6 +13,8 @@ import {
 import type { GameEvent } from '../../src/rules/types';
 import type { SimEventType } from '../../src/sim/events';
 import { emptyInput, type PinballSim } from '../../src/sim/sim';
+import type { SimMods } from '../../src/sim/sim-config';
+import type { BallSnapshot } from '../../src/rules/session';
 
 export interface Harness {
   sim: PinballSim;
@@ -37,12 +39,19 @@ export interface Harness {
   clearCellBlock(): void;
 }
 
+/** Harness for a ball built by the run (tags, sim mods and context from charms etc.). */
+export function harnessSnap(snap: BallSnapshot): Harness {
+  return harness(snap.ctx, snap.machine, snap.seed, snap.tags, snap.mods);
+}
+
 export function harness(
   ctx: Partial<BallContext> = {},
   machine: Partial<MachineState> = {},
   seed = 1,
+  tags: string[] = ['outlanePosts'],
+  mods: Partial<SimMods> = {},
 ): Harness {
-  const sim = makeSim(seed);
+  const sim = makeSim(seed, tags, mods);
   const events: GameEvent[] = [];
   const game = new TableGame(
     sim,

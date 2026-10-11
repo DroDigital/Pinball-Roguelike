@@ -365,3 +365,53 @@ body {
 .panel button.job.bargain {
   border-color: #b02818;
 }
+
+.panel.shop {
+  max-width: min(760px, 96vw);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.panel.shop .col {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+.panel button.charmcard {
+  border-width: 2px;
+}
+.panel button.charmcard.glow {
+  box-shadow: 0 0 12px rgba(255, 200, 80, 0.55);
+}
+.panel button.charmcard .tags {
+  opacity: 0.6;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+.panel .charms {
+  margin: 8px 0;
+}
+.panel .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.panel .chips .charm {
+  border: 1px solid var(--edge);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.35);
+}
+.panel .stash {
+  margin: 6px 0;
+}
+.panel .stash .row {
+  align-items: center;
+  flex-wrap: wrap;
+}
+#hud .right .actives {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #ffd27a;
+}

@@ -7,7 +7,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { cpus } from 'node:os';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { BallSession, type BallSnapshot } from '../src/rules/session';
-import { sentenceDef } from '../src/content/sentences';
+import type { SimMods } from '../src/sim/sim-config';
 import { attachBot, defaultSnapshot } from '../src/bot/autoplay';
 import { Bot, type BotSkillName } from '../src/bot/bot';
 
@@ -20,16 +20,35 @@ interface Job {
   sentences: boolean;
 }
 
-/** Sentences that change the physics; balls cycle through them with --sentences. */
-const PHYSICAL = ['', 'leadBall', 'greased', 'wideOpen', 'boltedHole'];
+/**
+ * Physics variants (--sentences): Sentences, hardware charms and charm/contraband effects that
+ * change the table or the forces. Balls cycle through them.
+ */
+const VARIANTS: { name: string; tags?: string[]; drop?: string[]; mods?: Partial<SimMods> }[] = [
+  { name: 'base' },
+  { name: 'leadBall', mods: { ballMass: 1.6 } },
+  { name: 'greased', mods: { flipperStrength: 0.85 } },
+  { name: 'wideOpen', drop: ['outlanePosts'] },
+  { name: 'boltedHole', tags: ['boltedHole'] },
+  { name: 'thirdArm', tags: ['mount:thirdArm'] },
+  { name: 'spareBumper', tags: ['mount:spareBumper'] },
+  { name: 'bentNail', tags: ['mount:bentNail'] },
+  { name: 'rubberCement', tags: ['plugOutlanes'] },
+  { name: 'hellfire', mods: { kickStrength: 2 } },
+  { name: 'greasedRail', mods: { greasedRail: true } },
+  {
+    name: 'everything',
+    tags: ['mount:thirdArm', 'mount:spareBumper', 'mount:bentNail'],
+    mods: { kickStrength: 2, nudgeStrength: 1.3 },
+  },
+];
 
-function snapshotFor(i: number, withSentences: boolean): BallSnapshot {
+function snapshotFor(i: number, withVariants: boolean): BallSnapshot {
   const snap = defaultSnapshot(100000 + i);
-  const id = withSentences ? PHYSICAL[i % PHYSICAL.length] : '';
-  if (!id) return snap;
-  const e = sentenceDef(id).effect;
-  snap.mods = { ...snap.mods, ...e.sim };
-  snap.tags = snap.tags.filter((t) => !(e.removeTags ?? []).includes(t)).concat(e.addTags ?? []);
+  if (!withVariants) return snap;
+  const v = VARIANTS[i % VARIANTS.length];
+  snap.mods = { ...snap.mods, ...v.mods };
+  snap.tags = snap.tags.filter((t) => !(v.drop ?? []).includes(t)).concat(v.tags ?? []);
   return snap;
 }
 

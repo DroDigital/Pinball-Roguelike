@@ -23,6 +23,7 @@ import {
   debtFor,
   ballsLeft,
   startDeadline,
+  payScale,
   type BallOutcome,
   type RunState,
 } from '../../src/rules/run';
@@ -42,6 +43,7 @@ const ball = (earned = 1, tilted = false): BallOutcome => ({
   levelUps: [],
   extraBalls: 0,
   paydayEnd: 0,
+  charges: {},
 });
 
 /** Play a round with n balls each earning `earned`, then end it. */
@@ -221,10 +223,13 @@ describe('the phone', () => {
 
   it('bargains apply both sides and make red calls likelier', () => {
     let s = paid('red');
-    for (let i = 0; s.call!.kind !== 'red'; i++) s = paid(`red${i}`);
-    const id = s.call!.kind === 'red' ? s.call!.offers[0] : '';
+    const plain = (r: RunState) =>
+      r.call!.kind === 'red' ? r.call!.offers.findIndex((o) => !o.startsWith('charm:')) : -1;
+    for (let i = 0; plain(s) < 0; i++) s = paid(`red${i}`);
+    const idx = plain(s);
+    const id = s.call!.kind === 'red' ? s.call!.offers[idx] : '';
     const e = bargainDef(id).effect;
-    expect(acceptBargain(s, 0)).toBe(true);
+    expect(acceptBargain(s, idx)).toBe(true);
     expect(s.bargains).toEqual([id]);
     expect(s.mods.redAccepted).toBe(1);
     if (e.payMult) expect(s.mods.payMult).toBe(e.payMult);
@@ -233,6 +238,18 @@ describe('the phone', () => {
       pickJob(s, 0);
       expect(costForBalls(s, 1)).toBeGreaterThan(0);
     }
+  });
+
+  it('red calls can offer devil charms, which take a slot and raise debts', () => {
+    let s = paid('devil');
+    const devil = (r: RunState) =>
+      r.call!.kind === 'red' ? r.call!.offers.indexOf('charm:devilsDue') : -1;
+    for (let i = 0; devil(s) < 0; i++) s = paid(`devil${i}`);
+    const next = Math.round(debtFor(1) * 1.5);
+    expect(acceptBargain(s, devil(s))).toBe(true);
+    expect(s.charms).toEqual(['devilsDue']);
+    expect(s.debt).toBe(next);
+    expect(nextBallCtx(s).payMult).toBeCloseTo(2 * payScale(s));
   });
 
   it('hanging up gives nothing and moves on', () => {

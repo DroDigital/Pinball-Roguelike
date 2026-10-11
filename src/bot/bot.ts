@@ -101,11 +101,14 @@ export class Bot {
   plungePull: number | null = null;
   /** Lit Roll Call lane (0..2) so the plunge can aim for it; null = always full plunge. */
   skillLane: (() => number) | null = null;
+  /** True while time matters (combo running, hurry-up, RIOT): shoot from cradles at once. */
+  hurry: (() => boolean) | null = null;
   /** Counters for diagnostics. */
   readonly stats = { flips: 0, catches: 0, cradles: 0, aimed: 0, nudges: 0 };
   private brains: FlipBrain[];
   private input: SimInput = emptyInput();
   private plungeTimer = -1;
+  private upperTap = 0;
   private plungeHoldSteps = 0;
   private tiltMeter = 0;
   private nudgeCooldown = 0;
@@ -139,10 +142,31 @@ export class Bot {
     this.handlePlunger(sim, inp);
     inp.left = this.updateFlipper(sim, this.brains[0]);
     inp.right = this.updateFlipper(sim, this.brains[1]);
+    this.upperFlipper(sim, inp);
     this.maybeNudge(sim, inp);
     // Never hold left during a plunge unless a super skill shot is planned.
     if (inp.plunger) inp.left = false;
     return inp;
+  }
+
+  /** Third Arm: a slow ball on the upper flipper gets a tap (when the right side is free). */
+  private upperFlipper(sim: PinballSim, inp: SimInput): void {
+    if (this.upperTap > 0) {
+      this.upperTap--;
+      inp.right = true;
+      return;
+    }
+    if (inp.right || this.brains[1].state !== FState.Idle) return;
+    const u = sim.flippers.find((f) => f.def.id === 'U');
+    if (!u) return;
+    for (const b of sim.balls) {
+      if (b.state !== 'field' || Math.hypot(b.vx, b.vy) > 4) continue;
+      if (this.hittable(u, b.x, b.y)) {
+        this.upperTap = 30;
+        inp.right = true;
+        return;
+      }
+    }
   }
 
   // ------------------------------------------------------------------ plunger
@@ -273,7 +297,8 @@ export class Bot {
         }
         // Another ball about to need this flipper? Shoot now rather than lose it.
         const urgent = best !== null && best.id !== b.id && bestT < 12;
-        if (++br.timer > 40 + this.rng.int(0, 40) || urgent) {
+        const wait = this.hurry?.() ? 6 : 40 + this.rng.int(0, 40);
+        if (++br.timer > wait || urgent) {
           const target =
             (this.chooseTarget && this.chooseTarget(br.side)) ?? this.defaultTarget(br.side);
           const entry = target ? SHOT_TABLE[br.side][target] : undefined;

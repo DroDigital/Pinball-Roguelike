@@ -44,6 +44,10 @@ export class World {
   private time = 0;
   /** Seated cam yaw offset for look-around (A/D). */
   lookYaw = 0;
+  /** Moonshine camera sway amount (0..1). */
+  sway = 0;
+  /** The bare bulb's brightness (dims as the cell decays). */
+  bulbPower = 1800;
   aspect = 16 / 9;
 
   constructor(tags: ReadonlySet<string>) {
@@ -203,7 +207,12 @@ export class World {
     this.shakeVel.multiplyScalar(Math.exp(-dt * 12));
     this.shake.addScaledVector(this.shakeVel, dt);
     this.camera.position.copy(this.camPos).add(this.shake);
-    this.camera.lookAt(this.camLook.x + this.shake.x * 0.3, this.camLook.y, this.camLook.z);
+    // Moonshine: a slow drunken drift.
+    const sx = this.sway * Math.sin(this.time * 0.7) * 1.4;
+    const sy = this.sway * Math.sin(this.time * 1.1) * 0.5;
+    this.camera.position.x += sx * 0.5;
+    this.camera.position.y += sy;
+    this.camera.lookAt(this.camLook.x + this.shake.x * 0.3 + sx, this.camLook.y, this.camLook.z);
     this.camera.updateProjectionMatrix();
     // Bulb pendulum + flicker.
     this.bulbSwingV += -this.bulbSwing * 9 * dt;
@@ -216,7 +225,7 @@ export class World {
     );
     this.bulbMesh.position.copy(this.bulb.position);
     const flicker = Math.random() < 0.02 ? 0.4 : 1;
-    this.bulb.intensity = 900 * flicker;
+    this.bulb.intensity = this.bulbPower * flicker;
   }
 }
 

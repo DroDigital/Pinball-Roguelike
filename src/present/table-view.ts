@@ -44,7 +44,13 @@ const TRAIL = 10;
 export class TableView {
   readonly root = new THREE.Group();
   private readonly flippers = new Map<string, THREE.Group>();
-  private readonly pops: { cap: THREE.MeshStandardMaterial; ring: THREE.Mesh; base: number }[] = [];
+  private readonly pops = new Map<
+    string,
+    { cap: THREE.MeshStandardMaterial; ring: THREE.Mesh; base: number }
+  >();
+  /** Objects shown only when their tag is active for the current ball. */
+  private readonly tagged = new Map<string, THREE.Object3D[]>();
+  private goldPop = '';
   private readonly slings: THREE.MeshStandardMaterial[] = [];
   private readonly drops: THREE.Mesh[] = [];
   private spinner: THREE.Mesh | null = null;
@@ -84,13 +90,20 @@ export class TableView {
       envMap,
       envMapIntensity: 1.4,
     });
-    this.build(tags);
+    this.build();
+    this.setTags(tags);
   }
 
   // ------------------------------------------------------------------ build
 
-  private build(tags: ReadonlySet<string>): void {
-    const has = (t?: string) => !t || tags.has(t);
+  private build(): void {
+    // Everything is built; tagged parts (hardware, Sentences, contraband) toggle per ball.
+    const tag = (obj: THREE.Object3D, t?: string) => {
+      if (!t) return;
+      const list = this.tagged.get(t) ?? [];
+      list.push(obj);
+      this.tagged.set(t, list);
+    };
     const t = this.table;
 
     // Playfield.
@@ -130,7 +143,7 @@ export class TableView {
     };
 
     for (const w of t.walls) {
-      if (!has(w.tag) || w.look === 'invisible') continue;
+      if (w.look === 'invisible') continue;
       const mat =
         w.look === 'cabinet'
           ? mats.cabinet
@@ -148,14 +161,17 @@ export class TableView {
                       ? mats.rubber
                       : mats.wood;
       const mesh = w.look === 'cabinet' ? this.cabinetMesh(w, mat) : this.wallMesh(w, mat);
-      if (mesh) this.root.add(mesh);
+      if (mesh) {
+        this.root.add(mesh);
+        tag(mesh, w.tag);
+      }
     }
     // One-way gates as thin metal flaps.
     for (const ow of t.oneWays) this.root.add(this.segmentBox(ow.a, ow.b, 0.06, 0.7, mats.metal));
 
     for (const p of t.posts) {
-      if (!has(p.tag)) continue;
       const g = new THREE.Group();
+      tag(g, p.tag);
       const core = new THREE.Mesh(
         new THREE.CylinderGeometry(p.r * 0.7, p.r * 0.7, 0.9, 12),
         p.mat === 'metal' ? mats.metal : mats.post,
@@ -176,8 +192,8 @@ export class TableView {
     }
 
     for (const b of t.bumpers) {
-      if (!has(b.tag)) continue;
       const g = new THREE.Group();
+      tag(g, b.tag);
       const body = new THREE.Mesh(
         new THREE.CylinderGeometry(b.r * 0.7, b.r * 0.8, 0.7, 20),
         mats.metal,
@@ -201,7 +217,7 @@ export class TableView {
       g.add(body, skirt, cap, ring);
       g.position.set(wx(b.x), 0, wz(b.y));
       this.root.add(g);
-      this.pops.push({ cap: capMat, ring, base: 0.45 });
+      this.pops.set(b.id, { cap: capMat, ring, base: 0.45 });
     }
 
     for (const s of t.slings) {
@@ -262,7 +278,6 @@ export class TableView {
     const flipMat = new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.45 });
     const flipRubber = new THREE.MeshStandardMaterial({ color: 0x9a1810, roughness: 0.8 });
     for (const f of t.flippers) {
-      if (!has(f.tag)) continue;
       const shape = flipperShape(f.len, f.r0, f.r1);
       const body = new THREE.Mesh(
         new THREE.ExtrudeGeometry(shape, { depth: 0.55, bevelEnabled: false, curveSegments: 10 }),
@@ -274,6 +289,7 @@ export class TableView {
       g.position.set(wx(f.x), 0.02, wz(f.y));
       this.root.add(g);
       this.flippers.set(f.id, g);
+      tag(g, f.tag);
     }
 
     // Wireforms and the Chute ramp.
@@ -410,12 +426,13 @@ export class TableView {
       if (!g) continue;
       g.rotation.y = f.prevAngle + (f.angle - f.prevAngle) * alpha;
     }
-    sim.pops.forEach((p, i) => {
-      const v = this.pops[i];
-      if (!v) return;
-      v.cap.emissive.setRGB(0.25 + p.flash * 0.9, 0.02 + p.flash * 0.25, 0);
+    for (const p of sim.pops) {
+      const v = this.pops.get(p.id);
+      if (!v) continue;
+      if (p.id === this.goldPop) v.cap.emissive.setRGB(0.35 + p.flash, 0.25 + p.flash * 0.8, 0.02);
+      else v.cap.emissive.setRGB(0.25 + p.flash * 0.9, 0.02 + p.flash * 0.25, 0);
       v.ring.position.y = v.base - p.flash * 0.3;
-    });
+    }
     sim.slings.forEach((s, i) =>
       this.slings[i]?.emissive.setRGB(s.flash * 0.7, s.flash * 0.5, s.flash * 0.2),
     );
@@ -504,6 +521,21 @@ export class TableView {
     light.visible = false;
     this.root.add(mesh, halo, trail, light);
     return { mesh, halo, trail, trailPos, trailCount: 0, seen: true, light };
+  }
+
+  /** Show the parts for this ball's tags; the Gold Filling turns its bumper gold. */
+  setTags(tags: ReadonlySet<string>): void {
+    for (const [t, objs] of this.tagged) for (const o of objs) o.visible = tags.has(t);
+    const gold = this.table.mounts.find((m) => m.kind === 'gold');
+    const goldId = gold && tags.has(gold.tag) ? (gold.ref ?? '') : '';
+    if (goldId === this.goldPop) return;
+    for (const [id, v] of this.pops) {
+      const isGold = id === goldId;
+      v.cap.color.setHex(isGold ? 0xe8b830 : 0xd02020);
+      v.cap.metalness = isGold ? 0.85 : 0;
+      v.cap.roughness = isGold ? 0.25 : 0.4;
+    }
+    this.goldPop = goldId;
   }
 
   /** World position of a table point (for pops, particles, camera targets). */

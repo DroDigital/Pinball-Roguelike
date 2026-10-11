@@ -165,8 +165,33 @@ no charms): deadline 1 94%, deadline 2 53%, deadline 3 14%, deadline 4 3%. The b
 targets (deadline 4 ~35%, focused builds win ~20%) need M4's charms.
 
 ### M4 — Build-crafting
-- [ ] Vending cabinet shop (rarity, tags glow, reroll, sell), full charm roster
-- [ ] Contraband, legendaries, devil charms, hardware mounts, active charms
+- [x] Vending cabinet: restocks each deadline with 5 charms (rarity 60/30/9/1, legendaries
+      from deadline 3, never one you own), 2 contraband, sometimes an Oil Can; rerolls get
+      dearer; sell for half; items glow when they share a tag with your charms
+- [x] Full charm roster (54) as data: static effects folded per ball / run, behaviour hooks
+      by id (hit, set complete, PAYDAY, lucky bounce, outlane, RIOT save; run-level drain,
+      round end, early pay, deposit, loan, Job reward)
+- [x] Contraband (10), legendaries (4), devil charms (3, red calls only, can't be sold),
+      hardware mounts (Bent Nail, Spare Bumper, Gold Filling, Third Arm) that change the
+      physical table, active charms on the lockbar (B) and number keys, recorded as inputs
+      so replays stay exact
+- [x] A test per charm and per contraband item; physics variants in the soak
+- [x] Economy: archetype shop policies (`--arch`), win rates and charm frequency in
+      winning builds
+
+M4 calibration (`npm run economy -- --mode physics --runs 24 --arch <a>`, average bot):
+
+| build | d1 | d4 | d6 | wins | notes |
+| --- | --- | --- | --- | --- | --- |
+| none (no charms) | 96% | 33% | 13% | 0% | |
+| yard | 96% | 42% | 25% | 8% | Jar of Teeth + Gold Filling + Spare Bumper in every win |
+| chute | 92% | 33% | 8% | 0% | the bot barely combos or aims ramps (~0.7 Chutes/ball) |
+| riot | 92% | 50% | 33% | 17% | Notched Spoon in all 4 wins (small sample) |
+| random | 96% | 62% | 29% | 8% | |
+
+Close to the brief's targets (average d1 ~90%, d4 ~35%; focused wins ~20%). Open for the
+M7 balance pass: Chute builds need a bot that chains ramps to be measured; Notched Spoon may
+dominate Riot wins; samples are small (24 runs).
 
 ### M5 — The cell
 - [ ] Retro renderer (low-res, vertex snap, affine wobble, dither, palette, fog, grain)
@@ -293,4 +318,28 @@ Format: date — decision — why.
   is the point: refusing costs you the call.
 - 2026-10-11 — Sentence tiers: deadlines 1-2 draw tier 1, 3-5 tiers 1-2, 6-8 tiers 2-3. —
   "Harsher picks later in the run".
+- 2026-10-11 — The machine's payouts rise x1.5 per deadline ("a heavier coin mech", shown on
+  the deadline screen). — The debt rises x458 from deadline 1 to 8; shot levels are linear
+  (+50%) and even a perfect build couldn't keep up. With the coin mech, builds supply
+  ~x1.6 per deadline, which puts the brief's targets in reach while builds stay decisive.
+- 2026-10-11 — Base values rebalanced (pops 0.6, Chute 4, Perimeter 3, Hole 1.8) and Feeding
+  Bowl 4x -> 3x. — The Hole earned more than the whole Yard; Riot builds won 42% and Feeding
+  Bowl sat in 90% of winning builds.
+- 2026-10-11 — Overtime doubles tickets, coins and levels from Jobs but not Keys. — Two Keys
+  from one Key Job would make JAILBREAK trivial.
+- 2026-10-11 — Active charms fire through a recorded input field (slot 1-5, lockbar 6). —
+  Keeps every ball replayable; Pocket Watch's half speed is presentation-only time scaling.
+- 2026-10-11 — The Patron Saint Medal returns the round's first lost ball as an extra ball;
+  Solitary Confinement counts "buy no balls" as buying only the free ones. — Simplest
+  readings that keep the rules deterministic and testable.
+- 2026-10-11 — No rolling resistance for a nearly stopped ball touching a post or bumper. — At
+  half gravity the constant resistance acted like static friction on slopes under ~6 deg, so
+  balls balanced on outlane post tops until the watchdog kicked them (0.5 per ball). Rescues
+  fell from 1,395 to 30 per 2,400 soak balls.
+- 2026-10-11 — Third Arm moved to (18.05, 26.4) against the column wall; Rubber Cement plugs
+  got sloped tops that run over the outlane posts. — Both created new resting traps found by
+  the variant soak (`npm run soak -- --sentences` now cycles hardware and kick mods too).
+- 2026-10-11 — The bot shoots from cradles at once while a combo, hurry-up or RIOT is live,
+  and taps the Third Arm when a ball sits on it. — What a player would do; without it the
+  bot could never measure combo builds and stranded balls on the upper flipper.
 

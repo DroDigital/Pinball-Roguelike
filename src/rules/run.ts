@@ -4,8 +4,21 @@
  * deterministically (all randomness through the run's Rng state).
  */
 import { Rng, hashString, type RngState } from '../core/rng';
-import { BALL, BONUS, ECONOMY, JOBS, PHONE, SENTENCE } from '../content/balance';
-import { JOB_DEFS, jobDef, type BallStats, type JobDef } from '../content/jobs';
+import {
+  BALL,
+  BONUS,
+  CONTRABAND_FX,
+  ECONOMY,
+  JOBS,
+  LUCK,
+  PHONE,
+  SENTENCE,
+} from '../content/balance';
+import { CHARMS, charmDef } from '../content/charms';
+import { foldCharms, type FoldedFx } from './charms';
+import { RUN_HOOK } from './charm-hooks';
+import { restock } from './shop';
+import { JOB_DEFS, emptyBallStats, jobDef, type BallStats, type JobDef } from '../content/jobs';
 import { SENTENCES, maxTier, minTier, sentenceDef } from '../content/sentences';
 import { BARGAINS, PERKS, PERK_SHOTS, bargainDef, perkDef } from '../content/phone';
 import { defaultRunMods, type RunMods } from '../content/mods';
@@ -30,9 +43,6 @@ export type RunPhase =
   | 'over';
 export type RunResult = 'fell' | 'paidInFull' | 'breakout' | 'cellmate' | null;
 
-/** Shop systems arrive in M4; until then perks that only matter there aren't offered. */
-export const SHOP_OPEN = false;
-
 export interface RunStats {
   balls: number;
   coinsEarned: number;
@@ -50,6 +60,7 @@ export interface RunStats {
   loans: number;
   earlyPays: number;
   redCalls: number;
+  charmsBought: number;
 }
 
 export interface JobOffer {
@@ -69,6 +80,12 @@ export interface PerkOffer {
 }
 
 export type PhoneCall = { kind: 'perks'; offers: PerkOffer[] } | { kind: 'red'; offers: string[] };
+
+export interface ShopState {
+  charms: string[];
+  contraband: string[];
+  rerolls: number;
+}
 
 export interface RunState {
   version: 2;
@@ -100,6 +117,23 @@ export interface RunState {
   call: PhoneCall | null;
   /** Bargains accepted so far. */
   bargains: string[];
+  /** Owned charms in slot order, and active charges left. */
+  charms: string[];
+  charges: Record<string, number>;
+  /** Contraband carried (single use). */
+  contraband: string[];
+  /** The vending cabinet's current stock. */
+  shop: ShopState;
+  /** Contraband queued for the next ball. */
+  pending: { chalk: boolean; rubberCement: boolean; moonshine: boolean; lockpick: boolean };
+  /** Forged Receipt: the next deposit is credited extra. */
+  forgedReceipt: boolean;
+  /** Torn Calendar Page: extra rounds this deadline. */
+  extraRounds: number;
+  /** Per-round charm state: Wishbone luck, Patron Saint used, balls bought. */
+  roundLuck: number;
+  patronUsed: boolean;
+  boughtThisRound: number;
   /** Balls bought for this round (incl. free and extra balls) and how many have been played. */
   ballsThisRound: number;
   ballsPlayed: number;
@@ -148,6 +182,16 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
     job: null,
     call: null,
     bargains: [],
+    charms: [],
+    charges: {},
+    contraband: [],
+    shop: { charms: [], contraband: [], rerolls: 0 },
+    pending: { chalk: false, rubberCement: false, moonshine: false, lockpick: false },
+    forgedReceipt: false,
+    extraRounds: 0,
+    roundLuck: 0,
+    patronUsed: false,
+    boughtThisRound: 0,
     ballsThisRound: 0,
     ballsPlayed: 0,
     paydayCarry: 0,
@@ -169,6 +213,7 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
       loans: 0,
       earlyPays: 0,
       redCalls: 0,
+      charmsBought: 0,
     },
     deadlines: opts.deadlines ?? ECONOMY.deadlines,
   };
@@ -176,7 +221,39 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
   return s;
 }
 
-function rngOf(s: RunState): Rng {
+/** Folded static effects of the owned charms. */
+export function charmFx(s: RunState): FoldedFx {
+  return foldCharms(s.charms);
+}
+
+export function owns(s: RunState, id: string): boolean {
+  return s.charms.includes(id);
+}
+
+/** Rounds in this deadline (3, +1 per Torn Calendar Page). */
+export function roundsIn(s: RunState): number {
+  return ECONOMY.roundsPerDeadline + s.extraRounds;
+}
+
+/** Refill active charm charges (`deadline` refills everything). */
+function refill(s: RunState, deadline: boolean): void {
+  for (const id of s.charms) {
+    const a = charmDef(id).active;
+    if (a && (deadline || a.per === 'round')) s.charges[id] = a.charges;
+  }
+}
+
+/** Gain a charm into the next free slot (shop, red call, inmate). */
+export function gainCharm(s: RunState, id: string): boolean {
+  if (s.charms.includes(id) || s.charms.length >= s.mods.charmSlots) return false;
+  s.charms.push(id);
+  const d = charmDef(id);
+  if (d.active) s.charges[id] = d.active.charges;
+  if (d.fx?.debtMult) s.mods.debtMult *= d.fx.debtMult;
+  return true;
+}
+
+export function rngOf(s: RunState): Rng {
   const r = new Rng(0);
   r.setState(s.rng);
   return r;
@@ -199,12 +276,24 @@ export function startDeadline(s: RunState): void {
   const n = s.deadline === s.deadlines - 1 ? SENTENCE.lastCallCount : 1;
   s.sentences = pool.slice(0, n).map((d) => d.id);
   s.rng = rng.getState();
+  s.extraRounds = 0;
+  refill(s, true);
+  restock(s);
+  resetRoundState(s);
   postJobs(s);
+}
+
+function resetRoundState(s: RunState): void {
+  s.roundLuck = 0;
+  s.patronUsed = false;
+  s.boughtThisRound = 0;
 }
 
 /** Is a Sentence in force this round? */
 export function sentenceActive(s: RunState): boolean {
-  return !s.sentencesCancelled && s.sentences.length > 0 && SENTENCE.rounds.includes(s.round);
+  return (
+    !s.sentencesCancelled && s.sentences.length > 0 && s.round >= roundsIn(s) - SENTENCE.lastRounds
+  );
 }
 
 /** Active Sentence definitions this round. */
@@ -250,14 +339,21 @@ export function jobCoins(def: JobDef, deadline: number): number {
 
 function applyJobReward(s: RunState, def: JobDef): void {
   const r = def.reward;
-  if (r.tickets) s.tickets += r.tickets;
-  s.pocket += jobCoins(def, s.deadline);
-  if (r.level) s.shotLevels[r.level]++;
+  const k = charmFx(s).jobRewardMult;
+  if (r.tickets) s.tickets += r.tickets * k;
+  s.pocket += jobCoins(def, s.deadline) * k;
+  if (r.level) s.shotLevels[r.level] += k;
+  // Keys are never doubled: three of them open JAILBREAK.
   if (r.keys) s.keys += r.keys;
   s.stats.jobsDone++;
 }
 
 // ------------------------------------------------------------------ balls
+
+/** The machine's payout multiplier at this deadline (heavier coin mech each deadline). */
+export function payScale(s: RunState): number {
+  return Math.pow(ECONOMY.payGrowth, s.deadline);
+}
 
 export function ballPrice(s: RunState): number {
   let p =
@@ -268,11 +364,11 @@ export function ballPrice(s: RunState): number {
 
 /** Free balls this round. */
 export function freeBalls(s: RunState): number {
-  return (s.mods.noFreeBall ? 0 : 1) + s.mods.freeBalls;
+  return (s.mods.noFreeBall ? 0 : 1) + s.mods.freeBalls + charmFx(s).freeBalls;
 }
 
 export function maxBalls(s: RunState): number {
-  return ECONOMY.maxBallsPerRound + s.mods.freeBalls;
+  return ECONOMY.maxBallsPerRound + s.mods.freeBalls + charmFx(s).freeBalls;
 }
 
 /** Cost to buy n balls this round (free balls first). */
@@ -291,6 +387,7 @@ export function buyBalls(s: RunState, n: number): boolean {
   const cost = costForBalls(s, n);
   if (cost > s.pocket) return false;
   s.pocket -= cost;
+  s.boughtThisRound = Math.max(0, n - freeBalls(s));
   s.ballsThisRound = n;
   s.ballsPlayed = 0;
   s.phase = 'betweenBalls';
@@ -308,24 +405,65 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
   s.rng = rng.getState();
   s.phase = 'ball';
   const m = s.mods;
+  const f = charmFx(s);
   const base = defaultBallContext();
   const job = s.job ? jobDef(s.job.id) : null;
-  const tags = new Set(baseTags);
-  const sim: Partial<SimMods> = { flipperStrength: m.flipperStrength, ballMass: 1 };
+  const tags = new Set([...baseTags, ...f.mounts]);
+  const sim: Partial<SimMods> = {
+    flipperStrength: m.flipperStrength,
+    ballMass: 1,
+    kickStrength: f.kickStrength,
+    nudgeStrength: f.nudgeStrength,
+    greasedRail: f.greasedRail,
+  };
   const shotMult = { ...base.shotMult };
   for (const [k, v] of Object.entries(m.shotMult) as [ShotType, number][]) shotMult[k] *= v;
+  for (const [k, v] of Object.entries(f.shotMult) as [ShotType, number][]) shotMult[k] *= v;
+  const ballNumber = s.ballsPlayed + 1;
+  const lastBall = ballNumber >= s.ballsThisRound;
+  const p = s.pending;
   const ctx: BallContext = {
     ...base,
     shotLevels: { ...s.shotLevels },
     shotMult,
-    ballSave: Math.max(0, BALL.ballSave + m.ballSaveAdd),
+    ballSave: f.noBallSave ? 0 : Math.max(0, BALL.ballSave + m.ballSaveAdd + f.ballSaveAdd),
     tiltSensitivity: m.tiltSensitivity,
-    extraWarnings: m.extraWarnings,
-    payMult: m.payMult,
-    luck: m.luck,
-    bonusMaxMult: BONUS.maxMult + m.bonusMaxAdd,
+    extraWarnings: m.extraWarnings + f.extraWarnings,
+    payMult:
+      payScale(s) *
+      m.payMult *
+      f.payMult *
+      (owns(s, 'solitary') && s.boughtThisRound === 0 ? RUN_HOOK.solitaryMult : 1),
+    luck:
+      m.luck +
+      f.luck +
+      s.roundLuck +
+      (owns(s, 'candleStub') && lastBall ? RUN_HOOK.candleLuck : 0) +
+      (p.moonshine ? CONTRABAND_FX.moonshineLuck : 0),
+    comboStart: f.comboStart || base.comboStart,
+    comboStep: f.comboStep || base.comboStep,
+    comboWindow: base.comboWindow + f.comboWindowAdd,
+    bonusMaxMult: f.noBonusCap ? 999 : BONUS.maxMult + m.bonusMaxAdd + f.bonusMaxAdd,
+    bonusShare: base.bonusShare * f.bonusShareMult,
+    bonusKeep: f.noBonus ? 0 : 1,
+    bonusTimes: owns(s, 'lastRites') && lastBall ? RUN_HOOK.lastRitesTimes : 1,
+    holdBonusMult: f.holdBonusMult,
+    locksNeeded: f.locksNeeded || base.locksNeeded,
+    riotBalls: base.riotBalls + f.riotBallsAdd,
+    paydayCarry: owns(s, 'hoarderSack') ? s.paydayCarry : 0,
+    sparkMult: f.sparkMult,
+    holeHoldAdd: f.holeHoldAdd,
     noKickback: m.noKickback,
-    ballNumber: s.ballsPlayed + 1,
+    charms: [...s.charms],
+    actives: s.charms.flatMap((id, i) => {
+      const a = charmDef(id).active;
+      return a
+        ? [{ slot: i + 1, id, action: a.action, charges: s.charges[id] ?? 0, max: a.charges }]
+        : [];
+    }),
+    chalk: p.chalk,
+    moonshine: p.moonshine,
+    ballNumber,
     ballsInRound: s.ballsThisRound,
     job:
       s.job && job
@@ -357,6 +495,9 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
   }
   const machine = JSON.parse(JSON.stringify(s.machine)) as MachineState;
   if (m.noKickback) machine.kickback = false;
+  if (p.rubberCement) tags.add('plugOutlanes');
+  if (p.lockpick) machine.locks++;
+  s.pending = { chalk: false, rubberCement: false, moonshine: false, lockpick: false };
   return { seed, tags: [...tags], mods: sim, machine, ctx };
 }
 
@@ -372,6 +513,8 @@ export interface BallOutcome {
   levelUps: ShotType[];
   extraBalls: number;
   paydayEnd: number;
+  /** Active charm charges left after the ball. */
+  charges: Record<string, number>;
 }
 
 export interface BallResult {
@@ -381,6 +524,37 @@ export interface BallResult {
   jobDone: JobDef | null;
   /** Debt added by Head Count. */
   debtAdded: number;
+}
+
+/** Run-level charm hooks for a ball that ended (every ball ends by being lost). */
+function ballLost(s: RunState): void {
+  if (owns(s, 'wishbone')) s.roundLuck += RUN_HOOK.wishboneLuck;
+  if (owns(s, 'patronSaint') && !s.patronUsed) {
+    s.patronUsed = true;
+    s.ballsThisRound++;
+  }
+  if (owns(s, 'magpieFeather')) {
+    const rng = rngOf(s);
+    const luck = s.mods.luck + charmFx(s).luck + s.roundLuck;
+    if (rng.chance(Math.min(1, RUN_HOOK.magpieChance + LUCK.perPoint * luck))) s.tickets++;
+    s.rng = rng.getState();
+  }
+}
+
+/** A blank outcome (tools and tests). */
+export function emptyOutcome(machine: MachineState = newMachineState()): BallOutcome {
+  return {
+    earned: 0,
+    bonus: 0,
+    tilted: false,
+    drainCause: 'center',
+    machine,
+    stats: emptyBallStats(),
+    levelUps: [],
+    extraBalls: 0,
+    paydayEnd: 0,
+    charges: {},
+  };
 }
 
 /** Commit a finished ball. */
@@ -394,6 +568,9 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
   s.ballsPlayed++;
   s.ballsThisRound += o.extraBalls;
   for (const l of o.levelUps) s.shotLevels[l]++;
+  for (const [id, n] of Object.entries(o.charges)) if (id in s.charges) s.charges[id] = n;
+  if (owns(s, 'hoarderSack') && o.paydayEnd > 0) s.paydayCarry = o.paydayEnd;
+  ballLost(s);
   let debtAdded = 0;
   for (const d of activeSentences(s)) {
     if (d.effect.drainDebt) debtAdded += Math.round(s.debt * d.effect.drainDebt);
@@ -433,6 +610,10 @@ export function deposit(s: RunState, amount: number): number {
   const a = Math.max(0, Math.min(Math.floor(amount), s.pocket));
   s.pocket -= a;
   s.bank += a;
+  if (a > 0 && s.forgedReceipt) {
+    s.forgedReceipt = false;
+    s.bank += Math.floor(a * CONTRABAND_FX.forgedReceiptBonus);
+  }
   return a;
 }
 
@@ -444,7 +625,9 @@ export function loanAvailable(s: RunState): number {
 
 /** What borrowing `amount` adds to the next deadline's debt. */
 export function loanCost(s: RunState, amount: number): number {
-  return Math.ceil(amount * s.mods.loanRate);
+  const f = charmFx(s).loanRate;
+  const rate = f ? Math.min(f, s.mods.loanRate) : s.mods.loanRate;
+  return Math.ceil(amount * rate - 1e-9);
 }
 
 /** Borrow into the Pocket; repaid on top of the next debt. */
@@ -459,17 +642,26 @@ export function borrow(s: RunState, amount: number): number {
 }
 
 export function interestRate(s: RunState): number {
-  return ECONOMY.interest + s.mods.interestAdd;
+  return ECONOMY.interest + s.mods.interestAdd + charmFx(s).interestAdd;
 }
 
 /** End the round once all balls are played: interest, then next round or the deadline. */
 export function endRound(s: RunState): void {
   if (ballsLeft(s) > 0) return;
-  if (sentenceActive(s)) s.stats.sentencesSurvived++;
+  if (sentenceActive(s)) {
+    s.stats.sentencesSurvived++;
+    if (owns(s, 'thickSkin')) {
+      s.tickets += RUN_HOOK.thickSkinTickets;
+      s.mods.luck += RUN_HOOK.thickSkinLuck;
+    }
+  }
   s.bank += Math.floor(s.bank * interestRate(s));
+  s.pocket += Math.floor(s.pocket * charmFx(s).pocketInterest);
   s.round++;
   s.machine = newMachineState();
-  if (s.round >= ECONOMY.roundsPerDeadline) s.phase = 'deadline';
+  resetRoundState(s);
+  refill(s, false);
+  if (s.round >= roundsIn(s)) s.phase = 'deadline';
   else postJobs(s);
 }
 
@@ -481,8 +673,9 @@ export function canPayEarly(s: RunState): boolean {
 /** Pay now and skip the rest of the deadline (Sentence round included) for tickets. */
 export function payEarly(s: RunState): boolean {
   if (!canPayEarly(s)) return false;
-  const skipped = ECONOMY.roundsPerDeadline - s.round;
-  s.tickets += ECONOMY.payEarlyTickets * skipped;
+  const skipped = roundsIn(s) - s.round;
+  s.tickets += ECONOMY.payEarlyTickets * skipped + charmFx(s).payEarlyTickets;
+  if (owns(s, 'wardensKeyring')) s.keys++;
   s.stats.earlyPays++;
   s.phase = 'deadline';
   return settleDeadline(s);
@@ -511,13 +704,17 @@ export function settleDeadline(s: RunState): boolean {
 function ring(s: RunState): void {
   const rng = rngOf(s);
   const odds = s.mods.redAccepted > 0 ? PHONE.redChanceAfterAccept : PHONE.redChance;
-  const bargains = BARGAINS.filter((b) => !s.bargains.includes(b.id));
-  if (bargains.length >= PHONE.bargainOffers && rng.chance(odds)) {
-    rng.shuffle(bargains);
-    s.call = { kind: 'red', offers: bargains.slice(0, PHONE.bargainOffers).map((b) => b.id) };
+  // Bargains plus devil charms (as "charm:<id>", only with a free slot).
+  const offers = BARGAINS.filter((b) => !s.bargains.includes(b.id)).map((b) => b.id);
+  if (s.charms.length < s.mods.charmSlots)
+    for (const c of CHARMS)
+      if (c.rarity === 'devil' && !s.charms.includes(c.id)) offers.push(`charm:${c.id}`);
+  if (offers.length >= PHONE.bargainOffers && rng.chance(odds)) {
+    rng.shuffle(offers);
+    s.call = { kind: 'red', offers: offers.slice(0, PHONE.bargainOffers) };
     s.stats.redCalls++;
   } else {
-    const pool = PERKS.filter((p) => SHOP_OPEN || !p.requires);
+    const pool = [...PERKS];
     rng.shuffle(pool);
     s.call = {
       kind: 'perks',
@@ -574,6 +771,12 @@ export function acceptBargain(s: RunState, index: number): boolean {
   if (s.phase !== 'phone' || s.call?.kind !== 'red') return false;
   const id = s.call.offers[index];
   if (!id) return false;
+  if (id.startsWith('charm:')) {
+    if (!gainCharm(s, id.slice(6))) return false;
+    s.mods.redAccepted++;
+    s.bargains.push(id);
+    return hangUp(s);
+  }
   const e = bargainDef(id).effect;
   const m = s.mods;
   if (e.payMult) m.payMult *= e.payMult;

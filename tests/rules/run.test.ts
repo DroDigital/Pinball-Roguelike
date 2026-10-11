@@ -29,6 +29,7 @@ const outcome = (earned: number, tilted = false, bonus = 0): BallOutcome => ({
   levelUps: [],
   extraBalls: 0,
   paydayEnd: 0,
+  charges: {},
 });
 
 /** New run with the first Job taken, ready to buy balls. */

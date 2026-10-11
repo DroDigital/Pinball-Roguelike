@@ -15,7 +15,10 @@ import { TABLE } from '../content/table';
 import { JOB_DEFS, jobDef } from '../content/jobs';
 import { SENTENCES } from '../content/sentences';
 import { SENTENCE } from '../content/balance';
-import { jobTarget } from '../rules/run';
+import { gainCharm, jobTarget, roundsIn } from '../rules/run';
+import { restock } from '../rules/shop';
+import { CHARMS } from '../content/charms';
+import { CONTRABAND } from '../content/contraband';
 
 const MAX_SEG = 12000;
 
@@ -47,6 +50,8 @@ export function attachDevPanel(app: GameApp): void {
     luck: 0,
     job: JOB_DEFS[0].id,
     sentence: SENTENCES[0].id,
+    charm: CHARMS[0].id,
+    contraband: CONTRABAND[0].id as string,
   };
 
   // ---- time
@@ -125,8 +130,23 @@ export function attachDevPanel(app: GameApp): void {
     r.sentences = [state.sentence];
     r.sentencesCancelled = false;
     // Make the current round the Sentence round.
-    r.round = SENTENCE.rounds[0];
+    r.round = roundsIn(r) - SENTENCE.lastRounds;
   });
+  run.addBinding(state, 'charm', {
+    options: Object.fromEntries(CHARMS.map((c) => [c.name, c.id])),
+  });
+  run.addButton({ title: 'Give charm' }).on('click', () => {
+    if (!app.run) return;
+    app.run.mods.charmSlots = Math.max(app.run.mods.charmSlots, app.run.charms.length + 1);
+    gainCharm(app.run, state.charm);
+  });
+  run.addBinding(state, 'contraband', {
+    options: Object.fromEntries(CONTRABAND.map((c) => [c.name, c.id])),
+  });
+  run
+    .addButton({ title: 'Give contraband' })
+    .on('click', () => app.run?.contraband.push(state.contraband));
+  run.addButton({ title: 'Restock shop' }).on('click', () => app.run && restock(app.run));
   run.addButton({ title: 'Skip deadline (paid)' }).on('click', () => app.devSkipDeadline());
   run.addButton({ title: 'Trapdoor' }).on('click', () => app.fall());
 

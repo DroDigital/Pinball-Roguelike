@@ -9,6 +9,9 @@ import { Dmd } from '../present/dmd';
 import { FONT_SMALL } from '../present/dmd-font';
 import { NumberPops, formatCoins } from '../present/pops';
 import { audio } from '../present/audio';
+import { music } from '../present/music';
+import { LampShowPlayer } from '../present/lampshow';
+import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
 import { UI, h } from './ui';
 import { loadSave, writeSave, type SaveData } from './save';
@@ -36,10 +39,12 @@ import {
   jobCoins,
   canPayEarly,
   payEarly,
+  payScale,
   loanAvailable,
   loanCost,
   borrow,
   sentenceActive,
+  roundsIn,
   choosePerk,
   acceptBargain,
   hangUp,
@@ -47,6 +52,21 @@ import {
   type RunState,
 } from '../rules/run';
 import { sentenceDef } from '../content/sentences';
+import { charmDef, RARITY_COLORS } from '../content/charms';
+import { contrabandDef } from '../content/contraband';
+import {
+  buyCharm,
+  buyContraband,
+  canUse,
+  contrabandPrice,
+  contrabandSlots,
+  ownedTags,
+  reroll,
+  rerollCost,
+  sellCharm,
+  sellValue,
+  useContraband,
+} from '../rules/shop';
 import { perkDef, bargainDef } from '../content/phone';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { BONUS, ECONOMY } from '../content/balance';
@@ -59,6 +79,7 @@ export type AppMode =
   | 'intro'
   | 'phone'
   | 'jobs'
+  | 'shop'
   | 'buy'
   | 'cell'
   | 'atm'
@@ -74,6 +95,7 @@ export class GameApp {
   readonly world: World;
   readonly dmd = new Dmd(4);
   readonly pops = new NumberPops();
+  readonly shows = new LampShowPlayer(TABLE.lamps);
   readonly input: Input;
   readonly ui: UI;
   save: SaveData;
@@ -98,6 +120,8 @@ export class GameApp {
   /** Dev: called after every frame (overlays). */
   onFrame: ((dt: number) => void) | null = null;
   private hitStop = 0;
+  /** Pocket Watch: sim seconds of half-speed time left (presentation only). */
+  private slowmoLeft = 0;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
   /** Bonus count-up after a drain. */
@@ -256,12 +280,18 @@ export class GameApp {
         if (this.paused) {
           this.acc = this.stepRequests * STEP;
           this.stepRequests = 0;
-        } else this.acc += dt * this.timeScale;
+        }
+        // Effective time scale: dev slow-mo times the Pocket Watch.
+        const scale = this.timeScale * (this.slowmoLeft > 0 ? 0.5 : 1);
+        if (!this.paused) {
+          this.acc += dt * scale;
+          this.slowmoLeft = Math.max(0, this.slowmoLeft - dt * scale);
+        }
         // Real time of the sim's current step: inputs are applied on the step they happened.
-        this.wallClock = now - (this.acc / this.timeScale) * 1000;
+        this.wallClock = now - (this.acc / scale) * 1000;
         let budget = 60; // never spiral
         while (this.acc >= STEP && budget-- > 0) {
-          this.wallClock += STEP_MS / this.timeScale;
+          this.wallClock += STEP_MS / scale;
           const inp = act.bot ? act.bot.decide(act.session.sim) : this.stepInput(this.wallClock);
           act.session.step(inp);
           this.consumeSimEvents(act.session);
@@ -280,9 +310,18 @@ export class GameApp {
       this.input.events.length = 0;
     }
     if (this.mode === 'tally') this.updateTally(dt);
+    this.updateMusic();
     const shown = act?.session ?? this.session;
+    if (this.mode === 'title') this.shows.play('attract');
+    else if (this.shows.playing === 'attract') this.shows.stop();
+    this.shows.update(dt);
     if (shown)
-      this.world.table.update(shown.sim, shown.game.lamps, Math.min(1, Math.max(0, alpha)), dt);
+      this.world.table.update(
+        shown.sim,
+        this.shows.apply(shown.game.lamps),
+        Math.min(1, Math.max(0, alpha)),
+        dt,
+      );
     this.flushGameEvents();
     this.updateCamera(dt);
     this.world.update(dt);
@@ -308,6 +347,7 @@ export class GameApp {
   private stepInput(t: number): SimInput {
     const inp = this.simInput;
     inp.nudge = 0;
+    inp.active = 0;
     const ev = this.input.events;
     let n = 0;
     let pressed = 0; // bit per button pressed this step
@@ -338,6 +378,16 @@ export class GameApp {
           break;
         case 'nudgeRight':
           if (e.down) inp.nudge = 3;
+          break;
+        case 'lockbar':
+          if (e.down) inp.active = 6;
+          break;
+        case 'slot1':
+        case 'slot2':
+        case 'slot3':
+        case 'slot4':
+        case 'slot5':
+          if (e.down) inp.active = Number(e.action.slice(4));
           break;
         default:
           break;
@@ -458,6 +508,7 @@ export class GameApp {
           audio.callout(e.priority);
           break;
         case 'skillShot':
+          this.shows.play('skill');
           audio.knocker();
           this.flash(0.25);
           this.shake(0.6);
@@ -471,6 +522,7 @@ export class GameApp {
           break;
         case 'riot':
           if (e.on) {
+            this.shows.play('riot');
             audio.knocker();
             this.flash(0.4);
             this.shake(1);
@@ -478,6 +530,7 @@ export class GameApp {
           }
           break;
         case 'payday':
+          this.shows.play('payday');
           this.hitStop = e.super ? 0.06 : 0.04;
           audio.knocker();
           this.flash(e.super ? 0.5 : 0.3);
@@ -501,6 +554,13 @@ export class GameApp {
             this.shake(0.4);
           }
           break;
+        case 'slowmo':
+          this.slowmoLeft = e.seconds;
+          break;
+        case 'active':
+          audio.kick();
+          this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
+          break;
         case 'jobDone':
           audio.knocker();
           this.flash(0.2);
@@ -517,6 +577,7 @@ export class GameApp {
           this.flash(0.3);
           break;
         case 'drain':
+          if (this.session && this.session.sim.ballsInPlay() === 0) this.shows.play('drain');
           this.dmd.show({ text: 'DRAINED', priority: 3, anim: 'drain', duration: 1.0 });
           break;
         default:
@@ -594,6 +655,7 @@ export class GameApp {
     const s = new BallSession(defaultSnapshot(seed));
     const bot = attachBot(new Bot('expert', seed ^ 0x5bd1e995), s);
     this.attract = { session: s, bot };
+    this.world.table.setTags(new Set(s.snapshot.tags));
     this.simCursor = 0;
   }
 
@@ -647,6 +709,13 @@ export class GameApp {
             : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
         ),
         h('p', { class: 'warden' }, `“${line}”`),
+        r.deadline > 0
+          ? h(
+              'p',
+              { class: 'good' },
+              `A heavier coin mech: the machine now pays x${formatCoins(payScale(r))}.`,
+            )
+          : null,
         h(
           'div',
           { class: 'grid' },
@@ -712,6 +781,16 @@ export class GameApp {
     this.flash(0.15);
     audio.creak();
     const cards = call.offers.map((id, i) => {
+      if (id.startsWith('charm:')) {
+        const c = charmDef(id.slice(6));
+        return h(
+          'button',
+          { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
+          h('b', null, `${c.name} (devil charm)`),
+          h('small', null, c.text),
+          h('small', { class: 'cost' }, 'Takes a charm slot. It cannot be sold.'),
+        );
+      }
       const b = bargainDef(id);
       return h(
         'button',
@@ -911,6 +990,8 @@ export class GameApp {
             )
           : null,
         h('p', { class: 'dim' }, `Shot levels: ${levelsText(r)}`),
+        this.charmBar(r),
+        this.stash(r, () => this.enterCell()),
         h(
           'p',
           { class: sentenceActive(r) ? 'cost' : 'dim' },
@@ -929,6 +1010,7 @@ export class GameApp {
             'Play ball',
           ),
           h('button', { onclick: () => this.enterAtm('cell') }, 'ATM'),
+          h('button', { onclick: () => this.enterShop() }, 'Vending cabinet'),
         ),
       ),
     );
@@ -1038,6 +1120,176 @@ export class GameApp {
     );
   }
 
+  /** Owned charms in slot order (active ones show charges and their key). */
+  private charmBar(r: RunState): HTMLElement {
+    const items = r.charms.map((id, i) => {
+      const c = charmDef(id);
+      const charges = c.active
+        ? ` [${i + 1}] ${'●'.repeat(r.charges[id] ?? 0)}${'○'.repeat(c.active.charges - (r.charges[id] ?? 0))}`
+        : '';
+      return h(
+        'span',
+        { class: 'charm', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
+        `${c.name}${charges}`,
+      );
+    });
+    return h(
+      'div',
+      { class: 'charms' },
+      h(
+        'small',
+        { class: 'dim' },
+        `Charms ${r.charms.length}/${r.mods.charmSlots} · Tickets ${r.tickets} · Keys ${r.keys}`,
+      ),
+      h(
+        'div',
+        { class: 'chips' },
+        ...(items.length ? items : [h('span', { class: 'dim' }, 'none')]),
+      ),
+    );
+  }
+
+  /** Contraband stash with Use buttons (Oil Can and Shiv ask for a target). */
+  private stash(r: RunState, back: () => void): HTMLElement | null {
+    if (!r.contraband.length) return null;
+    const use = (i: number, t = {}) => {
+      const name = contrabandDef(r.contraband[i]).name;
+      if (useContraband(r, i, t)) {
+        audio.atmBeep();
+        this.ui.toast(`${name}: done.`);
+      }
+      back();
+    };
+    const rows = r.contraband.map((id, i) => {
+      const d = contrabandDef(id);
+      if (d.target === 'shot')
+        return h(
+          'div',
+          { class: 'row' },
+          h('small', null, `${d.name}:`),
+          ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
+            h('button', { onclick: () => use(i, { shot }) }, shot),
+          ),
+        );
+      if (d.target === 'charm')
+        return h(
+          'div',
+          { class: 'row' },
+          h('small', null, `${d.name}:`),
+          ...r.charms.map((cid, slot) =>
+            h('button', { onclick: () => use(i, { charmSlot: slot }) }, charmDef(cid).name),
+          ),
+        );
+      return h(
+        'button',
+        { disabled: !canUse(r, id), title: d.text, onclick: () => use(i) },
+        `Use ${d.name}`,
+      );
+    });
+    return h(
+      'div',
+      { class: 'stash' },
+      h('small', { class: 'dim' }, 'Contraband'),
+      h('div', { class: 'row' }, ...rows),
+    );
+  }
+
+  enterShop(): void {
+    const r = this.run!;
+    this.mode = 'shop';
+    this.world.setMode('seated');
+    const tags = ownedTags(r);
+    const charmCards = r.shop.charms.map((id, i) => {
+      const c = charmDef(id);
+      const glow = c.tags.some((t) => tags.has(t));
+      return h(
+        'button',
+        {
+          class: `job charmcard${glow ? ' glow' : ''}`,
+          style: { borderColor: RARITY_COLORS[c.rarity] },
+          disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
+          onclick: () => {
+            if (buyCharm(r, i)) audio.coin(4);
+            this.enterShop();
+          },
+        },
+        h('b', null, `${c.name} — ${c.cost} ticket${c.cost === 1 ? '' : 's'}`),
+        h('small', null, c.text),
+        h('small', { class: 'tags' }, `${c.rarity} · ${c.tags.join(', ')}`),
+      );
+    });
+    const cbCards = r.shop.contraband.map((id, i) => {
+      const d = contrabandDef(id);
+      const price = contrabandPrice(r, id);
+      return h(
+        'button',
+        {
+          class: 'job',
+          disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
+          onclick: () => {
+            if (buyContraband(r, i)) audio.coin(3);
+            this.enterShop();
+          },
+        },
+        h('b', null, `${d.name} — ${price}c`),
+        h('small', null, d.text),
+      );
+    });
+    const sells = r.charms.map((id, slot) => {
+      const c = charmDef(id);
+      return h(
+        'button',
+        {
+          disabled: !!c.cursed,
+          onclick: () => {
+            if (sellCharm(r, slot)) audio.atmBeep();
+            this.enterShop();
+          },
+        },
+        c.cursed ? `${c.name} (cursed)` : `Sell ${c.name} +${sellValue(r, id)}t`,
+      );
+    });
+    const cost = rerollCost(r);
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel shop' },
+        h('h2', null, 'Vending cabinet'),
+        h(
+          'div',
+          { class: 'grid' },
+          'Tickets',
+          h('b', null, String(r.tickets)),
+          'Pocket',
+          h('b', null, `${r.pocket}c`),
+          'Charm slots',
+          h('b', null, `${r.charms.length}/${r.mods.charmSlots}`),
+          'Contraband',
+          h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`),
+        ),
+        h('div', { class: 'col' }, ...charmCards),
+        h('div', { class: 'col' }, ...cbCards),
+        sells.length ? h('div', { class: 'row' }, ...sells) : null,
+        h(
+          'div',
+          { class: 'row' },
+          h(
+            'button',
+            {
+              disabled: r.pocket < cost,
+              onclick: () => {
+                if (reroll(r)) audio.atmBeep();
+                this.enterShop();
+              },
+            },
+            `Reroll ${cost}c`,
+          ),
+          h('button', { class: 'primary', onclick: () => this.enterCell() }, 'Done'),
+        ),
+      ),
+    );
+  }
+
   startBall(): void {
     const r = this.run!;
     if (ballsLeft(r) <= 0) return;
@@ -1046,6 +1298,9 @@ export class GameApp {
     this.session = new BallSession(snap, this.onGameEvent);
     if (this.autoBot) attachBot(this.autoBot, this.session);
     this.world.setBlackout(snap.ctx.blackout);
+    this.world.table.setTags(new Set(snap.tags));
+    this.world.sway = snap.ctx.moonshine ? 1 : 0;
+    this.slowmoLeft = 0;
     this.simCursor = 0;
     this.acc = 0;
     this.input.events.length = 0;
@@ -1056,6 +1311,8 @@ export class GameApp {
 
   private onBallOver(): void {
     this.world.setBlackout(false);
+    this.world.sway = 0;
+    this.slowmoLeft = 0;
     const g = this.session!.game;
     this.outcome = g.outcome();
     if (!g.tilted && g.bonusPaid > 0) {
@@ -1306,6 +1563,11 @@ export class GameApp {
           h('b', null, String(r.stats.tilts)),
         ),
         h('p', { class: 'dim' }, `Drains: ${drains || 'none'}`),
+        h(
+          'p',
+          { class: 'dim' },
+          `Build: ${r.charms.map((id) => charmDef(id).name).join(', ') || 'no charms'}`,
+        ),
         h('p', { class: 'dim' }, 'A new mark is scratched into the wall.'),
         h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
         h(
@@ -1315,6 +1577,22 @@ export class GameApp {
         ),
       ),
     );
+  }
+
+  /** Table music while a ball is live; the cell's drone and clock otherwise. */
+  private updateMusic(): void {
+    const m = this.mode;
+    music.setMode(
+      m === 'play' || m === 'tally' ? 'table' : m === 'fall' || m === 'rapsheet' ? 'off' : 'cell',
+    );
+    const g = this.mode === 'play' ? this.session?.game : null;
+    const r = this.run;
+    const st = music.state;
+    st.combo = g && g.combo.active(g.time) ? g.combo.count : 0;
+    st.riot = !!g?.riot;
+    st.sentence = !!r && sentenceActive(r);
+    st.tension = r ? Math.min(1, r.round / Math.max(1, roundsIn(r) - 1)) : 0;
+    music.update();
   }
 
   // ------------------------------------------------------------------ camera / HUD
@@ -1405,6 +1683,14 @@ export class GameApp {
       }
       if (r.tickets || r.keys)
         right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
+      const actives = g ? g.ctx.actives : [];
+      if (actives.length)
+        right += `<div class="actives">${actives
+          .map(
+            (a) =>
+              `[${a.slot}] ${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
+          )
+          .join('<br>')}<br><small>B fires the first charged</small></div>`;
       this.setHtml(this.hudRight, right);
     }
     const pull = shown ? shown.sim.plungerPull : 0;

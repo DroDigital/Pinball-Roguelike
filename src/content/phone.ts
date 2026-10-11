@@ -21,17 +21,14 @@ export interface PerkDef {
   /** "{shot}" is replaced with the offered shot type for level perks. */
   text: string;
   effect: PerkEffect;
-  /** Only offered once the system it touches exists. */
-  requires?: 'shop';
 }
 
 export const PERKS: PerkDef[] = [
-  { id: 'charmSlot', text: '+1 charm slot', effect: { kind: 'charmSlot' }, requires: 'shop' },
+  { id: 'charmSlot', text: '+1 charm slot', effect: { kind: 'charmSlot' } },
   {
     id: 'contrabandSlot',
     text: '+1 contraband slot',
     effect: { kind: 'contrabandSlot' },
-    requires: 'shop',
   },
   { id: 'freeBall', text: '+1 free ball every round', effect: { kind: 'freeBall' } },
   { id: 'levels', text: '+2 levels to the {shot}', effect: { kind: 'levels', amount: 2 } },
@@ -43,7 +40,6 @@ export const PERKS: PerkDef[] = [
     id: 'rerolls',
     text: 'Shop rerolls cost 1 less',
     effect: { kind: 'rerolls' },
-    requires: 'shop',
   },
 ];
 

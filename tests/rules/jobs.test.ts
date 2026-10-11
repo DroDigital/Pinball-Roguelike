@@ -23,6 +23,7 @@ const ball = (stats: Partial<BallStats> = {}, extra: Partial<BallOutcome> = {}):
   levelUps: [],
   extraBalls: 0,
   paydayEnd: 0,
+  charges: {},
   ...extra,
 });
 

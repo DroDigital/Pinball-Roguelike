@@ -168,7 +168,7 @@ export const SCORE = {
    * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
    */
   scale: 0.2,
-  pop: 0.3,
+  pop: 0.6,
   sling: 0.15,
   lane: 0.4,
   laneSet: 2,
@@ -176,10 +176,10 @@ export const SCORE = {
   outlane: 1,
   drop: 0.8,
   cellBlock: 3,
-  chute: 2.5,
-  perimeter: 2,
+  chute: 4,
+  perimeter: 3,
   searchlightSpin: 0.06,
-  hole: 2.5,
+  hole: 1.8,
   skillShot: 4,
   superSkillShot: 10,
   /** Each shot level adds this fraction of base value. */
@@ -267,12 +267,17 @@ export const ECONOMY = {
   loanCap: 0.5,
   /** Tickets per round skipped by paying a deadline early. */
   payEarlyTickets: 2,
+  /**
+   * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
+   * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
+   */
+  payGrowth: 1.5,
 };
 
 /** Sentences. */
 export const SENTENCE = {
-  /** Rounds (0-based) a Sentence applies to; the last round normally. */
-  rounds: [2],
+  /** How many final rounds of a deadline a Sentence covers (Hard Time 2 makes it 2). */
+  lastRounds: 1,
   /** Deadline 8 (Last Call) stacks two Sentences on its last round. */
   lastCallCount: 2,
 };
@@ -284,4 +289,30 @@ export const PHONE = {
   redChance: 0.25,
   redChanceAfterAccept: 0.4,
   bargainOffers: 2,
+};
+
+/** The vending cabinet. */
+export const SHOP = {
+  charmOffers: 5,
+  contrabandOffers: 2,
+  /** Chance a restock also carries an Oil Can (always with Grease Monkey). */
+  oilCanChance: 0.35,
+  rarityWeights: { common: 60, uncommon: 30, rare: 9, legendary: 1 },
+  /** Legendaries appear from this deadline (0-based). */
+  legendaryFrom: 2,
+  /** Reroll price: (base + step x rerolls) coins, scaled like contraband. */
+  rerollBase: 2,
+  rerollStep: 1,
+  /** Coin prices scale by debtScale(deadline)^exp. */
+  priceScaleExp: 0.75,
+  /** Selling returns this fraction of the ticket cost (Hollow Book: all). */
+  sellFraction: 0.5,
+  /** Shiv refunds this multiple of the charm's ticket cost. */
+  shivMult: 2,
+};
+
+/** Contraband effects. */
+export const CONTRABAND_FX = {
+  moonshineLuck: 8,
+  forgedReceiptBonus: 0.2,
 };

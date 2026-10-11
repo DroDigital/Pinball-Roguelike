@@ -38,6 +38,8 @@ export interface SimInput {
   pull: number;
   /** One-step nudge pulse: 0 none, 1 up, 2 left, 3 right. */
   nudge: 0 | 1 | 2 | 3;
+  /** One-step active-charm press for the rules: 0 none, 1-5 charm slot, 6 lockbar. */
+  active: number;
 }
 
 export const emptyInput = (): SimInput => ({
@@ -46,6 +48,7 @@ export const emptyInput = (): SimInput => ({
   plunger: false,
   pull: -1,
   nudge: 0,
+  active: 0,
 });
 
 export type BallState = 'field' | 'transport' | 'held' | 'gone';
@@ -104,6 +107,9 @@ interface FixTag {
   index: number;
   ball: SimBall | null;
 }
+
+/** Below this speed a ball touching a post or bumper skips rolling resistance. */
+const POST_HANG_SPEED = 0.6;
 
 const CAT_BALL = 1;
 const CAT_STATIC = 2;
@@ -998,8 +1004,12 @@ export class PinballSim {
         const sp2 = vx * vx + vy * vy;
         if (sp2 > 1e-12) {
           const sp = Math.sqrt(sp2);
-          // Constant rolling resistance, then the hard speed cap.
-          const target = Math.min(maxV, Math.max(0, sp - cfg.physics.rollingResistance * dt));
+          // Constant rolling resistance, then the hard speed cap. A nearly stopped ball
+          // perched on a round post gets none: at half gravity the resistance would act like
+          // static friction and balance it on the post top (real balls roll off).
+          const rr =
+            sp < POST_HANG_SPEED && this.onRoundPost(b.body) ? 0 : cfg.physics.rollingResistance;
+          const target = Math.min(maxV, Math.max(0, sp - rr * dt));
           if (target !== sp) {
             const s = target / sp;
             vx *= s;
@@ -1258,6 +1268,19 @@ export class PinballSim {
   // ------------------------------------------------------------------ debug / determinism
 
   /** Balls whose centre is inside solid geometry (tunnelling) — used by the soak. */
+  /** Is this ball touching a round post or bumper? */
+  private onRoundPost(body: Body): boolean {
+    for (let ce = body.getContactList(); ce; ce = ce.next ?? null) {
+      const c = ce.contact;
+      if (!c.isTouching()) continue;
+      const a = c.getFixtureA().getUserData() as FixTag | null;
+      const b2 = c.getFixtureB().getUserData() as FixTag | null;
+      const other = a?.kind === FixKind.Ball ? b2 : a;
+      if (other && (other.kind === FixKind.Post || other.kind === FixKind.Pop)) return true;
+    }
+    return false;
+  }
+
   findTunnelled(): SimBall[] {
     const out: SimBall[] = [];
     for (const b of this.balls) {

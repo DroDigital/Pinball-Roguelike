@@ -19,14 +19,18 @@ export interface BallSnapshot {
   ctx: BallContext;
 }
 
-/** Input encoded as a small integer: bits 0-2 buttons, bits 3-4 nudge, bit 5 analog pull flag. */
+/**
+ * Input encoded as a small integer: bits 0-2 buttons, bits 3-4 nudge, bit 5 analog pull flag,
+ * bits 6-8 active-charm press.
+ */
 export function encodeInput(i: SimInput): number {
   return (
     (i.left ? 1 : 0) |
     (i.right ? 2 : 0) |
     (i.plunger ? 4 : 0) |
     (i.nudge << 3) |
-    (i.pull >= 0 ? 32 : 0)
+    (i.pull >= 0 ? 32 : 0) |
+    ((i.active & 7) << 6)
   );
 }
 
@@ -36,6 +40,7 @@ export function decodeInput(code: number, pull: number, out: SimInput): SimInput
   out.plunger = (code & 4) !== 0;
   out.nudge = ((code >> 3) & 3) as SimInput['nudge'];
   out.pull = code & 32 ? pull : -1;
+  out.active = (code >> 6) & 7;
   return out;
 }
 
