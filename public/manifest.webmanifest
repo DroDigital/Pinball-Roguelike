@@ -1,0 +1,21 @@
+{
+  "name": "Ball & Chain",
+  "short_name": "Ball & Chain",
+  "description": "A pinball roguelike. Pay your debt to the Warden or fall.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0604",
+  "theme_color": "#0b0604",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

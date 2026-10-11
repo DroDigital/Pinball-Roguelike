@@ -307,6 +307,23 @@ body {
   }
 }
 
+/* ---- M8: seed entry */
+.panel .row.seed {
+  align-items: center;
+}
+.panel input[type='text'] {
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: #120a06;
+  border: 1px solid var(--edge);
+  padding: 6px 10px;
+  width: 14em;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* ---- M7: hint notes */
 #hint {
   position: fixed;

@@ -39,6 +39,7 @@ import {
 import type { UnlockDef } from '../content/unlocks';
 import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
+import { dailySeed, dayKey, recordDaily, shareLink } from '../rules/daily';
 import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
 import { Lamp, type GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
@@ -77,6 +78,7 @@ import {
   jailbreakLit,
   lastCall,
   type BallOutcome,
+  type RunKind,
   type RunState,
 } from '../rules/run';
 import { sentenceDef } from '../content/sentences';
@@ -181,7 +183,9 @@ export class GameApp {
   private ending: EndingKind | null = null;
   /** Milestones reached at the end of the last run (shown on its Rap Sheet). */
   private fresh: UnlockDef[] = [];
-  private lineup: LineupChoice = { inmate: 'debtor', hardTime: 0, endless: false };
+  private lineup: LineupChoice = { inmate: 'debtor', hardTime: 0, endless: false, seed: '' };
+  /** Set at the end of a daily run that beat the day's best. */
+  private dailyBest = false;
   private readonly cracks: HTMLCanvasElement;
   /** Panels pushed over the screen (pause, settings); play freezes while any is up. */
   private overlays = 0;
@@ -289,10 +293,13 @@ export class GameApp {
     this.cracks = h('canvas', { class: 'cracks' });
     this.cracks.style.display = 'none';
     document.body.append(this.cracks);
+    // A shared link (?seed=&inmate=&ht=) fills in the lineup.
+    const q = new URLSearchParams(location.search);
     this.lineup = {
-      inmate: this.save.lastInmate,
-      hardTime: this.save.lastHardTime,
+      inmate: q.get('inmate') ?? this.save.lastInmate,
+      hardTime: Number(q.get('ht') ?? this.save.lastHardTime) || 0,
       endless: false,
+      seed: (q.get('seed') ?? '').toUpperCase(),
     };
     this.dmd.idle = (d, t) => this.dmdIdle(d, t);
     this.dmd.registerAnim('tally', (d) => {
@@ -849,6 +856,7 @@ export class GameApp {
             { class: saved ? '' : 'primary', onclick: () => this.enterLineup() },
             saved ? 'New run' : 'Wake up',
           ),
+          h('button', { onclick: () => this.newRunFlow(undefined, true) }, this.dailyLabel()),
           h('button', { onclick: () => this.enterMeta() }, 'Rap sheet'),
           h('button', { onclick: () => this.openSettings() }, 'Settings'),
         ),
@@ -968,6 +976,18 @@ export class GameApp {
     this.enterTitle();
   }
 
+  private copyLink(r: RunState): void {
+    const link = shareLink(`${location.origin}${location.pathname}`, r);
+    if (!navigator.clipboard) {
+      this.ui.toast(link, 8000);
+      return;
+    }
+    navigator.clipboard.writeText(link).then(
+      () => this.ui.toast('Link copied: anyone who opens it plays this run'),
+      () => this.ui.toast(link, 8000),
+    );
+  }
+
   /** Bug report: the run and the current ball (snapshot + recorded inputs) as JSON. */
   private copyBugReport(): void {
     const s = this.session;
@@ -1027,20 +1047,24 @@ export class GameApp {
     );
   }
 
-  newRunFlow(seed?: string): void {
+  newRunFlow(seed?: string, daily = false): void {
     this.attract = null;
-    const sd =
-      seed ??
-      new URLSearchParams(location.search).get('seed') ??
-      Math.random().toString(36).slice(2, 10).toUpperCase();
     const c = this.lineup;
+    const typed = seed ?? c.seed;
+    const kind: RunKind = daily ? 'daily' : typed ? 'seeded' : 'random';
+    const sd = daily
+      ? dailySeed(new Date())
+      : typed || Math.random().toString(36).slice(2, 10).toUpperCase();
     this.run = newRun(sd, {
-      inmate: c.inmate,
-      hardTime: c.hardTime,
-      endless: c.endless,
+      inmate: daily ? 'debtor' : c.inmate,
+      hardTime: daily ? 0 : c.hardTime,
+      endless: daily ? false : c.endless,
       assist: this.save.settings.assist,
-      locked: lockedCharms(this.save.meta),
+      kind,
+      // Seeded and daily runs use the whole collection so a seed plays the same anywhere.
+      locked: kind === 'random' ? lockedCharms(this.save.meta) : [],
     });
+    this.dailyBest = false;
     this.save.lastInmate = c.inmate;
     this.save.lastHardTime = c.hardTime;
     this.world.coins.clear();
@@ -1051,6 +1075,14 @@ export class GameApp {
     this.persist();
     this.ui.toast(`Seed ${sd}`);
     this.enterDeadlineIntro();
+  }
+
+  private dailyLabel(): string {
+    const d = this.save.daily;
+    const today = dayKey(new Date());
+    const best =
+      d.date === today && d.best ? ` (best: ${d.best.deadlines} paid, ${d.best.coins}c)` : '';
+    return `Daily Sentence${best}`;
   }
 
   /** Resume the autosaved run at the start of its round. */
@@ -2236,6 +2268,7 @@ export class GameApp {
     const r = this.run!;
     this.save.run = null;
     this.fresh = recordRunEnd(this.save.meta, r, this.save.tallies);
+    this.dailyBest = recordDaily(this.save.daily, r, dayKey(new Date()));
     this.persist();
     if (r.result === 'fell' || !r.result) {
       this.fall();
@@ -2313,8 +2346,17 @@ export class GameApp {
         h(
           'p',
           { class: 'dim' },
-          `${inmateDef(r.inmate).name}${r.hardTime ? `, Hard Time ${r.hardTime}` : ''} · seed ${r.seed}`,
+          `${inmateDef(r.inmate).name}${r.hardTime ? `, Hard Time ${r.hardTime}` : ''} · seed ${r.seed}${r.assist ? ' · assist' : ''}`,
         ),
+        r.kind === 'daily'
+          ? h(
+              'p',
+              { class: this.dailyBest ? 'good' : 'dim' },
+              this.dailyBest
+                ? `Daily Sentence: a new best for today (${r.deadline} paid, ${r.stats.coinsEarned}c).`
+                : `Daily Sentence: today's best is ${this.save.daily.best?.deadlines ?? 0} paid, ${this.save.daily.best?.coins ?? 0}c.`,
+            )
+          : null,
         h(
           'div',
           { class: 'grid' },
@@ -2367,6 +2409,7 @@ export class GameApp {
           'div',
           { class: 'row' },
           h('button', { class: 'primary', onclick: () => this.enterTitle() }, 'Again'),
+          h('button', { onclick: () => this.copyLink(r) }, 'Copy seed link'),
           r.result === 'breakout'
             ? this.replayButton(
                 () => this.rapSheet(),

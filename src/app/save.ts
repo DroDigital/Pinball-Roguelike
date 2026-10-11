@@ -5,6 +5,7 @@
 import { RUN_VERSION, type RunState } from '../rules/run';
 import { newMeta, type MetaState } from '../rules/meta';
 import { emptyLifetimeStats } from '../content/unlocks';
+import type { DailyRecord } from '../rules/daily';
 import { defaultSettings, type Settings } from './settings';
 
 export const SAVE_VERSION = 2;
@@ -23,6 +24,8 @@ export interface SaveData {
   lastHardTime: number;
   /** Hint notes already shown. */
   seenHints: string[];
+  /** Today's Daily Sentence: best and plays. */
+  daily: DailyRecord;
 }
 
 export function freshSave(): SaveData {
@@ -35,6 +38,7 @@ export function freshSave(): SaveData {
     lastInmate: 'debtor',
     lastHardTime: 0,
     seenHints: [],
+    daily: { date: '', best: null, plays: 0 },
   };
 }
 

@@ -130,7 +130,11 @@ export interface RunOptions {
   endless?: boolean;
   /** Assist mode: longer ball save (the app also slows the table). */
   assist?: boolean;
+  /** How the seed was chosen: random, typed or shared, or today's Daily Sentence. */
+  kind?: RunKind;
 }
+
+export type RunKind = 'random' | 'seeded' | 'daily';
 
 export const RUN_VERSION = 3;
 
@@ -141,6 +145,7 @@ export interface RunState {
   hardTime: number;
   endless: boolean;
   assist: boolean;
+  kind: RunKind;
   /** Locked charms (meta progression) never appear in the shop or on the phone. */
   locked: string[];
   neighbor: NeighborState;
@@ -220,6 +225,7 @@ export function newRun(seed: string, opts: RunOptions = {}): RunState {
     hardTime: Math.max(0, Math.min(MAX_HARD_TIME, opts.hardTime ?? 0)),
     endless,
     assist: !!opts.assist,
+    kind: opts.kind ?? 'random',
     locked: [...(opts.locked ?? [])],
     neighbor: { asked: 0, helped: 0, tip: false, knocked: false, knock: null },
     rng: rng.getState(),

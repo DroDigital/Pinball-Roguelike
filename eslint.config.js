@@ -6,6 +6,19 @@ const nodeSafe = ['src/core/**', 'src/sim/**', 'src/rules/**', 'src/content/**',
 
 export default tseslint.config(
   {
+    // The service worker runs in its own global scope.
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        location: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
+  {
     ignores: [
       'dist',
       'node_modules',

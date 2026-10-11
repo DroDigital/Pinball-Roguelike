@@ -22,6 +22,8 @@ export interface LineupChoice {
   inmate: string;
   hardTime: number;
   endless: boolean;
+  /** Typed or shared seed ('' = random). */
+  seed: string;
 }
 
 export interface LineupHandlers {
@@ -86,6 +88,22 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
             c.endless ? 'Endless: on' : 'Endless: off',
           )
         : null,
+    ),
+    h(
+      'div',
+      { class: 'row seed' },
+      h('span', null, 'Seed'),
+      h('input', {
+        type: 'text',
+        value: c.seed,
+        maxlength: 24,
+        placeholder: 'random',
+        spellcheck: 'false',
+        // Typing doesn't re-render (it would steal focus); the choice is read on start.
+        oninput: (e: Event) => {
+          c.seed = (e.target as HTMLInputElement).value.trim().toUpperCase();
+        },
+      }),
     ),
     ht
       ? h('ul', { class: 'htlist' }, ...htRows)
