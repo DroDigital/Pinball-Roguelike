@@ -14,12 +14,12 @@ npm install
 npm run dev        # open http://localhost:5173
 ```
 
-| Action | Keys | Gamepad | Touch |
-| --- | --- | --- | --- |
-| Flippers | Z / Slash, Shift L / R, arrows | bumpers / triggers | left / right half of the screen |
-| Plunger | hold Space or Down, release to fire | A (right stick for analog) | drag down in the bottom-right corner |
-| Nudge | X (up), C (left), V (right) | Y, d-pad left / right | three fingers |
-| Menus | flippers move, Space / Enter selects | | tap |
+| Action   | Keys                                 | Gamepad                    | Touch                                |
+| -------- | ------------------------------------ | -------------------------- | ------------------------------------ |
+| Flippers | Z / Slash, Shift L / R, arrows       | bumpers / triggers         | left / right half of the screen      |
+| Plunger  | hold Space or Down, release to fire  | A (right stick for analog) | drag down in the bottom-right corner |
+| Nudge    | X (up), C (left), V (right)          | Y, d-pad left / right      | three fingers                        |
+| Menus    | flippers move, Space / Enter selects |                            | tap                                  |
 
 Skill shot: tap a flipper while the ball sits in the shooter lane to move the lit top lane,
 then pull the plunger to the mark on the meter.

@@ -228,6 +228,31 @@ body {
   background: #0b4a20;
   outline-color: var(--atm);
 }
+#subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: 4%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: calc(1.05rem * var(--text-scale, 1));
+  color: #e8dcc0;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 0.35em 0.9em;
+  max-width: min(90vw, 44em);
+  text-align: center;
+  z-index: 20;
+}
+#subtitle b {
+  font-style: normal;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.12em;
+  color: #c84a30;
+  font-size: 0.8em;
+}
 #toast {
   position: fixed;
   left: 50%;

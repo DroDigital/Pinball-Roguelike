@@ -267,6 +267,13 @@ export class Audio {
     this.tone({ type: 'sine', f0: f * 1.5, dur: 0.09, gain: 0.08, when: this.now + 0.01 });
   }
 
+  /** A coin landing in the tray: a short metallic clatter. */
+  clatter(): void {
+    const f = 2300 + Math.random() * 1400;
+    this.noise({ dur: 0.03, freq: 4200 + Math.random() * 1800, q: 6, gain: 0.07, pan: 0.35 });
+    this.tone({ type: 'sine', f0: f, dur: 0.07, gain: 0.05 });
+  }
+
   chute(): void {
     for (let i = 0; i < 6; i++)
       this.noise({

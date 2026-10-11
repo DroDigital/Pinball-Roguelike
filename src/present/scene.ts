@@ -5,6 +5,9 @@
 import * as THREE from 'three';
 import { TableView } from './table-view';
 import { TW, TH } from './coords';
+import { CellRoom, PROPS } from './cell';
+import { ROOM_UNIFORMS } from './retro-material';
+import { CoinTray } from './coins';
 
 export type CamMode =
   | 'top'
@@ -17,7 +20,8 @@ export type CamMode =
   | 'wall'
   | 'title'
   | 'fall'
-  | 'door';
+  | 'door'
+  | 'tray';
 
 const TILT = 6.5 * (Math.PI / 180);
 
@@ -28,6 +32,13 @@ export class World {
   readonly cabinet = new THREE.Group();
   readonly bulb: THREE.PointLight;
   readonly bulbMesh: THREE.Mesh;
+  readonly cell: CellRoom;
+  readonly coins = new CoinTray();
+  /** World position of the coin tray (camera target). */
+  private readonly trayPos = new THREE.Vector3();
+  /** Seconds into the trapdoor fall (mode 'fall'). */
+  fallT = 0;
+  private flickerChance = 0.02;
   private readonly fill: THREE.HemisphereLight;
   private readonly key: THREE.DirectionalLight;
   private readonly gi: THREE.PointLight[] = [];
@@ -35,6 +46,7 @@ export class World {
   private readonly camLook = new THREE.Vector3();
   private readonly goalPos = new THREE.Vector3();
   private readonly goalLook = new THREE.Vector3();
+  private readonly tmpOff = new THREE.Vector3();
   mode: CamMode = 'title';
   /** Extra camera offset from shakes/nudges (decays). */
   readonly shake = new THREE.Vector3();
@@ -76,15 +88,16 @@ export class World {
     back.name = 'backbox';
     this.cabinet.add(back);
     this.scene.add(this.cabinet);
+    // Coin tray hung on the cabinet front, under the lockbar and right of centre.
+    this.cabinet.updateMatrixWorld(true);
+    this.table.root.localToWorld(this.trayPos.set(TW / 2 - 4.2, -3.8, TH / 2 + 2));
+    this.trayPos.z += 1.5;
+    this.coins.group.position.copy(this.trayPos);
+    this.scene.add(this.coins.group);
 
-    // Floor and walls of the cell (placeholder geometry; M5 replaces with the full cell).
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
-      new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: 1 }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -12;
-    this.scene.add(floor);
+    // The cell around the machine.
+    this.cell = new CellRoom();
+    this.scene.add(this.cell.group);
 
     // Lights: a dim cell lit by one bare bulb; the machine's GI makes the playfield the
     // brightest thing in the room so it always reads.
@@ -123,6 +136,13 @@ export class World {
     this.camLook.copy(this.goalLook);
   }
 
+  /** The cell decays with the deadlines: rust, the leak, a dimmer and twitchier bulb. */
+  setDecay(d: number): void {
+    this.cell.setDecay(d);
+    this.bulbPower = 1800 * (1 - 0.35 * d);
+    this.flickerChance = 0.02 + 0.08 * d;
+  }
+
   /** Blackout Sentence: the room and the machine's GI go dark; only the balls glow. */
   setBlackout(on: boolean): void {
     if (this.table.blackout === on) return;
@@ -135,6 +155,8 @@ export class World {
   }
 
   setMode(m: CamMode): void {
+    if (m === 'fall' && this.mode !== 'fall') this.fallT = 0;
+    if (m !== 'fall' && this.mode === 'fall') this.cell.openTrapdoor(0);
     this.mode = m;
     // From the play view the bare bulb would hang between the eye and the table.
     this.bulbMesh.visible = m !== 'play' && m !== 'top';
@@ -170,6 +192,42 @@ export class World {
       case 'seated':
         p.set(0, 12, TH / 2 + 15);
         l.set(0, 1, -6);
+        break;
+      case 'atm':
+        p.set(18, 9, 24);
+        l.copy(PROPS.atm);
+        break;
+      case 'phone':
+        p.set(22, 11, 10);
+        l.copy(PROPS.phone);
+        break;
+      case 'vending':
+        p.set(-16, 8, 26);
+        l.copy(PROPS.vending);
+        break;
+      case 'wall':
+        p.set(-14, 13, 4);
+        l.copy(PROPS.tally);
+        break;
+      case 'stash':
+        p.set(-18, 2, -14);
+        l.copy(PROPS.stash);
+        break;
+      case 'door':
+        p.set(0, 10, 34);
+        l.copy(PROPS.door);
+        break;
+      case 'fall': {
+        // Through the trapdoor: the floor opens and the light shrinks above you.
+        const t = this.fallT;
+        p.set(0, 12 - 0.5 * 34 * t * t, TH / 2 + 15 + Math.min(1, t) * 3);
+        l.set(0, 40, TH / 2 + 10);
+        break;
+      }
+      case 'tray':
+        // Looking down past the lockbar at the coins.
+        l.copy(this.trayPos).add(this.tmpOff.set(-4.5, 1.5, -3));
+        p.copy(this.trayPos).add(this.tmpOff.set(-7, 10.5, 11));
         break;
       case 'title':
         p.set(9, 16, TH / 2 + 16);
@@ -224,8 +282,15 @@ export class World {
       12,
     );
     this.bulbMesh.position.copy(this.bulb.position);
-    const flicker = Math.random() < 0.02 ? 0.4 : 1;
+    ROOM_UNIFORMS.uBulbPos.value.copy(this.bulb.position);
+    const flicker = Math.random() < this.flickerChance ? 0.4 : 1;
     this.bulb.intensity = this.bulbPower * flicker;
+    ROOM_UNIFORMS.uBulbPower.value = this.bulb.visible ? (this.bulbPower / 1800) * flicker : 0.05;
+    this.cell.update(dt);
+    if (this.mode === 'fall') {
+      this.fallT += dt;
+      this.cell.openTrapdoor(Math.min(1, this.fallT * 3));
+    }
   }
 }
 

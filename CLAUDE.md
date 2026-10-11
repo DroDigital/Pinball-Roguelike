@@ -40,5 +40,5 @@ design, milestone checklist and decisions log; update both as you work.
 - Files: kebab-case. Types/classes PascalCase, functions/vars camelCase, constants
   UPPER_SNAKE only for true constants.
 - Tests next to the domain in `tests/` mirroring `src/` (e.g. `tests/rules/combo.test.ts`).
-- Comments explain *why*; keep them sparse.
+- Comments explain _why_; keep them sparse.
 - Commit per milestone (or meaningful sub-step) after build + tests pass.

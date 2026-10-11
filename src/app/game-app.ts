@@ -10,6 +10,8 @@ import { FONT_SMALL } from '../present/dmd-font';
 import { NumberPops, formatCoins } from '../present/pops';
 import { audio } from '../present/audio';
 import { music } from '../present/music';
+import { ROOM_UNIFORMS } from '../present/retro-material';
+import { paintBackglass } from '../present/backglass';
 import { LampShowPlayer } from '../present/lampshow';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
@@ -69,10 +71,19 @@ import {
 } from '../rules/shop';
 import { perkDef, bargainDef } from '../content/phone';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
+import { Subtitles } from '../present/subtitles';
+import { SaveDetector } from '../present/save-detector';
 import { BONUS, ECONOMY } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
+/** Last-second save: the table runs at this speed for DRAMA_SECS of real time. */
+const DRAMA_SCALE = 0.3;
+const DRAMA_SECS = 0.55;
+const DRAMA_COOLDOWN_MS = 4000;
+/** The Warden remarks on a PAYDAY worth this share of the debt, and on some center drains. */
+const BIG_PAYDAY_SHARE = 0.1;
+const CENTER_DRAIN_CHANCE = 0.6;
 
 export type AppMode =
   | 'title'
@@ -122,6 +133,13 @@ export class GameApp {
   private hitStop = 0;
   /** Pocket Watch: sim seconds of half-speed time left (presentation only). */
   private slowmoLeft = 0;
+  /** Real seconds of dramatic slow motion left (last-second saves). */
+  private dramaLeft = 0;
+  private readonly saves = new SaveDetector();
+  /** Coins the tray shows (poured or piled); follows the pocket between balls. */
+  private trayCoins = 0;
+  private clatterAt = 0;
+  readonly subs: Subtitles;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
   /** Bonus count-up after a drain. */
@@ -155,6 +173,8 @@ export class GameApp {
     this.input = new Input(document.body);
     this.ui = new UI(uiRoot, toast);
     this.ui.onClick = () => audio.atmBeep();
+    this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
+    this.subs.voice = this.save.settings.voice;
     this.hud = hud;
     this.hudStats = h('div', { class: 'stats' });
     this.hudRight = h('div', { class: 'right' });
@@ -178,6 +198,18 @@ export class GameApp {
       );
       panel.position.set(0, -4.5, 2.05);
       backbox.add(panel);
+      // Backglass art and the shot-level ladders above the DMD.
+      this.glassCanvas = document.createElement('canvas');
+      paintBackglass(this.glassCanvas, null);
+      this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
+      this.glassTex.colorSpace = THREE.SRGBColorSpace;
+      this.glassTex.magFilter = THREE.NearestFilter;
+      const glass = new THREE.Mesh(
+        new THREE.PlaneGeometry(20.5, 10.25),
+        new THREE.MeshBasicMaterial({ map: this.glassTex }),
+      );
+      glass.position.set(0, 2.6, 2.05);
+      backbox.add(glass);
     }
     this.dmd.idle = (d, t) => this.dmdIdle(d, t);
     this.dmd.registerAnim('tally', (d) => {
@@ -228,6 +260,7 @@ export class GameApp {
   resize(): void {
     this.renderer.resize();
     this.world.aspect = this.renderer.aspect;
+    ROOM_UNIFORMS.uSnap.value.set(this.renderer.lowSize.w / 2, this.renderer.lowSize.h / 2);
   }
 
   persist(): void {
@@ -282,7 +315,9 @@ export class GameApp {
           this.stepRequests = 0;
         }
         // Effective time scale: dev slow-mo times the Pocket Watch.
-        const scale = this.timeScale * (this.slowmoLeft > 0 ? 0.5 : 1);
+        const scale =
+          this.timeScale * (this.slowmoLeft > 0 ? 0.5 : 1) * (this.dramaLeft > 0 ? DRAMA_SCALE : 1);
+        this.dramaLeft = Math.max(0, this.dramaLeft - dt);
         if (!this.paused) {
           this.acc += dt * scale;
           this.slowmoLeft = Math.max(0, this.slowmoLeft - dt * scale);
@@ -300,6 +335,11 @@ export class GameApp {
         }
         if (budget <= 0) this.acc = 0;
         alpha = this.acc / STEP;
+        if (
+          act.session === this.session &&
+          this.saves.update(act.session.sim.balls, act.session.steps * STEP)
+        )
+          this.lastSecondSave();
       }
       if (act.session === this.session && this.session.over && this.mode === 'play')
         this.onBallOver();
@@ -325,6 +365,7 @@ export class GameApp {
     this.flushGameEvents();
     this.updateCamera(dt);
     this.world.update(dt);
+    this.updateCoins(dt);
     this.pops.update(dt);
     this.dmd.update(dt);
     this.dmdTex.needsUpdate = true;
@@ -522,6 +563,7 @@ export class GameApp {
           break;
         case 'riot':
           if (e.on) {
+            this.react('riot');
             this.shows.play('riot');
             audio.knocker();
             this.flash(0.4);
@@ -530,6 +572,8 @@ export class GameApp {
           }
           break;
         case 'payday':
+          if (e.super || (this.run && e.amount >= BIG_PAYDAY_SHARE * this.run.debt))
+            this.react('bigPayday');
           this.shows.play('payday');
           this.hitStop = e.super ? 0.06 : 0.04;
           audio.knocker();
@@ -562,6 +606,7 @@ export class GameApp {
           this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
           break;
         case 'jobDone':
+          this.react('jobDone');
           audio.knocker();
           this.flash(0.2);
           break;
@@ -573,11 +618,16 @@ export class GameApp {
           this.ui.toast(`DANGER — WARNING ${e.n}`);
           break;
         case 'tilt':
+          this.react('tilt', true);
           audio.tilt();
           this.flash(0.3);
           break;
         case 'drain':
-          if (this.session && this.session.sim.ballsInPlay() === 0) this.shows.play('drain');
+          if (this.session && this.session.sim.ballsInPlay() === 0) {
+            this.shows.play('drain');
+            if (e.cause === 'center' && Math.random() < CENTER_DRAIN_CHANCE)
+              this.react('centerDrain');
+          }
           this.dmd.show({ text: 'DRAINED', priority: 3, anim: 'drain', duration: 1.0 });
           break;
         default:
@@ -625,8 +675,13 @@ export class GameApp {
 
   enterTitle(): void {
     this.mode = 'title';
+    this.world.cell.setTallies(this.save.tallies);
+    this.world.setDecay(0);
+    this.renderer.tint.set(1, 1, 1);
     this.session = null;
     this.world.setMode('title');
+    this.world.coins.clear();
+    this.trayCoins = 0;
     this.newAttractBall();
     this.ui.show(
       h(
@@ -640,6 +695,16 @@ export class GameApp {
           'div',
           { class: 'row' },
           h('button', { class: 'primary', onclick: () => this.newRunFlow() }, 'Wake up'),
+          h(
+            'button',
+            {
+              onclick: (ev: Event) => {
+                this.setVoice(!this.save.settings.voice);
+                (ev.currentTarget as HTMLElement).textContent = this.voiceLabel();
+              },
+            },
+            this.voiceLabel(),
+          ),
         ),
         h(
           'p',
@@ -648,6 +713,17 @@ export class GameApp {
         ),
       ),
     );
+  }
+
+  private voiceLabel(): string {
+    return `Warden voice: ${this.save.settings.voice ? 'on' : 'off'}`;
+  }
+
+  setVoice(on: boolean): void {
+    this.save.settings.voice = on;
+    this.subs.voice = on;
+    this.persist();
+    if (on) this.subs.say('THE WARDEN', 'You will hear me now.');
   }
 
   private newAttractBall(): void {
@@ -666,8 +742,11 @@ export class GameApp {
       new URLSearchParams(location.search).get('seed') ??
       Math.random().toString(36).slice(2, 10).toUpperCase();
     this.run = newRun(sd);
+    this.world.coins.clear();
+    this.trayCoins = 0;
     this.save.tallies++;
     this.save.stats.runs++;
+    this.world.cell.setTallies(this.save.tallies);
     this.persist();
     this.ui.toast(`Seed ${sd}`);
     this.enterDeadlineIntro();
@@ -685,14 +764,37 @@ export class GameApp {
     return deck.pop()!;
   }
 
+  /** The Warden reacts to play (rate-limited unless `force`). */
+  private react(t: WardenTrigger, force = false): void {
+    if (!this.run || this.mode !== 'play') return;
+    if (force) this.subs.say('THE WARDEN', this.warden(t));
+    else this.subs.react('THE WARDEN', () => this.warden(t), performance.now());
+  }
+
+  private lastDrama = -1e9;
+
+  /** A ball dropping through the gap got sent back up: let the moment breathe. */
+  private lastSecondSave(): void {
+    const now = performance.now();
+    if (now - this.lastDrama < DRAMA_COOLDOWN_MS) return;
+    this.lastDrama = now;
+    this.dramaLeft = DRAMA_SECS;
+    audio.creak();
+    this.shake(0.3);
+    this.input.buzz(40);
+  }
+
   /** A deadline begins: the debt, and the Sentence for its last round. */
   private enterDeadlineIntro(): void {
     const r = this.run!;
     this.mode = 'intro';
+    this.world.setDecay(r.deadline / Math.max(1, r.deadlines - 1));
+    this.world.cell.setAtmAlarm(false);
     this.world.setMode('seated');
     const last = r.deadline === r.deadlines - 1;
     const line = this.warden(r.deadline === 0 ? 'intro' : last ? 'lastCall' : 'sentence');
     this.dmd.say(`THE WARDEN: ${line}`);
+    this.subs.say('THE WARDEN', line, false);
     const cards = r.sentences.map((id) => {
       const d = sentenceDef(id);
       return h('div', { class: 'sentence' }, h('b', null, d.name), h('small', null, d.text));
@@ -755,6 +857,7 @@ export class GameApp {
     if (call.kind === 'perks') {
       const line = this.warden('deadlinePaid');
       this.dmd.say(`THE WARDEN: ${line}`);
+      this.subs.say('THE WARDEN', line, false);
       const cards = call.offers.map((o, i) =>
         h(
           'button',
@@ -778,6 +881,7 @@ export class GameApp {
     }
     const line = this.warden('redCall');
     this.dmd.say(`THE RED PHONE: ${line}`);
+    this.subs.say('THE RED PHONE', line, false);
     this.flash(0.15);
     audio.creak();
     const cards = call.offers.map((id, i) => {
@@ -816,7 +920,7 @@ export class GameApp {
               class: 'primary',
               onclick: () =>
                 this.answerPhone(() => {
-                  this.ui.toast(this.warden('hangUp'));
+                  this.subs.say('THE WARDEN', this.warden('hangUp'));
                   return hangUp(r);
                 }),
             },
@@ -840,7 +944,8 @@ export class GameApp {
     if (!payEarly(r)) return;
     this.save.stats.bestDeadline = Math.max(this.save.stats.bestDeadline, r.deadline);
     this.persist();
-    this.ui.toast(`${this.warden('payEarly')} (+${r.tickets - before} tickets)`);
+    this.subs.say('THE WARDEN', this.warden('payEarly'));
+    this.ui.toast(`+${r.tickets - before} tickets`);
     if (r.phase === 'over') this.rapSheet();
     else this.enterPhone();
   }
@@ -1093,7 +1198,7 @@ export class GameApp {
     const take = (n: number) => {
       if (borrow(r, n) > 0) {
         audio.atmBeep();
-        this.ui.toast(this.warden('loan'));
+        this.subs.say('THE WARDEN', this.warden('loan'));
       }
       this.enterAtm(back);
     };
@@ -1296,6 +1401,7 @@ export class GameApp {
     this.ui.hide();
     const snap = nextBall(r);
     this.session = new BallSession(snap, this.onGameEvent);
+    this.saves.reset();
     if (this.autoBot) attachBot(this.autoBot, this.session);
     this.world.setBlackout(snap.ctx.blackout);
     this.world.table.setTags(new Set(snap.tags));
@@ -1315,6 +1421,7 @@ export class GameApp {
     this.slowmoLeft = 0;
     const g = this.session!.game;
     this.outcome = g.outcome();
+    if (!g.tilted) this.pourCoins(Math.floor(this.outcome.earned));
     if (!g.tilted && g.bonusPaid > 0) {
       this.mode = 'tally';
       this.tally = { k: 0, bonus: g.bonus, mult: g.bonusMult, total: g.bonusPaid, ticks: 0 };
@@ -1330,6 +1437,7 @@ export class GameApp {
     t.k = Math.min(1, t.k + (dt * (fast ? 6 : 1)) / BONUS.tallyTime);
     const ticks = Math.floor(t.k * 24);
     if (ticks > t.ticks) {
+      this.pourCoins(Math.floor((t.total * ticks) / 24) - Math.floor((t.total * t.ticks) / 24));
       t.ticks = ticks;
       audio.coin(Math.min(8, Math.floor(ticks / 3)));
     }
@@ -1337,6 +1445,29 @@ export class GameApp {
       this.tally = null;
       this.dmd.cut();
       this.finishBall();
+    }
+  }
+
+  private pourCoins(n: number): void {
+    if (n <= 0) return;
+    this.world.coins.pour(n);
+    this.trayCoins += n;
+  }
+
+  /** The tray follows the pocket: pours what it is owed, empties when the ATM takes coins. */
+  private updateCoins(dt: number): void {
+    const r = this.run;
+    if (r && this.mode !== 'play' && this.mode !== 'tally') {
+      if (r.pocket < this.trayCoins) {
+        this.world.coins.setPile(r.pocket);
+        this.trayCoins = r.pocket;
+      } else if (r.pocket > this.trayCoins) this.pourCoins(r.pocket - this.trayCoins);
+    }
+    const landed = this.world.coins.update(dt);
+    const now = performance.now();
+    if (landed > 0 && now - this.clatterAt > 40) {
+      this.clatterAt = now;
+      audio.clatter();
     }
   }
 
@@ -1424,9 +1555,13 @@ export class GameApp {
       return;
     }
     const roundBefore = r.round;
+    const underSentence = sentenceActive(r);
     endRound(r);
-    if (r.phase === 'deadline') this.enterDeadline();
-    else {
+    if (r.phase === 'deadline') {
+      this.enterDeadline();
+      if (underSentence && r.bank + r.pocket >= r.debt)
+        this.subs.say('THE WARDEN', this.warden('sentenceSurvived'));
+    } else {
       this.ui.toast(`Round ${roundBefore + 1} over. The bank pays interest.`);
       this.enterJobs();
     }
@@ -1435,6 +1570,7 @@ export class GameApp {
   private enterDeadline(): void {
     const r = this.run!;
     this.mode = 'deadline';
+    this.world.cell.setAtmAlarm(true);
     this.world.setMode('seated');
     const canPay = r.bank >= r.debt;
     const couldPay = r.bank + r.pocket >= r.debt;
@@ -1505,7 +1641,9 @@ export class GameApp {
     this.fallT = 0;
     this.world.setMode('fall');
     audio.trapdoor();
-    this.dmd.say(`THE WARDEN: ${this.warden('fall')}`);
+    const line = this.warden('fall');
+    this.dmd.say(`THE WARDEN: ${line}`);
+    this.subs.say('THE WARDEN', line);
     this.shake(1.2);
     this.flash(0.2);
     window.setTimeout(() => this.rapSheet(), 3000);
@@ -1600,17 +1738,16 @@ export class GameApp {
   private updateCamera(dt: number): void {
     if (this.mode === 'fall') {
       this.fallT += dt;
-      const k = Math.min(1, this.fallT / 2.4);
-      this.world.shake.y -= dt * 30 * k;
-      this.renderer.tint.setScalar(Math.max(0, 1 - k * 1.2));
+      if (this.world.mode !== 'fall') this.world.setMode('fall');
+      // The light above shrinks to nothing over the three seconds.
+      const k = Math.min(1, this.fallT / 2.6);
+      this.renderer.tint.setScalar(Math.max(0, 1 - k * k * 1.1));
       return;
     }
     const m: CamMode =
       this.mode === 'play'
         ? (this.devCam ?? (this.save.settings.camera === 'seated' ? 'seated' : 'play'))
-        : this.mode === 'title'
-          ? 'title'
-          : 'seated';
+        : (CAMERA_FOR[this.mode] ?? 'seated');
     if (this.world.mode !== m) this.world.setMode(m);
     if (this.mode !== 'play') {
       const look =
@@ -1654,6 +1791,10 @@ export class GameApp {
   }
 
   private hudCache = new Map<HTMLElement, string>();
+  private glassCanvas: HTMLCanvasElement | null = null;
+  private glassTex: THREE.CanvasTexture | null = null;
+  private glassKey = '';
+  private atmKey = '';
 
   /** Set innerHTML only when it changed (the HUD updates every frame). */
   private setHtml(el: HTMLElement, html: string): void {
@@ -1692,6 +1833,18 @@ export class GameApp {
           )
           .join('<br>')}<br><small>B fires the first charged</small></div>`;
       this.setHtml(this.hudRight, right);
+      // Backglass ladders and the ATM's LCD follow the run.
+      const lv = JSON.stringify(r.shotLevels);
+      if (lv !== this.glassKey && this.glassCanvas && this.glassTex) {
+        this.glassKey = lv;
+        paintBackglass(this.glassCanvas, r.shotLevels);
+        this.glassTex.needsUpdate = true;
+      }
+      const atm = `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`;
+      if (atm !== this.atmKey) {
+        this.atmKey = atm;
+        this.world.cell.drawAtm(atm);
+      }
     }
     const pull = shown ? shown.sim.plungerPull : 0;
     this.hudPlunger.style.display =
@@ -1707,6 +1860,20 @@ export class GameApp {
       mark.style.bottom = `${Math.round(shown.sim.cfg.plunger.lanePull[shown.game.machine.skillLane] * 100)}%`;
   }
 }
+
+/** Where the camera looks for each screen: the cell's props are the menus. */
+const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
+  title: 'title',
+  jobs: 'atm',
+  atm: 'atm',
+  deadline: 'atm',
+  shop: 'vending',
+  phone: 'phone',
+  rapsheet: 'wall',
+  intro: 'seated',
+  tally: 'tray',
+  ballEnd: 'tray',
+};
 
 function tallyMarks(n: number): string {
   let s = '';

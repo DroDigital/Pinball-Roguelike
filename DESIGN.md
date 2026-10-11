@@ -82,6 +82,7 @@ with the remainder carried as loose change. Number pops show one decimal under 1
 Each must meet its checks before the next begins.
 
 ### M1 — Vertical slice
+
 - [x] Project scaffold, strict TS, lint, tests, docs
 - [x] Table data: flippers, plunger, top lanes, Yard pops, slings, Cell Block drops,
       Chute, Perimeter orbits + Searchlight spinner, Hole, inlanes/outlanes, kickback, drain
@@ -107,11 +108,11 @@ Each must meet its checks before the next begins.
 
 M1 baseline numbers (deadline-1 rules, 90 balls per skill):
 
-| bot | coins/ball | secs/ball | skill shot | drains (L/R/centre) |
-| --- | --- | --- | --- | --- |
-| novice | 15.8 | 77 | 26% | 51/34/14% |
-| average | 22.2 | 102 | 80% | 47/42/11% |
-| expert | 23.0 | 98 | 98% | 56/29/16% |
+| bot     | coins/ball | secs/ball | skill shot | drains (L/R/centre) |
+| ------- | ---------- | --------- | ---------- | ------------------- |
+| novice  | 15.8       | 77        | 26%        | 51/34/14%           |
+| average | 22.2       | 102       | 80%        | 47/42/11%           |
+| expert  | 23.0       | 98        | 98%        | 56/29/16%           |
 
 Economy at M1 (sampled, average bot): deadlines 1-3 clear 97-100% (deadline 1 ends with
 ~370c against a 75c debt: no dread), deadline 4 clears 4%, nobody passes 5. Flat scoring
@@ -119,6 +120,7 @@ cannot keep up with x2.4 debt; M2 (shot levels, multipliers, PAYDAY) and M4 (cha
 the growth, and M2 must also cut deadline-1 earnings so the first deadline is tense.
 
 ### M2 — Scoring depth
+
 - [x] Combos: Chute / Perimeter / Hole within 3 s chain x2, x3... (callouts, DMD timer bar,
       coin pitch rises); window/start/step are ctx values for Short Fuse, Long Fuse,
       Cracked Mirror, Chain Link
@@ -147,6 +149,7 @@ Feel after M2 (200 balls per bot): novice median 63 s / mean 83 s, average media
 mean ~95-100 s, expert median 76 s / mean ~120 s; centre drains 12% (average).
 
 ### M3 — The run
+
 - [x] 8 deadlines on the x2.4 debt curve; Last Call (deadline 8) stacks two Sentences
 - [x] 14 Sentences as data (tiers 1-3, harsher later), revealed at deadline start, in force
       on the last round; physics ones soak-tested (`npm run soak -- --sentences`)
@@ -165,6 +168,7 @@ no charms): deadline 1 94%, deadline 2 53%, deadline 3 14%, deadline 4 3%. The b
 targets (deadline 4 ~35%, focused builds win ~20%) need M4's charms.
 
 ### M4 — Build-crafting
+
 - [x] Vending cabinet: restocks each deadline with 5 charms (rarity 60/30/9/1, legendaries
       from deadline 3, never one you own), 2 contraband, sometimes an Oil Can; rerolls get
       dearer; sell for half; items glow when they share a tag with your charms
@@ -181,32 +185,58 @@ targets (deadline 4 ~35%, focused builds win ~20%) need M4's charms.
 
 M4 calibration (`npm run economy -- --mode physics --runs 24 --arch <a>`, average bot):
 
-| build | d1 | d4 | d6 | wins | notes |
-| --- | --- | --- | --- | --- | --- |
-| none (no charms) | 96% | 33% | 13% | 0% | |
-| yard | 96% | 42% | 25% | 8% | Jar of Teeth + Gold Filling + Spare Bumper in every win |
-| chute | 92% | 33% | 8% | 0% | the bot barely combos or aims ramps (~0.7 Chutes/ball) |
-| riot | 92% | 50% | 33% | 17% | Notched Spoon in all 4 wins (small sample) |
-| random | 96% | 62% | 29% | 8% | |
+| build            | d1  | d4  | d6  | wins | notes                                                   |
+| ---------------- | --- | --- | --- | ---- | ------------------------------------------------------- |
+| none (no charms) | 96% | 33% | 13% | 0%   |                                                         |
+| yard             | 96% | 42% | 25% | 8%   | Jar of Teeth + Gold Filling + Spare Bumper in every win |
+| chute            | 92% | 33% | 8%  | 0%   | the bot barely combos or aims ramps (~0.7 Chutes/ball)  |
+| riot             | 92% | 50% | 33% | 17%  | Notched Spoon in all 4 wins (small sample)              |
+| random           | 96% | 62% | 29% | 8%   |                                                         |
 
 Close to the brief's targets (average d1 ~90%, d4 ~35%; focused wins ~20%). Open for the
 M7 balance pass: Chute builds need a bot that chains ramps to be measured; Notched Spoon may
 dominate Riot wins; samples are small (24 runs).
 
 ### M5 — The cell
-- [ ] Retro renderer (low-res, vertex snap, affine wobble, dither, palette, fog, grain)
-- [ ] Cameras (Play, Seated, look-around), DMD + animations, lamp shows
-- [ ] Cell decay, audio + adaptive music, juice, Warden lines
+
+- [x] Retro renderer: 240p internal resolution, ordered dither, palette crush, grain and
+      vignette for the frame; room surfaces get vertex snapping to the pixel grid, affine
+      texture wobble, a hard-falloff bare-bulb light and fog. The machine keeps standard
+      materials so the playfield always reads
+- [x] The cell: brick and concrete walls, tiled floor, ATM with a live LCD (debt, bank,
+      round; red PAY NOW at the deadline), rotary phone, vending cabinet, contraband stash,
+      wall of tally marks (one per run, scratched in), door, trapdoor under the stool
+- [x] Cameras: Play, Seated (A/D look around), and one per prop (ATM for jobs and
+      deadlines, vending, phone, wall for the rap sheet, the coin tray between balls); the
+      fall through the trapdoor with the light shrinking above
+- [x] Backglass art (chained devil, eyes, keys, bars) with the shot-level ladders, repainted
+      as the build changes; DMD on the backbox and in the HUD with its animations; lamp
+      shows (attract, skill, RIOT, PAYDAY, drain)
+- [x] Cell decay across the deadlines: rust streaks spread, a leak and a growing puddle,
+      the bulb dims and flickers more
+- [x] Audio: synthesised SFX for every table part, coin clinks that climb through combos,
+      adaptive music (cell drone and clock that speeds with tension; table layers for
+      combos, RIOT and Sentence rounds)
+- [x] Juice: hit-stop on the Hole and PAYDAY, shake, flash, score pops, bulb swing, a coin
+      fountain from the coin return into the tray (the pile is your pocket; the ATM takes
+      it), slow motion on last-second saves (a ball dropping through the flipper gap sent
+      back up; ~1 per 5 balls for the bot)
+- [x] The Warden: lines on every cell screen plus reactions to play (center drain, big
+      PAYDAY, RIOT, tilt, Job done, Sentence survived), rate-limited, as subtitles; an
+      optional low, slow voice through the browser's speech synthesis (title screen toggle)
 
 ### M6 — Story and meta
+
 - [ ] Neighbor, Keys, JAILBREAK, three endings, inmates, Hard Time
 - [ ] Unlocks, Rap Sheet, saves with migrations
 
 ### M7 — Polish
+
 - [ ] Onboarding, accessibility, settings, touch + gamepad
 - [ ] Phone performance, replays, balance pass
 
 ### M8 — Stretch
+
 - [ ] Daily Sentence, seed sharing, offline PWA
 
 ## Decisions log
@@ -342,4 +372,15 @@ Format: date — decision — why.
 - 2026-10-11 — The bot shoots from cradles at once while a combo, hurry-up or RIOT is live,
   and taps the Third Arm when a ball sits on it. — What a player would do; without it the
   bot could never measure combo builds and stranded balls on the upper flipper.
-
+- 2026-10-11 — The room uses its own retro shader; the machine does not. — Vertex snapping
+  and affine wobble on the playfield made shots harder to read (pinball first). The cell
+  carries the late-90s look; the frame-wide dither and palette crush tie them together.
+- 2026-10-11 — Between balls the camera drops to the coin tray. — The Bonus count-up and
+  the ball breakdown are the payoff beat; watching coins pile up says "pocket" better than
+  a number, and the pile empties into the ATM, which makes depositing feel like a choice.
+- 2026-10-11 — Last-second saves are detected from ball state in presentation (falling
+  through the flipper gap, then up the table within 0.35 s) and slow the table to 0.3x for
+  0.55 s of real time. — No rules or replay impact; a 4 s cooldown keeps it special.
+- 2026-10-11 — Warden reactions during play wait 12 s between lines; tilt always speaks. —
+  The Warden should comment, not narrate; the voice is off by default (speech synthesis
+  varies a lot by browser).
