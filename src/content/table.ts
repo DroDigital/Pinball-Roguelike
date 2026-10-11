@@ -472,12 +472,16 @@ const walls: WallDef[] = [
     tag: 'boltedHole',
   },
   // Roof over the Cell Block: rolls traffic from the Yard back into the centre corridor
-  // (instead of down the right side into the outlane) and extends the Perimeter funnel lip.
+  // (instead of down the right side into the outlane).
   {
     id: 'cellRoof',
     pts: [
-      rp([DROP_B[0] - dnx * 0.2 - 0.45, DROP_B[1] - dny * 0.2 + 0.05]),
-      rp([funnelUp[0] + 1.3, funnelUp[1] + 1.29]),
+      // Nose: the low end turns down so balls drop toward the flippers, not across the table.
+      [11.6, 21.8],
+      [12.4, 22.38],
+      // Covers the funnel's upper lip: balls falling down the right side land on this gentle
+      // slope instead of a 45-degree metal face that fired them into the left outlane.
+      [COL_WALL_X - 0.05, 24.42],
       funnelUp,
       rp([DROP_A[0] - dnx * 0.5, DROP_A[1] - dny * 0.5]),
     ],
@@ -715,7 +719,51 @@ const lamps: LampDef[] = [
   { id: 'shootAgain', x: 9.2, y: 1.6, shape: 'star', size: 0.55, rot: 0, color: 'red' },
   { id: 'ballSave', x: 9.2, y: 3.0, shape: 'circle', size: 0.38, rot: 0, color: 'white' },
   { id: 'skill', x: 14.6, y: 31.0, shape: 'arrow', size: 0.6, rot: 150, color: 'white' },
+  // Bonus multiplier row above the flippers.
+  ...[2, 3, 4, 5].map(
+    (m, i): LampDef => ({
+      id: `bonusX${m}`,
+      x: r3(7.4 + i * 1.2),
+      y: 13.7,
+      shape: 'circle',
+      size: 0.34,
+      rot: 0,
+      color: 'amber',
+      label: `${m}X`,
+    }),
+  ),
+  // The Hole's award ladder (lit = next award, collect at the Hole).
+  ...['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'].map(
+    (a, i): LampDef => ({
+      id: `award_${a}`,
+      x: r3(6.6 + i * 1.1),
+      y: r3(16.9 + Math.sin((i / 4) * Math.PI) * 0.45),
+      shape: 'circle',
+      size: 0.3,
+      rot: 0,
+      color: 'violet',
+    }),
+  ),
+  // Shot level ladders behind each major arrow: lit for levels 2, 3 and 4+.
+  ...levelLadder('chute', cAt(-1.6, 0), 107),
+  ...levelLadder('perimeter', [3.3, 17.6], 127),
+  ...levelLadder('hole', [HOLE_X, 22.6], 90),
+  ...levelLadder('cellblock', [11.9, 18.6], 65),
 ];
+
+function levelLadder(shot: string, at: readonly number[], rot: number): LampDef[] {
+  const dx = Math.cos(rot * DEG);
+  const dy = Math.sin(rot * DEG);
+  return [0, 1, 2].map((k) => ({
+    id: `lvl_${shot}_${k + 2}`,
+    x: r3(at[0] - dx * (0.95 + 0.5 * k)),
+    y: r3(at[1] - dy * (0.95 + 0.5 * k)),
+    shape: 'circle',
+    size: 0.17,
+    rot: 0,
+    color: 'white',
+  }));
+}
 
 // ---------------------------------------------------------------- assembled table
 export const TABLE: TableDef = {

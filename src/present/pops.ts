@@ -13,7 +13,9 @@ interface Pop {
 export function formatCoins(v: number): string {
   if (v >= 1000) return `${Math.round(v / 100) / 10}K`;
   if (v >= 10) return String(Math.round(v));
-  return (Math.round(v * 10) / 10).toString();
+  if (v >= 1) return (Math.round(v * 10) / 10).toString();
+  // Pennies: small hits show cents so they never read as +0.
+  return (Math.round(v * 100) / 100).toString();
 }
 
 export class NumberPops {

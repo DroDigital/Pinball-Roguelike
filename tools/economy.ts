@@ -22,7 +22,12 @@ import {
   deposit,
   endRound,
   settleDeadline,
+  pickJob,
+  type BallOutcome,
+  type RunState,
 } from '../src/rules/run';
+import { attachBot } from '../src/bot/autoplay';
+import { emptyBallStats } from '../src/content/jobs';
 import {
   IS_MAIN,
   runPool,
@@ -40,6 +45,8 @@ interface Job {
   skill: BotSkillName;
   mode: 'sampled' | 'physics';
   samples: number[];
+  /** Sampled mode: multiply sampled ball earnings (what-if for payout tuning). */
+  scale: number;
 }
 
 interface RunRow {
@@ -50,27 +57,21 @@ interface RunRow {
   funds: number[];
 }
 
-/** Money policy: buy as many balls as possible while keeping enough to buy next round. */
-function playRun(
-  seed: number,
-  ball: (snap: BallSnapshot) => { earned: number; tilted: boolean; cause: string },
-): RunRow {
+/** Money policy: take the first Job, buy as many balls as possible while keeping enough to buy next round. */
+function playRun(seed: number, ball: (snap: BallSnapshot, r: RunState) => BallOutcome): RunRow {
   const r = newRun(`ECON${seed}`);
   const funds: number[] = [];
   while (r.phase !== 'over') {
+    if (r.phase === 'pickJob') {
+      pickJob(r, 0);
+      continue;
+    }
     if (r.phase === 'buyBalls') {
       buyBalls(r, maxAffordableBalls(r));
       continue;
     }
     if (r.phase === 'betweenBalls' && ballsLeft(r) > 0) {
-      const o = ball(nextBall(r));
-      finishBall(r, {
-        earned: o.earned,
-        tilted: o.tilted,
-        drainCause: o.cause,
-        machine: r.machine,
-        skillShots: 0,
-      });
+      finishBall(r, ball(nextBall(r), r));
       continue;
     }
     if (r.phase === 'betweenBalls') {
@@ -99,20 +100,23 @@ function work(job: Job): RunRow[] {
     let n = 0;
     const ball =
       job.mode === 'sampled'
-        ? () => ({
-            earned: job.samples[rng.int(0, job.samples.length - 1)],
+        ? (_snap: BallSnapshot, r: RunState): BallOutcome => ({
+            // Deadline-1 samples scaled by shot levels gained so far (rough).
+            earned: job.samples[rng.int(0, job.samples.length - 1)] * job.scale,
+            bonus: 0,
             tilted: false,
-            cause: 'sampled',
+            drainCause: 'sampled',
+            machine: r.machine,
+            stats: emptyBallStats(),
+            levelUps: [],
+            extraBalls: 0,
+            paydayEnd: 0,
           })
-        : (snap: BallSnapshot) => {
-            let cause = 'timeout';
-            const s = new BallSession(snap, (e) => {
-              if (e.t === 'drain') cause = e.cause;
-            });
-            const bot = new Bot(job.skill, i * 1000 + n++);
-            bot.skillLane = () => s.game.machine.skillLane;
+        : (snap: BallSnapshot): BallOutcome => {
+            const s = new BallSession(snap);
+            const bot = attachBot(new Bot(job.skill, i * 1000 + n++), s);
             while (!s.over && s.steps < 240 * 600) s.step(bot.decide(s.sim));
-            return { earned: s.game.earned, tilted: s.game.tilted, cause };
+            return s.game.outcome();
           };
     rows.push(playRun(i, ball));
   }
@@ -127,6 +131,7 @@ if (IS_MAIN) {
   const runs = argNum(args, '--runs', mode === 'sampled' ? 2000 : 8);
   const skill = argStr(args, '--skill', 'average') as BotSkillName;
   const workers = argNum(args, '--workers', defaultWorkers());
+  const scale = argNum(args, '--scale', 1);
   let samples: number[] = [];
   if (mode === 'sampled') {
     const path = 'tools/out/botstats.json';
@@ -148,6 +153,7 @@ if (IS_MAIN) {
     skill,
     mode,
     samples,
+    scale,
   }));
   const rows = (await runPool<Job, RunRow[]>(import.meta.url, jobs)).flat();
 

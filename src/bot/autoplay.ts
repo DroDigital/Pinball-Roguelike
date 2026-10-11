@@ -2,10 +2,32 @@
  * Full-rules headless play: the bot plays BallSessions (sim + TableGame) and whole runs.
  * Used by feel/soak/botstats tools, tests and attract mode logic. Node-safe.
  */
-import { Bot, type BotSkillName } from './bot';
+import { Bot, type BotSkillName, type TargetChooser } from './bot';
 import { BallSession, type BallSnapshot } from '../rules/session';
 import type { GameEvent } from '../rules/types';
-import { defaultBallContext, newMachineState } from '../rules/table-game';
+import { defaultBallContext, newMachineState, type TableGame } from '../rules/table-game';
+import { Lamp } from '../rules/types';
+
+/** Aim at whatever the rules have lit (PAYDAY, hurry-up, Hole awards, Lockup, Cell Block). */
+export function litChooser(game: TableGame): TargetChooser {
+  return (side) => {
+    const L = game.lamps;
+    if (side === 'right') {
+      if (L.arrowChute === Lamp.Fast) return 'chute';
+      if ((L.arrowHole ?? Lamp.Off) !== Lamp.Off) return 'hole';
+      return null;
+    }
+    if ((L.arrowCell ?? Lamp.Off) !== Lamp.Off) return 'cellblock';
+    return null;
+  };
+}
+
+/** Wire a bot to a ball session's rules (skill lane, lit shots). */
+export function attachBot(bot: Bot, session: BallSession): Bot {
+  bot.skillLane = () => session.game.machine.skillLane;
+  bot.chooseTarget = litChooser(session.game);
+  return bot;
+}
 
 export interface SessionBallResult {
   earned: number;
@@ -48,7 +70,7 @@ export function playSessionBall(
   };
   const session = new BallSession(snap, onEvent);
   const bot = new Bot(skill, botSeed);
-  bot.skillLane = () => session.game.machine.skillLane;
+  attachBot(bot, session);
   const max = maxSeconds * 240;
   while (!session.over && session.steps < max) session.step(bot.decide(session.sim));
   return {

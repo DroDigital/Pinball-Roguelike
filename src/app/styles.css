@@ -285,3 +285,45 @@ body {
     font-size: 0.75rem;
   }
 }
+
+#hud .earn {
+  color: #ffd27a;
+}
+#hud .right .job {
+  margin-top: 8px;
+  max-width: 220px;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--atm);
+  text-shadow: 0 0 6px #000;
+}
+#hud .right .job.done {
+  color: var(--amber);
+}
+.panel .col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel button.job {
+  text-align: left;
+  text-transform: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.panel button.job b {
+  font-weight: bold;
+}
+.panel button.job small {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+.panel button.job.key {
+  border-color: #e6c14a;
+  color: #ffe9a0;
+}
+.panel p.good {
+  color: var(--green);
+  margin: 4px 0;
+}

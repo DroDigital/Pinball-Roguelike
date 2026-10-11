@@ -245,13 +245,14 @@ export function techniqueLiveCatch(
 
 /** Nudge save: a ball dropping toward the outlane is bumped back toward the inlane. */
 export function techniqueNudgeSave(side: Side): TechniqueResult & { naiveDrains: boolean } {
-  // Spawn just above the outer shoulder of the outlane post, drifting outward.
+  // A ball dropping toward the outlane, just outside the post and drifting outward: saved by
+  // an early bump (once it sits on the post it is too late, as on a real machine).
   const post = TABLE.posts.find((p) => p.id === (side === 'left' ? 'outPostL' : 'outPostR'))!;
-  const x = post.x + (side === 'left' ? -0.35 : 0.35);
-  const vx = side === 'left' ? -0.8 : 0.8;
+  const x = post.x + (side === 'left' ? -0.2 : 0.2);
+  const vx = side === 'left' ? -1.5 : 1.5;
   const runIt = (nudgeAt: number) => {
     const sim = makeSim(14);
-    sim.spawnBall(x, 14.0, vx, -2);
+    sim.spawnBall(x, 15.5, vx, -2);
     const inp = holdInput('none');
     let drained = false;
     let cursor = sim.events.head;

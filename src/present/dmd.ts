@@ -121,6 +121,8 @@ export class Dmd {
   // ------------------------------------------------------------------ content
 
   show(c: DmdCallout): void {
+    // Table action outranks the Warden's scrolling chatter.
+    if (c.priority >= 3) this.scroll = null;
     const a: Active = { ...c, t: 0, duration: c.duration ?? (c.priority >= 5 ? 2.2 : 1.4) };
     if (!this.current || a.priority >= this.current.priority) {
       if (this.current && this.current.priority > a.priority) this.queue.push(this.current);
@@ -133,6 +135,11 @@ export class Dmd {
   /** Scroll a message right-to-left across the display (the Warden speaks). */
   say(text: string, speed = 40): void {
     this.scroll = { text: text.toUpperCase(), x: DMD_W, speed };
+  }
+
+  /** End the current takeover now. */
+  cut(): void {
+    this.current = this.queue.shift() ?? null;
   }
 
   get busy(): boolean {
@@ -256,6 +263,37 @@ function registerDefaultAnims(d: Dmd): void {
       align: 'center',
       v: Math.max(3, 15 - Math.floor(t * 8)),
     });
+  });
+  // Combo: chevrons sweep right, multiplier big.
+  d.registerAnim('combo', (dmd, t, c) => {
+    const off = Math.floor(t * 60) % 16;
+    for (let x = -16 + off; x < 128; x += 16)
+      for (let i = 0; i < 6; i++) {
+        dmd.set(x + i, 2 + i, 5);
+        dmd.set(x + i, 29 - i, 5);
+      }
+    const scale = dmd.fitScale(c.text, FONT_LARGE, 124, 2);
+    dmd.text(c.text, 64, 7, { scale, align: 'center' });
+    if (c.sub) dmd.text(c.sub, 64, 24, { font: FONT_SMALL, align: 'center', v: 12 });
+  });
+  // RIOT: the screen shakes, bars rattle, text strobes.
+  d.registerAnim('riot', (dmd, t, c) => {
+    const jx = Math.round(Math.sin(t * 70) * 2);
+    for (let x = 4; x < 128; x += 12) dmd.rect(x + jx, 0, 2, 32, Math.floor(t * 8) % 2 ? 4 : 7);
+    const on = Math.floor(t * 10) % 2 === 0;
+    dmd.text(c.text, 64 + jx, 3, { scale: 3, align: 'center', v: on ? 15 : 9 });
+    if (c.sub) dmd.text(c.sub, 64, 26, { font: FONT_SMALL, align: 'center', v: 13 });
+  });
+  // PAYDAY: coins rain behind the text.
+  d.registerAnim('payday', (dmd, t, c) => {
+    for (let i = 0; i < 18; i++) {
+      const x = (i * 29 + 7) % 128;
+      const y = Math.floor((t * (40 + (i % 5) * 9) + i * 11) % 36) - 2;
+      dmd.rect(x, y, 2, 2, 6);
+    }
+    const scale = dmd.fitScale(c.text, FONT_LARGE, 124, 2);
+    dmd.text(c.text, 64, 4, { scale, align: 'center', v: Math.floor(t * 12) % 2 ? 15 : 11 });
+    if (c.sub) dmd.text(c.sub, 64, 24, { font: FONT_SMALL, align: 'center' });
   });
   d.registerAnim('count', (dmd, _t, c) => {
     dmd.text(c.text, 64, 3, { font: FONT_SMALL, align: 'center', v: 11 });

@@ -20,7 +20,7 @@ import { playSessionBall, defaultSnapshot } from '../src/bot/autoplay';
 import { Rng } from '../src/core/rng';
 
 const args = process.argv.slice(2);
-const nBalls = Number(args[args.indexOf('--balls') + 1] || 120);
+const nBalls = Number(args[args.indexOf('--balls') + 1] || 200);
 const report: Record<string, unknown> = {};
 const lines: string[] = [];
 const check = (name: string, ok: boolean, detail: string) => {
@@ -164,10 +164,13 @@ for (const side of ['left', 'right'] as Side[]) {
       `info  bot ${skill.padEnd(8)} mean ${mean.toFixed(1)} s, median ${times[times.length >> 1].toFixed(1)} s, ${(earned / nBalls).toFixed(1)} coins/ball; drains: ${hist}`,
     );
     if (skill === 'average') {
+      // The typical ball must sit in 45-90 s; the mean carries a heavy tail of multiball and
+      // marathon balls, so it gets a ceiling instead (see DESIGN.md decisions).
+      const median = times[times.length >> 1];
       check(
         'competent bot 45-90 s per ball',
-        mean >= 45 && mean <= 90,
-        `mean ${mean.toFixed(1)} s (${nBalls} balls)`,
+        median >= 45 && median <= 90 && mean <= 100,
+        `median ${median.toFixed(1)} s, mean ${mean.toFixed(1)} s (${nBalls} balls)`,
       );
       check('centre drains < 25%', center < 0.25, `${(center * 100).toFixed(0)}%`);
     }

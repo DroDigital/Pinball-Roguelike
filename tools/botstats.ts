@@ -4,9 +4,10 @@
  * Writes tools/out/botstats.json (per-ball earnings samples feed `npm run economy`).
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { defaultSnapshot } from '../src/bot/autoplay';
+import { attachBot, defaultSnapshot } from '../src/bot/autoplay';
 import type { BotSkillName } from '../src/bot/bot';
 import type { GameEvent } from '../src/rules/types';
+import type { BallStats } from '../src/content/jobs';
 import { BallSession } from '../src/rules/session';
 import { Bot } from '../src/bot/bot';
 import { IS_MAIN, runPool, workerJob, ranges, quantile, argNum, defaultWorkers } from './lib/pool';
@@ -19,12 +20,15 @@ interface Job {
 }
 
 interface BallRow {
+  /** Table + Bonus. */
   earned: number;
+  bonus: number;
   seconds: number;
   cause: string;
   skillShots: number;
   saves: number;
   byShot: Record<string, number>;
+  stats: BallStats;
 }
 
 function play(job: Job): BallRow[] {
@@ -41,10 +45,20 @@ function play(job: Job): BallRow[] {
       else if (e.t === 'ballSaved') saves++;
     });
     const bot = new Bot(job.skill, 977 * i + 13);
-    bot.skillLane = () => s.game.machine.skillLane;
+    attachBot(bot, s);
     const max = job.maxSeconds * 240;
     while (!s.over && s.steps < max) s.step(bot.decide(s.sim));
-    rows.push({ earned: s.game.earned, seconds: s.steps / 240, cause, skillShots, saves, byShot });
+    const o = s.game.outcome();
+    rows.push({
+      earned: o.earned + o.bonus,
+      bonus: o.bonus,
+      seconds: s.steps / 240,
+      cause,
+      skillShots,
+      saves,
+      byShot,
+      stats: o.stats,
+    });
   }
   return rows;
 }
@@ -99,6 +113,12 @@ if (IS_MAIN) {
         .sort((a, b) => b[1] - a[1])
         .map(([k, v]) => `${k} ${v.toFixed(2)}`)
         .join(', ')}`,
+    );
+    const per = (k: keyof BallStats) => mean(rows.map((r) => r.stats[k]));
+    const anyPct = (k: keyof BallStats) =>
+      pct(rows.filter((r) => r.stats[k] > 0).length, rows.length);
+    console.log(
+      `${''.padEnd(8)}   per ball: bonus ${mean(rows.map((r) => r.bonus)).toFixed(1)}, chutes ${per('chutes').toFixed(2)}, perims ${per('perimeters').toFixed(2)}, holes ${per('holes').toFixed(2)}, cell ${per('cellBlocks').toFixed(2)}, laneSets ${per('laneSets').toFixed(2)}, maxCombo ${per('maxCombo').toFixed(2)}; RIOT in ${anyPct('riots')} of balls, PAYDAY ${anyPct('paydays')}, SUPER ${anyPct('superPaydays')}, lucky ${per('luckyBounces').toFixed(2)}`,
     );
     out[skill] = {
       meanEarned: mean(earned),

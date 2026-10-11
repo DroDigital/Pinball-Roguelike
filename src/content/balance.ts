@@ -128,7 +128,7 @@ export const HOLE = {
 export const NUDGE = {
   /** Velocity change applied to every ball by a nudge. */
   strength: 6,
-  sideStrength: 4.5,
+  sideStrength: 6,
   /** Nudges can't be spammed faster than this. */
   cooldown: 0.25,
 };
@@ -161,8 +161,13 @@ export const BALL = {
   drainCauseWindow: 3,
 };
 
-/** Base coin values at shot level 1 (each level adds +50%). */
+/** Base coin values at shot level 1 (each level adds +50%), before `scale`. */
 export const SCORE = {
+  /**
+   * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
+   * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
+   */
+  scale: 0.2,
   pop: 0.3,
   sling: 0.15,
   lane: 0.4,
@@ -179,6 +184,72 @@ export const SCORE = {
   superSkillShot: 10,
   /** Each shot level adds this fraction of base value. */
   levelStep: 0.5,
+};
+
+/** Combos: major shots (Chute, Perimeter, Hole) chained within the window. */
+export const COMBO = {
+  window: 3,
+  /** Multiplier on the first shot of a chain; each further shot adds `step`. */
+  start: 1,
+  step: 1,
+};
+
+/** End-of-ball Bonus. */
+export const BONUS = {
+  /** Fraction of every paid hit (before combo) added to the Bonus. */
+  share: 0.3,
+  /** Bonus multiplier cap before charms and perks. */
+  maxMult: 5,
+  /** Seconds the count-up takes at normal speed (both flippers fast-forward). */
+  tallyTime: 2.4,
+};
+
+/** Cell Block -> Lockup -> RIOT multiball -> PAYDAY. */
+export const RIOT = {
+  locksNeeded: 2,
+  /** Balls in play when RIOT starts. */
+  balls: 3,
+  /** Drained balls are returned for this long after RIOT starts. */
+  ballSave: 6,
+  /** Seconds between the released locked balls. */
+  releaseGap: 1.1,
+  /** PAYDAY starts here and grows with every hit during RIOT; collecting resets it. */
+  paydayBase: 12,
+  paydayPerHit: 0.25,
+  /** SUPER PAYDAY at the Hole pays this times PAYDAY. */
+  superMult: 3,
+};
+
+/** The Hole's award ladder; a completed set (top lanes, Cell Block) lights the next award. */
+export const AWARDS = {
+  ladder: ['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'] as const,
+};
+
+/** Chute hurry-up from the Hole award: value counts down from start to end. */
+export const HURRY = {
+  seconds: 15,
+  start: 18,
+  end: 4,
+};
+
+export const LUCK = {
+  /** Each luck point adds this to every chance (2 percentage points). */
+  perPoint: 0.02,
+  /** Base chance that an outlaned ball gets a lucky bounce. */
+  luckyBounce: 0.04,
+  /** Spontaneous spark on a manual plunge: chance and luck gained for that ball. */
+  sparkChance: 0.1,
+  sparkLuck: 3,
+};
+
+/** Round Jobs posted by the ATM. */
+export const JOBS = {
+  offers: 3,
+  /** Chance one offer is a Key Job (from deadline 2). */
+  keyJobChance: 0.15,
+  keyJobMinDeadline: 1,
+  /** Coin targets and coin rewards scale with the debt curve. */
+  coinScale: 1,
 };
 
 export const ECONOMY = {

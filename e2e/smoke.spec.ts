@@ -27,6 +27,9 @@ test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   await page.screenshot({ path: 'screenshots/01-title.png' });
 
   await page.keyboard.press('Enter');
+  await expect(page.getByText('THE ATM POSTS THREE JOBS', { exact: false })).toBeVisible();
+  await page.screenshot({ path: 'screenshots/02-jobs.png' });
+  await page.keyboard.press('Enter');
   await expect(page.getByText('Buy balls for this round', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'screenshots/02-buy.png' });
   await page.keyboard.press('Enter');

@@ -119,10 +119,32 @@ cannot keep up with x2.4 debt; M2 (shot levels, multipliers, PAYDAY) and M4 (cha
 the growth, and M2 must also cut deadline-1 earnings so the first deadline is tense.
 
 ### M2 — Scoring depth
-- [ ] Combos, Bonus + count-up tally, Bonus multiplier
-- [ ] Cell Block -> Lockup -> RIOT multiball, PAYDAY / SUPER PAYDAY
-- [ ] Hole award ladder, kickback lighting, shot levels, luck + lucky bounces, sparks
-- [ ] Jobs (incl. Key Jobs)
+- [x] Combos: Chute / Perimeter / Hole within 3 s chain x2, x3... (callouts, DMD timer bar,
+      coin pitch rises); window/start/step are ctx values for Short Fuse, Long Fuse,
+      Cracked Mirror, Chain Link
+- [x] Bonus: 30% of every paid hit (excluding the combo part); top lane sets and the Hole
+      award raise the multiplier (cap 5); count-up tally at the drain, both flippers
+      fast-forward; Taxman / Hellfire / Last Rites hooks (bonusKeep, bonusTimes)
+- [x] Cell Block -> Lockup -> 2 locks -> RIOT (3-ball multiball, 8 s multiball save, balls
+      released one by one from the Hole and the plunger)
+- [x] PAYDAY at the Chute during RIOT (grows +0.25 per hit, collecting resets it) lights
+      SUPER PAYDAY (3x the collected value) at the Hole
+- [x] Hole award ladder: Bonus X, kickback, 15 s Chute hurry-up, level up, extra ball
+- [x] Kickback lit at round start and by the Hole; lucky bounces (4% + 2%/luck); sparks on
+      plunge (+3 luck that ball, 10%)
+- [x] Shot levels: insert ladders behind each major arrow; Hole award and Jobs raise them
+- [x] Jobs: 13 regular + 4 Key Jobs as data, three posted per round, live progress in the HUD,
+      rewards tickets / coins / levels / Keys
+- [x] Rules tests (combos, Bonus, Lockup/RIOT/PAYDAY, awards, kickback, luck, Jobs) and an
+      updated economy calibration
+- [x] Dev panel: luck, tickets/Keys, force a Job, light Lockup, skip a deadline
+
+M2 calibration (`npm run economy -- --mode physics --runs 64`, average bot, no charms):
+deadline 1 clears 94%, deadline 2 42%, deadline 3 11%, deadline 4 0%: Sentences, perks and
+charms (M3/M4) must supply the growth for later deadlines.
+
+Feel after M2 (200 balls per bot): novice median 63 s / mean 83 s, average median 66 s /
+mean ~95-100 s, expert median 76 s / mean ~120 s; centre drains 12% (average).
 
 ### M3 — The run
 - [ ] 8 deadlines, debt curve, Sentences (14), interest, loans, pay early
@@ -202,4 +224,47 @@ Format: date — decision — why.
 - 2026-10-11 — Landscape HUD puts the DMD and stats in a left column beside the table;
   portrait puts the DMD on top and the camera fits width as well as height. — Keeps the
   arch visible on every aspect.
+- 2026-10-11 — Every Cell Block clear lights Lockup for one lock (RIOT needs two clears and
+  two Hole shots). — With Lockup staying lit until RIOT, locks persisting across balls made
+  RIOT start every third ball and jackpots swamped the economy.
+- 2026-10-11 — Collecting PAYDAY resets it to base; SUPER PAYDAY pays 3x the collected value.
+  — An ever-growing PAYDAY paid ~190 coins per RIOT at deadline 1; the reset adds a choice
+  (collect now or let it grow).
+- 2026-10-11 — A global payout scale (`SCORE.scale` 0.2) on every table payout. — Keeps
+  base values readable and relative while one knob sets the economy; tuned so an average
+  player clears deadline 1 ~90%. Number pops show cents below one coin.
+- 2026-10-11 — The Hole award ladder lights the next award when a set completes (top
+  lanes or Cell Block); it starts lit each round. Lockup takes priority over the award. —
+  "Completing sets advances the lit award"; without relighting the Hole would be an
+  award vending machine.
+- 2026-10-11 — The level-up award goes to the major shot made most this ball (else the
+  Yard). — Levels go where you aim; pops would otherwise always win.
+- 2026-10-11 — The Bonus multiplier resets every ball unless Held Breath. — Matches real
+  machines and the charm's text.
+- 2026-10-11 — Jobs track one per-ball stat, summed over the round or best single ball;
+  coin targets and rewards scale with the debt curve. Contraband rewards wait for M4. —
+  Data-only Jobs are trivially testable and extendable.
+- 2026-10-11 — Rules randomness (lucky bounces, sparks) uses its own stream derived from
+  the sim seed without advancing the physics stream. — Keeps physics replays identical
+  whether or not a rule rolls dice.
+- 2026-10-11 — Hit-stop freezes the sim but keeps inputs; the sim clock is derived from the
+  accumulator every frame. — Dropping inputs during hit-stop could leave a flipper stuck,
+  and the old clock let input latency creep up to 100 ms.
+- 2026-10-11 — Cell Block roof extended over the right Perimeter funnel's upper lip, with a
+  downturned nose. — The bot found a deterministic death path: balls falling down the right
+  side (lane B/C exits, pop kicks) hit the funnel's 45-degree metal lip and flew straight
+  across the table into the left outlane; the expert drained ~85% of its balls that way
+  right after making the skill shot. Now they land on a gentle wooden slope and drop
+  toward the flippers. Feel targets re-verified; the expert is the best bot again.
+- 2026-10-11 — The "competent bot 45-90 s" feel check tests the median ball (65 s) with a
+  100 s ceiling on the mean. — The mean (~95 s) is dominated by a long tail of RIOT and
+  marathon balls; the typical ball is what sets pacing. Widening the flipper gap by 0.12
+  to force the mean down sent 73% of drains down the right outlane (the lower geometry is
+  very sensitive), so the table stays and the check is honest about what it measures.
+- 2026-10-11 — Side nudges 4.5 -> 6 u/s; the nudge-save scenario uses an early bump. — At
+  4.5 the average save window was ~37 ms; now an early nudge gives 200-370 ms while a ball
+  already sitting on the post stays lost, like a real machine.
+- 2026-10-11 — The kickback starts unlit; the Hole's award ladder lights it. — The brief's
+  "lightable" kickback; a free save every round also inflated ball times.
+- 2026-10-11 — RIOT multiball save 6 s. — Long enough to get all three balls into play.
 

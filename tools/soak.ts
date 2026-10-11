@@ -7,7 +7,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { cpus } from 'node:os';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { BallSession } from '../src/rules/session';
-import { defaultSnapshot } from '../src/bot/autoplay';
+import { attachBot, defaultSnapshot } from '../src/bot/autoplay';
 import { Bot, type BotSkillName } from '../src/bot/bot';
 
 interface Job {
@@ -57,7 +57,7 @@ function runRange(job: Job): Tally {
       if (e.t === 'drain') cause = e.cause;
     });
     const bot = new Bot(skill, 31 * i + 7);
-    bot.skillLane = () => s.game.machine.skillLane;
+    attachBot(bot, s);
     const max = job.maxSeconds * 240;
     let cursor = 0;
     const stuckLimit = (s.sim.cfg.watchdog.stuckTime + 1.0) * 240;

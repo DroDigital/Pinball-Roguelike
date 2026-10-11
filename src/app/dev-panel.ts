@@ -12,6 +12,8 @@ import { Bot, type BotSkillName as BotSkill } from '../bot/bot';
 import { wx, wz } from '../present/coords';
 import type { GameApp } from './game-app';
 import { TABLE } from '../content/table';
+import { JOB_DEFS, jobDef } from '../content/jobs';
+import { jobTarget } from '../rules/run';
 
 const MAX_SEG = 12000;
 
@@ -40,6 +42,8 @@ export function attachDevPanel(app: GameApp): void {
     spawnVy: 0,
     clickSpawn: true,
     coins: 50,
+    luck: 0,
+    job: JOB_DEFS[0].id,
   };
 
   // ---- time
@@ -87,6 +91,29 @@ export function attachDevPanel(app: GameApp): void {
   run.addButton({ title: 'Give coins' }).on('click', () => {
     if (app.run) app.run.pocket += state.coins;
   });
+  run.addButton({ title: '+5 tickets, +1 Key' }).on('click', () => {
+    if (!app.run) return;
+    app.run.tickets += 5;
+    app.run.keys += 1;
+  });
+  run.addBinding(state, 'luck', { min: 0, max: 50, step: 1 }).on('change', (e) => {
+    if (app.run) app.run.luck = e.value;
+    if (app.session) app.session.game.luck = e.value;
+  });
+  run.addBinding(state, 'job', { options: Object.fromEntries(JOB_DEFS.map((d) => [d.id, d.id])) });
+  run.addButton({ title: 'Force Job' }).on('click', () => {
+    const r = app.run;
+    if (!r) return;
+    const def = jobDef(state.job);
+    r.job = { id: def.id, target: jobTarget(def, r.deadline), progress: 0, done: false };
+  });
+  run.addButton({ title: 'Light Lockup' }).on('click', () => {
+    if (app.session) {
+      app.session.game.machine.lockLit = true;
+      app.session.game.refreshLamps();
+    }
+  });
+  run.addButton({ title: 'Skip deadline (paid)' }).on('click', () => app.devSkipDeadline());
   run.addButton({ title: 'Trapdoor' }).on('click', () => app.fall());
 
   // ---- tuning

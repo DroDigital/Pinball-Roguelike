@@ -17,7 +17,9 @@ import { Lamp, type GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
-import { defaultSnapshot } from '../bot/autoplay';
+import { attachBot, defaultSnapshot } from '../bot/autoplay';
+import { jobDef, jobText, type JobDef } from '../content/jobs';
+import { AWARD_NAMES } from '../rules/table-game';
 import {
   newRun,
   buyBalls,
@@ -30,19 +32,24 @@ import {
   deposit,
   endRound,
   settleDeadline,
+  pickJob,
+  jobCoins,
+  type BallOutcome,
   type RunState,
 } from '../rules/run';
-import { ECONOMY } from '../content/balance';
+import { BONUS, ECONOMY } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
 
 export type AppMode =
   | 'title'
+  | 'jobs'
   | 'buy'
   | 'cell'
   | 'atm'
   | 'play'
+  | 'tally'
   | 'ballEnd'
   | 'deadline'
   | 'fall'
@@ -79,8 +86,10 @@ export class GameApp {
   private hitStop = 0;
   private simCursor = 0;
   private gameEvents: GameEvent[] = [];
-  private ballEarned = 0;
-  private ballSkill = 0;
+  /** Bonus count-up after a drain. */
+  private tally: { k: number; bonus: number; mult: number; total: number; ticks: number } | null =
+    null;
+  private outcome: BallOutcome | null = null;
   private hud: HTMLElement;
   private hudStats: HTMLElement;
   private hudRight: HTMLElement;
@@ -133,6 +142,16 @@ export class GameApp {
       backbox.add(panel);
     }
     this.dmd.idle = (d, t) => this.dmdIdle(d, t);
+    this.dmd.registerAnim('tally', (d) => {
+      const t = this.tally;
+      if (!t) return;
+      d.text(`BONUS ${formatCoins(t.bonus)} X${t.mult}`, 64, 3, {
+        font: FONT_SMALL,
+        align: 'center',
+        v: 11,
+      });
+      d.text(formatCoins(t.total * t.k), 64, 12, { scale: 2, align: 'center' });
+    });
     this.input.onPress = (a) => this.onPress(a);
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('pointerdown', () => audio.unlock(), { once: false });
@@ -216,25 +235,26 @@ export class GameApp {
     let alpha = 1;
     if (act) {
       if (this.hitStop > 0) {
+        // Freeze the table; inputs made meanwhile apply on the first step after.
         this.hitStop -= dt;
         this.wallClock = now;
-        this.input.events.length = 0;
       } else {
         if (this.paused) {
           this.acc = this.stepRequests * STEP;
           this.stepRequests = 0;
         } else this.acc += dt * this.timeScale;
+        // Real time of the sim's current step: inputs are applied on the step they happened.
+        this.wallClock = now - (this.acc / this.timeScale) * 1000;
         let budget = 60; // never spiral
         while (this.acc >= STEP && budget-- > 0) {
           this.wallClock += STEP_MS / this.timeScale;
           const inp = act.bot ? act.bot.decide(act.session.sim) : this.stepInput(this.wallClock);
           act.session.step(inp);
-          this.consumeSimEvents(act.session, act === null);
+          this.consumeSimEvents(act.session);
           this.acc -= STEP;
           if (act.session.over) break;
         }
         if (budget <= 0) this.acc = 0;
-        this.wallClock = Math.max(this.wallClock, now - 100);
         alpha = this.acc / STEP;
       }
       if (act.session === this.session && this.session.over && this.mode === 'play')
@@ -245,6 +265,7 @@ export class GameApp {
       this.wallClock = now;
       this.input.events.length = 0;
     }
+    if (this.mode === 'tally') this.updateTally(dt);
     const shown = act?.session ?? this.session;
     if (shown)
       this.world.table.update(shown.sim, shown.game.lamps, Math.min(1, Math.max(0, alpha)), dt);
@@ -315,7 +336,7 @@ export class GameApp {
 
   // ------------------------------------------------------------------ events -> presentation
 
-  private consumeSimEvents(s: BallSession, _attract: boolean): void {
+  private consumeSimEvents(s: BallSession): void {
     const quiet = s !== this.session;
     this.simCursor = s.sim.events.read(Math.max(this.simCursor, s.sim.events.head - 200), (e) =>
       this.onSimEvent(e, quiet),
@@ -401,29 +422,74 @@ export class GameApp {
     if (!this.gameEvents.length) return;
     const evs = this.gameEvents;
     this.gameEvents = [];
+    const combo = this.session?.game.combo.count ?? 0;
     for (const e of evs) {
       switch (e.t) {
         case 'score': {
           const p = this.world.table.worldOf(e.x, e.y, 1.6, this.tmpV);
-          this.pops.spawn(
-            `+${formatCoins(e.amount)}`,
-            p,
-            e.amount >= 3 ? '#ffe28a' : '#ffb347',
-            e.amount >= 3,
-          );
-          if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount)));
-          this.ballEarned += e.amount;
+          const big = e.amount >= 3 || e.shot === 'jackpot';
+          this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
+          // Coin clinks rise in pitch through combos.
+          if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount) + combo));
           break;
         }
         case 'callout':
-          this.dmd.show({ text: e.text, sub: e.sub, priority: e.priority, anim: e.anim });
+          this.dmd.show({
+            text: e.text,
+            sub: e.sub,
+            priority: e.priority,
+            anim: e.anim,
+            duration: e.duration,
+          });
           audio.callout(e.priority);
           break;
         case 'skillShot':
-          this.ballSkill++;
           audio.knocker();
           this.flash(0.25);
           this.shake(0.6);
+          break;
+        case 'combo':
+          if (e.count >= 3) this.shake(0.15 * e.count);
+          break;
+        case 'lock':
+          audio.kick();
+          this.shake(0.5);
+          break;
+        case 'riot':
+          if (e.on) {
+            audio.knocker();
+            this.flash(0.4);
+            this.shake(1);
+            this.world.swingBulb(0.4);
+          }
+          break;
+        case 'payday':
+          this.hitStop = e.super ? 0.06 : 0.04;
+          audio.knocker();
+          this.flash(e.super ? 0.5 : 0.3);
+          this.shake(e.super ? 1.4 : 0.9);
+          this.world.swingBulb(e.super ? 0.6 : 0.3);
+          this.input.buzz(e.super ? 120 : 60);
+          break;
+        case 'extraBall':
+          audio.knocker();
+          this.ui.toast('EXTRA BALL');
+          break;
+        case 'award':
+          if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
+          break;
+        case 'luck':
+          if (e.kind === 'spark') {
+            this.flash(0.35);
+            audio.creak();
+          } else {
+            audio.kick();
+            this.shake(0.4);
+          }
+          break;
+        case 'jobDone':
+          audio.knocker();
+          this.flash(0.2);
           break;
         case 'ballSaved':
           audio.knocker();
@@ -512,8 +578,7 @@ export class GameApp {
   private newAttractBall(): void {
     const seed = Math.floor(Math.random() * 1e9);
     const s = new BallSession(defaultSnapshot(seed));
-    const bot = new Bot('expert', seed ^ 0x5bd1e995);
-    bot.skillLane = () => s.game.machine.skillLane;
+    const bot = attachBot(new Bot('expert', seed ^ 0x5bd1e995), s);
     this.attract = { session: s, bot };
     this.simCursor = 0;
   }
@@ -530,6 +595,39 @@ export class GameApp {
     this.persist();
     this.ui.toast(`Seed ${sd}`);
     this.dmd.say('THE WARDEN: YOU OWE ME. PAY BY THE DEADLINE OR FALL.');
+    this.enterJobs();
+  }
+
+  private enterJobs(): void {
+    const r = this.run!;
+    this.mode = 'jobs';
+    this.world.setMode('seated');
+    audio.atmBeep();
+    const cards = r.jobOffers.map((o, i) => {
+      const def = jobDef(o.id);
+      return h(
+        'button',
+        {
+          class: `job${def.key ? ' key' : ''}${i === 0 ? ' primary' : ''}`,
+          onclick: () => this.takeJob(i),
+        },
+        h('b', null, jobText(def, o.target)),
+        h('small', null, rewardText(def, r.deadline)),
+      );
+    });
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel atm' },
+        h('h2', null, `Round ${r.round + 1}: jobs`),
+        h('p', null, 'THE ATM POSTS THREE JOBS. TAKE ONE.'),
+        h('div', { class: 'col' }, ...cards),
+      ),
+    );
+  }
+
+  takeJob(i: number): void {
+    if (!this.run || !pickJob(this.run, i)) return;
     this.enterBuy();
   }
 
@@ -612,6 +710,14 @@ export class GameApp {
           { class: 'dim' },
           `Deadline ${r.deadline + 1}/${r.deadlines} · Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
         ),
+        r.job
+          ? h(
+              'p',
+              { class: r.job.done ? 'good' : 'dim' },
+              `Job: ${jobText(jobDef(r.job.id), r.job.target)} — ${r.job.done ? 'done' : `${formatCoins(r.job.progress)}/${r.job.target}`}`,
+            )
+          : null,
+        h('p', { class: 'dim' }, `Shot levels: ${levelsText(r)}`),
         h(
           'div',
           { class: 'row' },
@@ -696,11 +802,8 @@ export class GameApp {
     if (ballsLeft(r) <= 0) return;
     this.ui.hide();
     const snap = nextBall(r);
-    this.ballEarned = 0;
-    this.ballSkill = 0;
     this.session = new BallSession(snap, this.onGameEvent);
-    const live = this.session;
-    if (this.autoBot) this.autoBot.skillLane = () => live.game.machine.skillLane;
+    if (this.autoBot) attachBot(this.autoBot, this.session);
     this.simCursor = 0;
     this.acc = 0;
     this.input.events.length = 0;
@@ -710,51 +813,100 @@ export class GameApp {
   }
 
   private onBallOver(): void {
+    const g = this.session!.game;
+    this.outcome = g.outcome();
+    if (!g.tilted && g.bonusPaid > 0) {
+      this.mode = 'tally';
+      this.tally = { k: 0, bonus: g.bonus, mult: g.bonusMult, total: g.bonusPaid, ticks: 0 };
+      this.dmd.show({ text: 'BONUS', priority: 9, anim: 'tally', duration: 60 });
+    } else this.finishBall();
+  }
+
+  /** Bonus count-up; both flippers fast-forward. */
+  private updateTally(dt: number): void {
+    const t = this.tally;
+    if (!t) return;
+    const fast = this.input.isHeld('left') && this.input.isHeld('right');
+    t.k = Math.min(1, t.k + (dt * (fast ? 6 : 1)) / BONUS.tallyTime);
+    const ticks = Math.floor(t.k * 24);
+    if (ticks > t.ticks) {
+      t.ticks = ticks;
+      audio.coin(Math.min(8, Math.floor(ticks / 3)));
+    }
+    if (t.k >= 1) {
+      this.tally = null;
+      this.dmd.cut();
+      this.finishBall();
+    }
+  }
+
+  private finishBall(): void {
     const r = this.run!;
-    const s = this.session!;
+    const o = this.outcome!;
     this.mode = 'ballEnd';
-    const g = s.game;
-    let cause = 'center';
-    s.sim.events.read(Math.max(0, s.sim.events.head - 64), (e) => {
-      if (e.type === 'drain') cause = e.id;
-    });
-    const gained = finishBall(r, {
-      earned: g.earned,
-      tilted: g.tilted,
-      drainCause: cause,
-      machine: s.game.machine,
-      skillShots: this.ballSkill,
-    });
+    const res = finishBall(r, o);
     this.save.stats.balls++;
-    this.save.stats.coins += gained;
+    this.save.stats.coins += res.gained;
+    this.save.stats.biggestPayday = Math.max(
+      this.save.stats.biggestPayday,
+      Math.round(o.stats.biggestPayday),
+    );
+    this.save.stats.longestCombo = Math.max(this.save.stats.longestCombo, o.stats.maxCombo);
     this.persist();
     this.dmd.show({
-      text: g.tilted ? 'TILTED' : 'BALL OVER',
-      sub: g.tilted ? 'NOTHING COUNTS' : `+${gained} COINS`,
+      text: o.tilted ? 'TILTED' : 'BALL OVER',
+      sub: o.tilted ? 'NOTHING COUNTS' : `+${res.gained} COINS`,
       priority: 8,
       anim: 'count',
       duration: 1.6,
     });
+    const lines: (string | HTMLElement)[] = [];
+    if (o.tilted) lines.push('The machine keeps everything that ball earned.');
+    const grid = h(
+      'div',
+      { class: 'grid' },
+      'Table',
+      h('b', null, `${formatCoins(o.earned)}c`),
+      'Bonus',
+      h('b', null, o.bonus > 0 ? `${formatCoins(o.bonus)}c` : '—'),
+      'Into Pocket',
+      h('b', null, `${res.gained}c`),
+      'Pocket',
+      h('b', null, `${r.pocket}c`),
+      'Balls left',
+      h('b', null, String(ballsLeft(r))),
+    );
+    const notes: HTMLElement[] = [];
+    if (o.extraBalls)
+      notes.push(h('p', { class: 'good' }, `Extra ball: +${o.extraBalls} this round.`));
+    for (const l of o.levelUps)
+      notes.push(h('p', { class: 'good' }, `${l.toUpperCase()} is now level ${r.shotLevels[l]}.`));
+    if (res.jobDone)
+      notes.push(
+        h(
+          'p',
+          { class: 'good' },
+          `Job done: ${jobText(res.jobDone, r.job!.target)}. ${rewardText(res.jobDone, r.deadline)}.`,
+        ),
+      );
+    else if (r.job && !r.job.done) {
+      const def = jobDef(r.job.id);
+      notes.push(
+        h(
+          'p',
+          { class: 'dim' },
+          `Job: ${jobText(def, r.job.target)} (${formatCoins(r.job.progress)}/${r.job.target})`,
+        ),
+      );
+    }
     this.ui.show(
       h(
         'div',
         { class: 'panel' },
-        h('h2', null, g.tilted ? 'Tilt' : 'Ball over'),
-        h(
-          'p',
-          null,
-          g.tilted
-            ? 'The machine keeps everything that ball earned.'
-            : `Earned ${gained} coins (${formatCoins(g.earned)} on the table).`,
-        ),
-        h(
-          'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Balls left',
-          h('b', null, String(ballsLeft(r))),
-        ),
+        h('h2', null, o.tilted ? 'Tilt' : 'Ball over'),
+        ...lines.map((l) => h('p', null, l)),
+        grid,
+        ...notes,
         h(
           'div',
           { class: 'row' },
@@ -775,7 +927,7 @@ export class GameApp {
     if (r.phase === 'deadline') this.enterDeadline();
     else {
       this.ui.toast(`Round ${roundBefore + 1} over. The bank pays interest.`);
-      this.enterBuy();
+      this.enterJobs();
     }
   }
 
@@ -809,20 +961,13 @@ export class GameApp {
             { disabled: r.pocket < 1, onclick: () => this.enterAtm('deadline') },
             'Deposit',
           ),
-          h(
-            'button',
-            {
-              class: canPay ? 'primary' : '',
-              disabled: !canPay,
-              onclick: () => this.payDeadline(),
-            },
-            'Pay the debt',
-          ),
-          h(
-            'button',
-            { class: !couldPay ? 'primary' : '', onclick: () => this.payDeadline() },
-            canPay ? 'Hold' : 'Face it',
-          ),
+          canPay
+            ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay the debt')
+            : h(
+                'button',
+                { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
+                'Face it',
+              ),
         ),
       ),
     );
@@ -840,7 +985,19 @@ export class GameApp {
     audio.phoneRing();
     this.dmd.say('THE PHONE RINGS. "PAID. FOR NOW."');
     if (r.phase === 'over') this.rapSheet();
-    else this.enterBuy();
+    else this.enterJobs();
+  }
+
+  /** Dev: pay the current deadline from thin air and move on. */
+  devSkipDeadline(): void {
+    const r = this.run;
+    if (!r || r.phase === 'over') return;
+    this.session = null;
+    r.bank = Math.max(r.bank, r.debt);
+    r.round = ECONOMY.roundsPerDeadline;
+    r.ballsPlayed = r.ballsThisRound;
+    r.phase = 'deadline';
+    this.payDeadline();
   }
 
   fall(): void {
@@ -937,23 +1094,59 @@ export class GameApp {
       return;
     }
     const r = this.run;
-    const earned = this.mode === 'play' && this.session ? this.session.game.earned : 0;
-    d.text(`${formatCoins(r.pocket + earned)}`, 64, 3, { scale: 2, align: 'center' });
-    d.text(`BALL ${r.ballsPlayed + (this.mode === 'play' ? 1 : 0)}/${r.ballsThisRound}`, 2, 25, {
+    const g = this.mode === 'play' && this.session ? this.session.game : null;
+    const earned = g ? g.earned : 0;
+    d.text(`${formatCoins(r.pocket + earned)}`, 64, 2, { scale: 2, align: 'center' });
+    let mid = '';
+    if (g?.riot) mid = `PAYDAY ${formatCoins(g.shotValue('chute', g.payday))}`;
+    else if (g && g.hurryLeft > 0) mid = `HURRY-UP ${Math.ceil(g.hurryLeft)}`;
+    else if (g && g.combo.active(g.time) && g.combo.count >= 1) mid = `COMBO X${g.combo.mult}`;
+    if (mid)
+      d.text(mid, 64, 18, { font: FONT_SMALL, align: 'center', v: Math.floor(t * 6) % 2 ? 15 : 9 });
+    if (g && g.combo.active(g.time)) {
+      const w = Math.round((g.combo.left(g.time) / g.ctx.comboWindow) * 60);
+      d.rect(64 - w / 2, 24, w, 1, 8);
+    }
+    d.text(`BALL ${r.ballsPlayed + (this.mode === 'play' ? 1 : 0)}/${r.ballsThisRound}`, 2, 26, {
       font: FONT_SMALL,
       v: 10,
     });
-    d.text(`DEBT ${r.debt}`, 126, 25, { font: FONT_SMALL, v: 10, align: 'right' });
+    if (g && g.bonusMult > 1)
+      d.text(`BX${g.bonusMult}`, 64, 26, { font: FONT_SMALL, v: 10, align: 'center' });
+    d.text(`DEBT ${r.debt}`, 126, 26, { font: FONT_SMALL, v: 10, align: 'right' });
+  }
+
+  private hudCache = new Map<HTMLElement, string>();
+
+  /** Set innerHTML only when it changed (the HUD updates every frame). */
+  private setHtml(el: HTMLElement, html: string): void {
+    if (this.hudCache.get(el) === html) return;
+    this.hudCache.set(el, html);
+    el.innerHTML = html;
   }
 
   private updateHud(shown: BallSession | null): void {
     const r = this.run;
-    const playing = this.mode === 'play';
+    const playing = this.mode === 'play' || this.mode === 'tally';
     this.hud.style.display = this.mode === 'title' ? 'none' : '';
     if (r) {
-      const earned = shown && playing ? shown.game.earned : 0;
-      this.hudStats.innerHTML = `Pocket <b>${r.pocket}c</b>${playing ? ` <span style="color:#ffd27a">+${formatCoins(earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.debt}c</b></span>`;
-      this.hudRight.innerHTML = `Deadline ${r.deadline + 1}/${r.deadlines}<br>Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}<br>Ball ${r.ballsPlayed + (playing ? 1 : 0)}/${r.ballsThisRound}`;
+      const g = shown && playing ? shown.game : null;
+      let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.debt}c</b></span>`;
+      if (g) {
+        left += `<br>Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}`;
+        if (g.luck > 0) left += `<br>Luck <b>${g.luck}</b>`;
+      }
+      this.setHtml(this.hudStats, left);
+      let right = `Deadline ${r.deadline + 1}/${r.deadlines}<br>Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
+      if (r.job) {
+        const def = jobDef(r.job.id);
+        const prog = g ? g.jobProgress() : r.job.progress;
+        const done = r.job.done || (g?.jobDone ?? false);
+        right += `<div class="job${done ? ' done' : ''}">${jobText(def, r.job.target)}<br><b>${done ? 'DONE' : `${formatCoins(Math.min(prog, r.job.target))}/${r.job.target}`}</b></div>`;
+      }
+      if (r.tickets || r.keys)
+        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
+      this.setHtml(this.hudRight, right);
     }
     const pull = shown ? shown.sim.plungerPull : 0;
     this.hudPlunger.style.display =
@@ -974,4 +1167,21 @@ function tallyMarks(n: number): string {
   let s = '';
   for (let i = 0; i < n; i++) s += (i + 1) % 5 === 0 ? '/ ' : '|';
   return s || '—';
+}
+
+function rewardText(def: JobDef, deadline: number): string {
+  const r = def.reward;
+  const parts: string[] = [];
+  if (r.keys) parts.push(`${r.keys} KEY`);
+  if (r.tickets) parts.push(`${r.tickets} ticket${r.tickets > 1 ? 's' : ''}`);
+  const coins = jobCoins(def, deadline);
+  if (coins) parts.push(`${coins}c`);
+  if (r.level) parts.push(`+1 ${r.level} level`);
+  return `Reward: ${parts.join(', ')}`;
+}
+
+function levelsText(r: RunState): string {
+  return (Object.entries(r.shotLevels) as [string, number][])
+    .map(([k, v]) => `${k} ${v}`)
+    .join(' · ');
 }

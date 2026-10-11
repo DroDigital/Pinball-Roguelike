@@ -1,9 +1,11 @@
 /**
- * The run: deadlines, rounds, balls, Pocket/Bank/debt. Plain serialisable state plus pure-ish
- * functions that mutate it deterministically (all randomness through the run's Rng state).
+ * The run: deadlines, rounds, Jobs, balls, Pocket/Bank/debt. Plain serialisable state plus
+ * pure-ish functions that mutate it deterministically (all randomness through the run's
+ * Rng state).
  */
 import { Rng, hashString, type RngState } from '../core/rng';
-import { ECONOMY } from '../content/balance';
+import { ECONOMY, JOBS } from '../content/balance';
+import { JOB_DEFS, jobDef, type BallStats, type JobDef } from '../content/jobs';
 import type { ShotType } from '../sim/table-def';
 import {
   SHOT_TYPES,
@@ -14,7 +16,7 @@ import {
 } from './table-game';
 import type { BallSnapshot } from './session';
 
-export type RunPhase = 'buyBalls' | 'ball' | 'betweenBalls' | 'deadline' | 'over';
+export type RunPhase = 'pickJob' | 'buyBalls' | 'ball' | 'betweenBalls' | 'deadline' | 'over';
 export type RunResult = 'fell' | 'paidInFull' | 'breakout' | 'cellmate' | null;
 
 export interface RunStats {
@@ -24,6 +26,22 @@ export interface RunStats {
   drains: Record<string, number>;
   tilts: number;
   skillShots: number;
+  riots: number;
+  paydays: number;
+  biggestPayday: number;
+  longestCombo: number;
+  biggestBonus: number;
+  jobsDone: number;
+}
+
+export interface JobOffer {
+  id: string;
+  target: number;
+}
+
+export interface RunJob extends JobOffer {
+  progress: number;
+  done: boolean;
 }
 
 export interface RunState {
@@ -39,12 +57,19 @@ export interface RunState {
   looseChange: number;
   tickets: number;
   keys: number;
+  /** Permanent luck (Thick Skin, phone perks); each ball adds its own on top. */
+  luck: number;
   shotLevels: Record<ShotType, number>;
   machine: MachineState;
   phase: RunPhase;
-  /** Balls bought for this round (incl. free) and how many have been played. */
+  /** Jobs posted at round start, and the one taken. */
+  jobOffers: JobOffer[];
+  job: RunJob | null;
+  /** Balls bought for this round (incl. free and extra balls) and how many have been played. */
   ballsThisRound: number;
   ballsPlayed: number;
+  /** PAYDAY value carried between RIOTs (Hoarder's Sack). */
+  paydayCarry: number;
   result: RunResult;
   stats: RunStats;
   /** Deadlines in this run (8 normally). */
@@ -55,6 +80,11 @@ export function debtFor(deadline: number, base = ECONOMY.startDebt): number {
   return Math.round(base * Math.pow(ECONOMY.debtGrowth, deadline));
 }
 
+/** How much bigger coin amounts are at this deadline than at the first. */
+export function debtScale(deadline: number): number {
+  return Math.pow(ECONOMY.debtGrowth, deadline) * JOBS.coinScale;
+}
+
 export function ballPrice(s: RunState): number {
   return ECONOMY.ballPriceBase + ECONOMY.ballPricePerDeadline * s.deadline;
 }
@@ -63,7 +93,7 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
   const rng = new Rng(hashString(seed));
   const levels = {} as Record<ShotType, number>;
   for (const t of SHOT_TYPES) levels[t] = 1;
-  return {
+  const s: RunState = {
     version: 1,
     seed,
     rng: rng.getState(),
@@ -75,15 +105,34 @@ export function newRun(seed: string, opts: { deadlines?: number } = {}): RunStat
     looseChange: 0,
     tickets: 0,
     keys: 0,
+    luck: 0,
     shotLevels: levels,
     machine: newMachineState(),
-    phase: 'buyBalls',
+    phase: 'pickJob',
+    jobOffers: [],
+    job: null,
     ballsThisRound: 0,
     ballsPlayed: 0,
+    paydayCarry: 0,
     result: null,
-    stats: { balls: 0, coinsEarned: 0, biggestBall: 0, drains: {}, tilts: 0, skillShots: 0 },
+    stats: {
+      balls: 0,
+      coinsEarned: 0,
+      biggestBall: 0,
+      drains: {},
+      tilts: 0,
+      skillShots: 0,
+      riots: 0,
+      paydays: 0,
+      biggestPayday: 0,
+      longestCombo: 0,
+      biggestBonus: 0,
+      jobsDone: 0,
+    },
     deadlines: opts.deadlines ?? ECONOMY.deadlines,
   };
+  postJobs(s);
+  return s;
 }
 
 function rngOf(s: RunState): Rng {
@@ -91,6 +140,53 @@ function rngOf(s: RunState): Rng {
   r.setState(s.rng);
   return r;
 }
+
+// ------------------------------------------------------------------ jobs
+
+export function jobTarget(def: JobDef, deadline: number): number {
+  return def.scaled ? Math.max(1, Math.round(def.target * debtScale(deadline))) : def.target;
+}
+
+/** The ATM posts this round's Jobs. */
+export function postJobs(s: RunState): void {
+  const rng = rngOf(s);
+  const pool = JOB_DEFS.filter((d) => !d.key && (d.minDeadline ?? 0) <= s.deadline);
+  rng.shuffle(pool);
+  const picks = pool.slice(0, JOBS.offers);
+  if (s.deadline >= JOBS.keyJobMinDeadline && rng.chance(JOBS.keyJobChance)) {
+    const keys = JOB_DEFS.filter((d) => d.key);
+    picks[picks.length - 1] = rng.pick(keys);
+  }
+  s.rng = rng.getState();
+  s.jobOffers = picks.map((d) => ({ id: d.id, target: jobTarget(d, s.deadline) }));
+  s.job = null;
+  s.phase = 'pickJob';
+}
+
+export function pickJob(s: RunState, index: number): boolean {
+  if (s.phase !== 'pickJob') return false;
+  const o = s.jobOffers[index];
+  if (!o) return false;
+  s.job = { ...o, progress: 0, done: false };
+  s.phase = 'buyBalls';
+  return true;
+}
+
+/** Coins a Job's coin reward is worth at this deadline. */
+export function jobCoins(def: JobDef, deadline: number): number {
+  return def.reward.coins ? Math.round(def.reward.coins * debtScale(deadline)) : 0;
+}
+
+function applyJobReward(s: RunState, def: JobDef): void {
+  const r = def.reward;
+  if (r.tickets) s.tickets += r.tickets;
+  s.pocket += jobCoins(def, s.deadline);
+  if (r.level) s.shotLevels[r.level]++;
+  if (r.keys) s.keys += r.keys;
+  s.stats.jobsDone++;
+}
+
+// ------------------------------------------------------------------ balls
 
 /** Cost to buy n balls this round (the first is free). */
 export function costForBalls(s: RunState, n: number): number {
@@ -124,11 +220,25 @@ export function nextBall(s: RunState, tags: string[] = ['outlanePosts']): BallSn
   const seed = rng.nextU32();
   s.rng = rng.getState();
   s.phase = 'ball';
+  const base = defaultBallContext();
+  const job = s.job ? jobDef(s.job.id) : null;
   const ctx: BallContext = {
-    ...defaultBallContext(),
+    ...base,
     shotLevels: { ...s.shotLevels },
+    luck: s.luck,
     ballNumber: s.ballsPlayed + 1,
     ballsInRound: s.ballsThisRound,
+    job:
+      s.job && job
+        ? {
+            id: s.job.id,
+            stat: job.stat,
+            mode: job.mode,
+            base: s.job.progress,
+            target: s.job.target,
+            done: s.job.done,
+          }
+        : null,
   };
   return {
     seed,
@@ -140,30 +250,62 @@ export function nextBall(s: RunState, tags: string[] = ['outlanePosts']): BallSn
 }
 
 export interface BallOutcome {
+  /** Fractional coins earned on the table (excluding Bonus). */
   earned: number;
+  /** Bonus tallied at the drain. */
+  bonus: number;
   tilted: boolean;
   drainCause: string;
   machine: MachineState;
-  skillShots: number;
+  stats: BallStats;
+  levelUps: ShotType[];
+  extraBalls: number;
+  paydayEnd: number;
 }
 
-/** Commit a finished ball. Returns whole coins added to the Pocket. */
-export function finishBall(s: RunState, o: BallOutcome): number {
-  const total = o.earned + s.looseChange;
+export interface BallResult {
+  /** Whole coins added to the Pocket from the table and Bonus. */
+  gained: number;
+  /** The Job completed by this ball, if any. */
+  jobDone: JobDef | null;
+}
+
+/** Commit a finished ball. */
+export function finishBall(s: RunState, o: BallOutcome): BallResult {
+  const total = o.tilted ? 0 : o.earned + o.bonus + s.looseChange;
   const whole = Math.floor(total);
-  s.looseChange = o.tilted ? s.looseChange : total - whole;
+  if (!o.tilted) s.looseChange = total - whole;
   const gained = o.tilted ? 0 : whole;
   s.pocket += gained;
   s.machine = o.machine;
   s.ballsPlayed++;
-  s.stats.balls++;
-  s.stats.coinsEarned += gained;
-  s.stats.biggestBall = Math.max(s.stats.biggestBall, gained);
-  s.stats.drains[o.drainCause] = (s.stats.drains[o.drainCause] ?? 0) + 1;
-  if (o.tilted) s.stats.tilts++;
-  s.stats.skillShots += o.skillShots;
+  s.ballsThisRound += o.extraBalls;
+  for (const l of o.levelUps) s.shotLevels[l]++;
+  const st = s.stats;
+  st.balls++;
+  st.coinsEarned += gained;
+  st.biggestBall = Math.max(st.biggestBall, gained);
+  st.drains[o.drainCause] = (st.drains[o.drainCause] ?? 0) + 1;
+  if (o.tilted) st.tilts++;
+  st.skillShots += o.stats.skillShots + o.stats.superSkillShots;
+  st.riots += o.stats.riots;
+  st.paydays += o.stats.paydays + o.stats.superPaydays;
+  st.biggestPayday = Math.max(st.biggestPayday, o.stats.biggestPayday);
+  st.longestCombo = Math.max(st.longestCombo, o.stats.maxCombo);
+  st.biggestBonus = Math.max(st.biggestBonus, o.bonus);
+  let jobDone: JobDef | null = null;
+  if (s.job && !s.job.done) {
+    const def = jobDef(s.job.id);
+    const v = o.stats[def.stat];
+    s.job.progress = def.mode === 'sum' ? s.job.progress + v : Math.max(s.job.progress, v);
+    if (s.job.progress >= s.job.target) {
+      s.job.done = true;
+      applyJobReward(s, def);
+      jobDone = def;
+    }
+  }
   s.phase = 'betweenBalls';
-  return gained;
+  return { gained, jobDone };
 }
 
 /** Move coins from Pocket to Bank. Deposits are final. */
@@ -181,7 +323,7 @@ export function endRound(s: RunState): void {
   s.round++;
   s.machine = newMachineState();
   if (s.round >= ECONOMY.roundsPerDeadline) s.phase = 'deadline';
-  else s.phase = 'buyBalls';
+  else postJobs(s);
 }
 
 /** Settle the deadline. Returns true if paid (run continues), false if the floor opens. */
@@ -195,7 +337,7 @@ export function settleDeadline(s: RunState): boolean {
       s.result = 'paidInFull';
     } else {
       s.debt = debtFor(s.deadline);
-      s.phase = 'buyBalls';
+      postJobs(s);
     }
     return true;
   }

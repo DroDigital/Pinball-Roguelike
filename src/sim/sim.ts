@@ -785,6 +785,18 @@ export class PinballSim {
     return ball;
   }
 
+  /** Put a new ball in the Hole, held (RIOT releases locked balls this way). */
+  spawnHeld(): SimBall {
+    const hole = this.table.hole;
+    const ball = new SimBall(this.nextBallId++);
+    ball.inShooter = false;
+    ball.state = 'held';
+    ball.x = ball.px = hole.x;
+    ball.y = ball.py = hole.y;
+    this.balls.push(ball);
+    return ball;
+  }
+
   /** Remove every ball immediately (end of ball housekeeping). */
   clearBalls(): void {
     for (const b of this.balls) this.removeBall(b);
