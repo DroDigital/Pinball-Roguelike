@@ -163,6 +163,7 @@ npm run soak -- --balls 10000         # physics soak across workers: tunnelling,
 npm run soak -- --sentences           # the same, cycling hardware, Sentences and contraband
 npm run botstats                      # per-ball stat distributions per skill -> tools/out/botstats.json
 npm run economy -- --mode physics --runs 24 --arch riot   # whole runs, every ball played
+npm run economy:summary              # pool every archetype's report: win rates, charm dominance
 ```
 
 `economy` options:

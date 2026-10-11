@@ -86,8 +86,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Money'],
-    text: '+10% interest.',
-    fx: { interestAdd: 0.1 },
+    text: '+15% interest.',
+    fx: { interestAdd: 0.15 },
   },
   {
     id: 'sharkTooth',
@@ -104,8 +104,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Money'],
-    text: 'Pocket coins also earn 10% interest at round end.',
-    fx: { pocketInterest: 0.1 },
+    text: 'Pocket coins also earn 15% interest at round end.',
+    fx: { pocketInterest: 0.15 },
   },
   {
     id: 'pawnTicket',
@@ -394,8 +394,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Lone'],
-    text: 'Ball save lasts 5 s longer.',
-    fx: { ballSaveAdd: 5 },
+    text: 'Ball save lasts 8 s longer.',
+    fx: { ballSaveAdd: 8 },
   },
   {
     id: 'patronSaint',
@@ -420,7 +420,7 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 4,
     tags: ['Lone'],
-    text: 'If you buy no balls in a round, your free balls pay 4x.',
+    text: 'If you buy no balls in a round, your free balls pay 5x.',
   },
   {
     id: 'thickSkin',

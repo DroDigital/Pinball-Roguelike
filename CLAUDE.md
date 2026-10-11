@@ -13,7 +13,8 @@ design, milestone checklist and decisions log; update both as you work.
 - `npm run feel` — physics feel targets report
 - `npm run soak -- --balls 10000` — bot physics soak (parallel workers)
 - `npm run botstats` — per-ball stat distributions at three bot skill levels
-- `npm run economy` — Monte Carlo economy sim (clear rates per deadline)
+- `npm run economy` — Monte Carlo economy sim (clear rates per deadline); `--arch <a>` per
+  build archetype, then `npm run economy:summary` pools them (win rates, charm dominance)
 - `npm run e2e` — Playwright smoke (builds, serves, plays a bot ball, screenshots)
 
 ## Architecture rules

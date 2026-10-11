@@ -178,7 +178,7 @@ function playRun(
       continue;
     }
     if (r.phase === 'buyBalls') {
-      // With Solitary Confinement, play only the free balls (they pay 4x).
+      // With Solitary Confinement, play only the free balls (they pay 5x).
       buyBalls(r, r.charms.includes('solitary') ? freeBalls(r) : maxAffordableBalls(r));
       continue;
     }

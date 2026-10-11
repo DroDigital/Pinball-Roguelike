@@ -463,3 +463,15 @@ Format: date — decision — why.
 - 2026-10-11 — Instant replays re-simulate the recorded ball from its snapshot instead of
   storing frames. — Determinism makes it free (a few hundred KB of inputs at most), and the
   same path plays back bug reports.
+- 2026-10-11 — A Perimeter orbit spots the next top lane, and a new Bonus charm (Roll Call
+  Sheet) makes every Hole shot light one. — The bot crossed the top lanes 1.35 times per
+  ball (mostly the plunge itself): the lanes sit where the ball rarely goes, so lane sets,
+  the Bonus multiplier and the award relight hardly ever happened, and Bonus builds won 0%.
+  Spotting lanes is a classic rule and needs no geometry change; the charm turns the most
+  common shot into the Bonus engine for players who build for it.
+- 2026-10-11 — Archetype buffs from the 40-run calibration: Chipped Abacus starts every ball
+  at x2; Crooked Penny and Solitary Confinement became uncommon; Candle Stub gives luck on
+  every ball; the interest charms went to 15%; Rubber Bands to +8 s; Solitary pays 5x. —
+  Luck, Money and Lone builds won 0-2.5%: their payoffs were rare or too small to matter
+  against x2.4 debt. The economy tool's Lone policy now skips buying balls with Solitary,
+  as a player would.

@@ -101,7 +101,7 @@ export const RUN_HOOK = {
   candleLuck: 6,
   wishboneLuck: 2,
   magpieChance: 0.1,
-  solitaryMult: 4,
+  solitaryMult: 5,
   thickSkinTickets: 3,
   thickSkinLuck: 1,
   lastRitesTimes: 2,

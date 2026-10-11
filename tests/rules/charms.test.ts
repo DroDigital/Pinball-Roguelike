@@ -64,7 +64,7 @@ const t = (id: string, fn: () => void) =>
 
 describe('Money charms', () => {
   t('piggyBank', () =>
-    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.1),
+    expect(interestRate(runWith(['piggyBank']))).toBeCloseTo(ECONOMY.interest + 0.15),
   );
   t('sharkTooth', () => expect(loanCost(runWith(['sharkTooth']), 100)).toBe(110));
   t('mattress', () => {
@@ -73,7 +73,7 @@ describe('Money charms', () => {
     finishBall(s, emptyOutcome());
     s.pocket = 100;
     endRound(s);
-    expect(s.pocket).toBe(110);
+    expect(s.pocket).toBe(115);
   });
   t('pawnTicket', () => {
     const s = newRun('pawn');
@@ -266,7 +266,7 @@ describe('Luck charms', () => {
 
 describe('Lone charms', () => {
   t('spareBearing', () => expect(freeBalls(runWith(['spareBearing']))).toBe(2));
-  t('rubberBands', () => expect(ctxOf(['rubberBands']).ballSave).toBe(BALL.ballSave + 5));
+  t('rubberBands', () => expect(ctxOf(['rubberBands']).ballSave).toBe(BALL.ballSave + 8));
   t('patronSaint', () => {
     const s = runWith(['patronSaint'], 1);
     nextBall(s);

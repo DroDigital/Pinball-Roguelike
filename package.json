@@ -16,6 +16,7 @@
     "soak": "tsx tools/soak.ts",
     "botstats": "tsx tools/botstats.ts",
     "economy": "tsx tools/economy.ts",
+    "economy:summary": "tsx tools/economy-summary.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
