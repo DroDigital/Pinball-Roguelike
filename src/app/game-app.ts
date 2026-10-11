@@ -106,6 +106,10 @@ const STEP_MS = 1000 / 240;
 const DRAMA_SCALE = 0.3;
 const DRAMA_SECS = 0.55;
 const DRAMA_COOLDOWN_MS = 4000;
+/** Below this FPS for this long, drop to the lowest internal resolution. */
+const LOW_FPS = 40;
+const LOW_FPS_SECS = 5;
+const MIN_PIXEL_HEIGHT = 180;
 /** The Warden remarks on a PAYDAY worth this share of the debt, and on some center drains. */
 const BIG_PAYDAY_SHARE = 0.1;
 const CENTER_DRAIN_CHANCE = 0.6;
@@ -219,10 +223,25 @@ export class GameApp {
     this.hudPlunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
     const dmdCanvas = this.dmd.canvas;
     dmdCanvas.className = 'dmd';
+    // Touch: the lockbar button (active charms) and pause, under the table.
+    const hold = (a: Action) => ({
+      onpointerdown: (e: PointerEvent) => {
+        e.preventDefault();
+        this.input.press(a, performance.now());
+      },
+      onpointerup: () => this.input.release(a, performance.now()),
+      onpointerleave: () => this.input.release(a, performance.now()),
+    });
     hud.append(
       h('div', { class: 'left' }, dmdCanvas, this.hudStats),
       this.hudRight,
       this.hudPlunger,
+      h(
+        'div',
+        { class: 'touch-lockbar' },
+        h('button', { class: 'touch-btn', ...hold('lockbar') }, 'LOCKBAR'),
+        h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
+      ),
     );
     // DMD on the backbox too.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
@@ -330,6 +349,21 @@ export class GameApp {
     });
   }
 
+  private lowFpsFor = 0;
+  private qualityDropped = false;
+
+  /** A struggling device drops to the lowest internal resolution once (not saved). */
+  private watchQuality(dt: number): void {
+    if (this.mode !== 'play' || this.qualityDropped) return;
+    this.lowFpsFor = this.fps < LOW_FPS ? this.lowFpsFor + dt : 0;
+    const px = this.renderer.settings.pixelHeight;
+    if (this.lowFpsFor < LOW_FPS_SECS || (px > 0 && px <= MIN_PIXEL_HEIGHT)) return;
+    this.qualityDropped = true;
+    this.renderer.settings.pixelHeight = MIN_PIXEL_HEIGHT;
+    this.resize();
+    this.ui.toast('Running slow: resolution lowered (Settings to change)');
+  }
+
   private activeSession(): { session: BallSession; bot: Bot | null } | null {
     if (this.mode === 'play' && this.session) return { session: this.session, bot: this.autoBot };
     if (this.attract) return { session: this.attract.session, bot: this.attract.bot };
@@ -347,6 +381,7 @@ export class GameApp {
     this.fpsN++;
     if (this.fpsAcc > 0.5) {
       this.fps = this.fpsN / this.fpsAcc;
+      this.watchQuality(this.fpsAcc);
       this.fpsAcc = 0;
       this.fpsN = 0;
     }
@@ -804,7 +839,11 @@ export class GameApp {
           bugReport: () => this.copyBugReport(),
           quit: () => this.quitToTitle(),
         },
-        !!this.run && this.run.phase !== 'over',
+        !this.run || this.run.phase === 'over'
+          ? ''
+          : this.mode === 'play'
+            ? 'this ball is lost; the run is saved'
+            : 'the run is saved',
       ),
     );
   }
@@ -2277,6 +2316,7 @@ export class GameApp {
     const playing = this.mode === 'play' || this.mode === 'tally';
     const m = this.mode;
     this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
+    this.hud.classList.toggle('playing', m === 'play');
     // Endings keep the DMD (it shows the title) but drop the run's numbers.
     const quiet = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
     this.hudStats.style.display = this.hudRight.style.display = quiet ? 'none' : '';

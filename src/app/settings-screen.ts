@@ -187,7 +187,8 @@ export interface PauseHandlers {
   quit(): void;
 }
 
-export function pausePanel(on: PauseHandlers, inRun: boolean): HTMLElement {
+/** `quitNote` says what quitting costs (e.g. the ball in play). */
+export function pausePanel(on: PauseHandlers, quitNote: string): HTMLElement {
   return h(
     'div',
     { class: 'panel' },
@@ -201,7 +202,7 @@ export function pausePanel(on: PauseHandlers, inRun: boolean): HTMLElement {
       h(
         'button',
         { onclick: () => on.quit() },
-        inRun ? 'Quit to title (resume at the start of this round)' : 'Quit to title',
+        quitNote ? `Quit to title (${quitNote})` : 'Quit to title',
       ),
     ),
   );

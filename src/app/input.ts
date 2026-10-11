@@ -137,8 +137,8 @@ export class Input {
       ['nudge', b(3)],
       ['nudgeLeft', b(14)],
       ['nudgeRight', b(15)],
-      ['confirm', b(9)],
-      ['pause', b(8)],
+      ['pause', b(9)],
+      ['back', b(8) || b(1)],
       ['lookLeft', (pad.axes[0] ?? 0) < -0.6],
       ['lookRight', (pad.axes[0] ?? 0) > 0.6],
     ];
@@ -182,6 +182,9 @@ export class Input {
     const el = this.target;
     const owners = new Map<number, Action>();
     let plungeStartY = 0;
+    // Taps on menus and on-screen buttons are theirs, not the flippers'.
+    const ui = (t: EventTarget | null) =>
+      !!(t as HTMLElement | null)?.closest?.('.panel, .touch-lockbar, button');
     const zone = (x: number, y: number): Action => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -191,6 +194,7 @@ export class Input {
     el.addEventListener(
       'touchstart',
       (e) => {
+        if (ui(e.target)) return;
         const t = performance.now();
         for (const tc of Array.from(e.changedTouches)) {
           const a = zone(tc.clientX, tc.clientY);
@@ -210,6 +214,7 @@ export class Input {
     el.addEventListener(
       'touchmove',
       (e) => {
+        if (ui(e.target)) return;
         for (const tc of Array.from(e.changedTouches)) {
           if (owners.get(tc.identifier) === 'plunger')
             this.analogPull = Math.max(

@@ -113,10 +113,21 @@ body {
   transform: translateX(-50%);
   pointer-events: auto;
   display: none;
+  gap: 10px;
+}
+#hud .touch-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: rgba(42, 22, 12, 0.85);
+  border: 1px solid var(--edge);
+  padding: 10px 18px;
+  touch-action: none;
 }
 @media (pointer: coarse) {
-  #hud .touch-lockbar {
-    display: block;
+  #hud.playing .touch-lockbar {
+    display: flex;
   }
 }
 #ui {
@@ -457,6 +468,40 @@ canvas.ending-sky {
   opacity: 0;
   z-index: 6;
   pointer-events: none;
+}
+
+/* Short screens (phones in landscape): tighter panels so actions stay in reach. */
+@media (max-height: 520px) {
+  .panel {
+    padding: 10px 14px;
+    max-height: 96vh;
+    font-size: 0.85rem;
+  }
+  .panel h1 {
+    font-size: 1.4rem;
+  }
+  .panel h2 {
+    font-size: 1rem;
+    margin-bottom: 6px;
+  }
+  .panel p {
+    margin: 3px 0;
+  }
+  .panel .row {
+    margin-top: 8px;
+  }
+  .mug {
+    width: 48px;
+    height: 60px;
+  }
+  .panel button.mugcard {
+    width: 76px;
+    padding: 3px;
+    font-size: 0.6rem;
+  }
+  .panel button.mugcard small {
+    display: none;
+  }
 }
 
 @media (max-aspect-ratio: 6/5) {
