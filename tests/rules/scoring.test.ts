@@ -16,6 +16,18 @@ describe('combos', () => {
     expect(chain.hit(1)).toBe(4);
   });
 
+  it('a stopped clock (Pocket Watch) keeps the chain alive past the window', () => {
+    const c = new ComboTracker(3, 1, 1);
+    c.hit(0);
+    c.hold(10);
+    expect(c.active(8)).toBe(true);
+    expect(c.left(8)).toBeCloseTo(2);
+    expect(c.hit(9)).toBe(2);
+    expect(c.hit(14)).toBe(1);
+    c.reset();
+    expect(c.held(5)).toBe(false);
+  });
+
   it('major shots in a chain pay the combo multiplier', () => {
     const h = harness();
     h.chute();

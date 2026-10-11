@@ -61,7 +61,7 @@ export interface ActiveDef {
   charges: number;
   /** Charges refill every round (default) or every deadline. */
   per: 'round' | 'deadline';
-  action: 'ballSave' | 'slowmo' | 'crowbar' | 'twinYolk';
+  action: 'ballSave' | 'stopClock' | 'crowbar' | 'twinYolk';
 }
 
 export interface CharmDef {
@@ -86,8 +86,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Money'],
-    text: '+15% interest.',
-    fx: { interestAdd: 0.15 },
+    text: '+20% interest.',
+    fx: { interestAdd: 0.2 },
   },
   {
     id: 'sharkTooth',
@@ -104,8 +104,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Money'],
-    text: 'Pocket coins also earn 15% interest at round end.',
-    fx: { pocketInterest: 0.15 },
+    text: 'Pocket coins also earn 20% interest at round end.',
+    fx: { pocketInterest: 0.2 },
   },
   {
     id: 'pawnTicket',
@@ -151,8 +151,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Yard'],
-    text: 'Yard bumpers pay 3x.',
-    fx: { shotMult: { yard: 3 } },
+    text: 'Yard bumpers pay 4x.',
+    fx: { shotMult: { yard: 4 } },
   },
   {
     id: 'brassKnuckles',
@@ -203,8 +203,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'common',
     cost: 2,
     tags: ['Riot'],
-    text: 'The Hole pays 3x and ejects 1 s sooner.',
-    fx: { shotMult: { hole: 3 }, holeHoldAdd: -1 },
+    text: 'The Hole pays 2x and ejects 1 s sooner.',
+    fx: { shotMult: { hole: 2 }, holeHoldAdd: -1 },
   },
   {
     id: 'greaseMonkey',
@@ -420,7 +420,7 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 4,
     tags: ['Lone'],
-    text: 'If you buy no balls in a round, your free balls pay 5x.',
+    text: 'If you buy no balls in a round, your free balls pay 6x.',
   },
   {
     id: 'thickSkin',
@@ -485,8 +485,8 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 3,
     tags: ['Chute'],
-    text: 'Active (2 charges): slows time to half speed for 4 s.',
-    active: { charges: 2, per: 'round', action: 'slowmo' },
+    text: 'Active (2 charges): stops the clock. For 10 s, combos don’t time out.',
+    active: { charges: 2, per: 'round', action: 'stopClock' },
   },
   {
     id: 'crowbar',

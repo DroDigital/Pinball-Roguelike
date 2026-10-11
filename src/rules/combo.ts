@@ -2,6 +2,8 @@
 export class ComboTracker {
   count = 0;
   private last = -1e9;
+  /** Until this time the chain can't time out (Pocket Watch). */
+  private holdUntil = -1e9;
 
   constructor(
     public window: number,
@@ -11,7 +13,7 @@ export class ComboTracker {
 
   /** Register a major shot at time t; returns the multiplier it pays at. */
   hit(t: number): number {
-    this.count = t - this.last <= this.window ? this.count + 1 : 1;
+    this.count = this.within(t) ? this.count + 1 : 1;
     this.last = t;
     return this.mult;
   }
@@ -21,17 +23,32 @@ export class ComboTracker {
   }
 
   active(t: number): boolean {
-    return this.count > 0 && t - this.last <= this.window;
+    return this.count > 0 && this.within(t);
   }
 
   /** Seconds left in the current chain (0 when none). */
   left(t: number): number {
-    return this.active(t) ? this.window - (t - this.last) : 0;
+    if (!this.active(t)) return 0;
+    return Math.max(this.window - (t - this.last), Math.min(this.window, this.holdUntil - t));
+  }
+
+  /** Stop the clock: the chain can't time out until `until`. */
+  hold(until: number): void {
+    this.holdUntil = Math.max(this.holdUntil, until);
+  }
+
+  held(t: number): boolean {
+    return t <= this.holdUntil;
   }
 
   reset(): void {
     this.count = 0;
     this.last = -1e9;
+    this.holdUntil = -1e9;
+  }
+
+  private within(t: number): boolean {
+    return t - this.last <= this.window || t <= this.holdUntil;
   }
 }
 

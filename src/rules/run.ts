@@ -332,7 +332,12 @@ export function lastCall(s: RunState): boolean {
 
 /** JAILBREAK is lit at the Hole: Last Call with enough Keys. */
 export function jailbreakLit(s: RunState): boolean {
-  return lastCall(s) && s.keys >= JAILBREAK.keys;
+  // A bolted Hole can't start it, so it isn't lit on those balls.
+  return (
+    lastCall(s) &&
+    s.keys >= JAILBREAK.keys &&
+    !activeSentences(s).some((d) => d.effect.addTags?.includes('boltedHole'))
+  );
 }
 
 /** Folded static effects of the owned charms. */

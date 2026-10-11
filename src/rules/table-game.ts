@@ -117,7 +117,7 @@ export interface ActiveSlot {
   /** 1-based charm slot (number keys). */
   slot: number;
   id: string;
-  action: 'ballSave' | 'slowmo' | 'crowbar' | 'twinYolk';
+  action: 'ballSave' | 'stopClock' | 'crowbar' | 'twinYolk';
   charges: number;
   max: number;
 }
@@ -201,7 +201,6 @@ export function defaultBallContext(): BallContext {
 
 const LANE_IDS = ['laneA', 'laneB', 'laneC'];
 const ACTIVE_SAVE = 10; // Panic Button seconds
-const ACTIVE_SLOWMO = 4; // Pocket Watch seconds at half speed
 const TWIN_SAVE = 6; // Twin Yolk multiball save
 const LADDER_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock'];
 const FAVOURITES = LADDER_SHOTS;
@@ -441,6 +440,8 @@ export class TableGame implements BallRules {
         break;
       case 'dropsReset':
         this.cellCleared = false;
+        // The bank is fully up again: the Tunnel order restarts with it.
+        this.dropSeq = [];
         break;
       case 'spin':
         this.stats.spins += e.value;
@@ -646,7 +647,7 @@ export class TableGame implements BallRules {
     let locked = false;
     if (this.jailbreak) {
       this.jbShot('hole', e.x, e.y);
-    } else if (this.ctx.jailbreak && this.jbResult === 'none' && !this.riot) {
+    } else if (this.ctx.jailbreak && this.jbResult === 'none' && !this.riot && !this.tilted) {
       this.startJailbreak();
     } else if (this.riot && this.superLit) {
       const amount =
@@ -797,7 +798,8 @@ export class TableGame implements BallRules {
     this.pay('cellblock', SCORE.drop, e.x, e.y);
     this.endSkill();
     this.jbShot('cellblock', e.x, e.y);
-    this.dropSeq?.push(e.value);
+    // Targets falling in the step that clears the bank belong to the cleared bank.
+    if (!this.cellCleared) this.dropSeq?.push(e.value);
     const states = this.sim.dropStates();
     this.machine.drops = states;
     // The sim resets the bank after the step; one clear per reset.
@@ -1033,9 +1035,9 @@ export class TableGame implements BallRules {
         this.ballSaveLeft = Math.max(this.ballSaveLeft, ACTIVE_SAVE);
         this.emit({ t: 'callout', text: 'PANIC BUTTON', sub: 'BALL SAVE ARMED', priority: 5 });
         break;
-      case 'slowmo':
-        this.emit({ t: 'slowmo', seconds: ACTIVE_SLOWMO });
-        this.emit({ t: 'callout', text: 'POCKET WATCH', sub: 'TIME DRAGS', priority: 4 });
+      case 'stopClock':
+        this.combo.hold(this.time + COMBO.watchHold);
+        this.emit({ t: 'callout', text: 'POCKET WATCH', sub: 'THE CLOCK STOPS', priority: 4 });
         break;
       case 'crowbar': {
         const drops = this.sim.dropStates();
