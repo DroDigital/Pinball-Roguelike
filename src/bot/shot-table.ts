@@ -2,12 +2,11 @@
 export type ShotTarget = 'chute' | 'perimeter' | 'hole' | 'cellblock';
 export const SHOT_TABLE: Record<'left' | 'right', Partial<Record<ShotTarget, number>>> = {
   left: {
-    perimeter: 218,
-    cellblock: 198,
+    perimeter: 244,
+    cellblock: 221,
   },
   right: {
-    chute: 198,
-    perimeter: 219,
-    hole: 162,
+    chute: 221,
+    hole: 182,
   },
 };

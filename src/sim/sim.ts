@@ -984,11 +984,16 @@ export class PinballSim {
         let vx = vel.x;
         let vy = vel.y;
         const sp2 = vx * vx + vy * vy;
-        if (sp2 > maxV * maxV) {
-          const s = maxV / Math.sqrt(sp2);
-          vx *= s;
-          vy *= s;
-          setVel(b.body, vx, vy);
+        if (sp2 > 1e-12) {
+          const sp = Math.sqrt(sp2);
+          // Constant rolling resistance, then the hard speed cap.
+          const target = Math.min(maxV, Math.max(0, sp - cfg.physics.rollingResistance * dt));
+          if (target !== sp) {
+            const s = target / sp;
+            vx *= s;
+            vy *= s;
+            setVel(b.body, vx, vy);
+          }
         }
         b.x = pos.x;
         b.y = pos.y;

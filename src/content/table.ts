@@ -96,7 +96,7 @@ function laneWall(
 
 // ---------------------------------------------------------------- flippers
 const FLIP_Y = 5.2;
-const FLIP_LX = 5.8;
+const FLIP_LX = 5.86;
 const FLIP_LEN = 2.6;
 const FLIP_R0 = 0.48;
 const FLIP_R1 = 0.24;
@@ -160,7 +160,7 @@ const guideBase: P2 = [
 ];
 const guideAt = (s: number): P2 => [guideBase[0] + gdx * s, guideBase[1] + gdy * s];
 const GUIDE_END = guideAt(0.6);
-const DIV_X = 1.6; // inlane side of the inlane/outlane divider
+const DIV_X = 1.82; // inlane side of the inlane/outlane divider
 const DIV_T = 0.25; // divider thickness
 const sCorner = (DIV_X - guideBase[0]) / gdx;
 const GUIDE_CORNER = guideAt(sCorner);
@@ -197,7 +197,7 @@ const postExtL: P2[] = [
 ];
 
 // Slingshot: posts centred on the triangle corners; inlane clear width 1.3.
-const INLANE_W = 1.3;
+const INLANE_W = 1.38;
 const SLING_POST_R = 0.3;
 const slingX = DIV_X + INLANE_W + SLING_POST_R;
 const gnx = Math.cos(tanN);
@@ -274,9 +274,11 @@ const orbitLMouth = laneCentre(
 // slope toward the outlanes so balls that get up there come back down to the slings.
 // Flank lower faces slope down toward the inlanes so balls that land on them are fed to the
 // flippers rather than funnelled into the outlanes.
-const lipL = orbitLOuter[orbitLOuter.length - 1];
-const flankL: P2[] = [[0, ORBIT_L.bend], ...orbitLOuter, [0, r3(lipL[1] + 1.9)]];
-const flankR: P2[] = [funnelLow, rFlankTip, [MX, r3(rFlankTip[1] + 1.0)]];
+// Below each flank a shield face bounces cross-table traffic back toward the slings; the
+// outlanes stay open beneath it (reachable by balls that get past the sling tops).
+const SHIELD: P2 = [1.15, 15.0];
+const flankL: P2[] = [[0, ORBIT_L.bend], ...orbitLOuter, SHIELD, [0, 14.6]];
+const flankR: P2[] = [funnelLow, rFlankTip, mp(SHIELD), [MX, 14.6]];
 
 // ---------------------------------------------------------------- top lanes and the Yard
 // Lanes sit under the arch's right shoulder, where a plunged ball leaves the arch.
@@ -338,12 +340,12 @@ const HOLE_HW = 0.98; // cavity half-width
 const HOLE_WALL = 0.27;
 // Outer lower corners are chamfered so near-misses rebound toward the flippers, not down the middle.
 const holeBlock: P2[] = [
-  [HOLE_X - HOLE_HW - HOLE_WALL - 0.35, 25.05],
+  [HOLE_X - HOLE_HW - HOLE_WALL - 0.35, 24.6],
   [HOLE_X - HOLE_HW, 24.35],
   [HOLE_X - HOLE_HW, 25.75],
   [HOLE_X + HOLE_HW, 25.75],
   [HOLE_X + HOLE_HW, 24.35],
-  [HOLE_X + HOLE_HW + HOLE_WALL + 0.35, 25.05],
+  [HOLE_X + HOLE_HW + HOLE_WALL + 0.35, 24.6],
   [HOLE_X + HOLE_HW + HOLE_WALL + 0.35, 26.3],
   [HOLE_X, 27.0],
   [HOLE_X - HOLE_HW - HOLE_WALL - 0.35, 26.3],
@@ -358,16 +360,9 @@ const dropTargets = [0, 1, 2].map((i) => {
   const b: P2 = rp([DROP_A[0] + dropDir[0] * (i + 0.92), DROP_A[1] + dropDir[1] * (i + 0.92)]);
   return { id: `drop${i}`, a, b };
 });
-// The bank's back rail: a slanted bar so balls landing on it from above roll off.
 const dlen = Math.hypot(DROP_B[0] - DROP_A[0], DROP_B[1] - DROP_A[1]);
 const dnx = -(DROP_B[1] - DROP_A[1]) / dlen; // left normal of A->B (front face, toward flippers)
 const dny = (DROP_B[0] - DROP_A[0]) / dlen;
-const dropBack: P2[] = [
-  rp([DROP_A[0] - dnx * 0.25, DROP_A[1] - dny * 0.25]),
-  rp([DROP_B[0] - dnx * 0.25, DROP_B[1] - dny * 0.25]),
-  rp([DROP_B[0] - dnx * 0.55, DROP_B[1] - dny * 0.55]),
-  rp([DROP_A[0] - dnx * 0.55, DROP_A[1] - dny * 0.55]),
-];
 
 // ---------------------------------------------------------------- walls
 const cabinet: P2[] = [
@@ -476,7 +471,21 @@ const walls: WallDef[] = [
     h: 1.0,
     tag: 'boltedHole',
   },
-  { id: 'dropBack', pts: dropBack, loop: true, mat: 'metal', look: 'guide', h: 0.8 },
+  // Roof over the Cell Block: rolls traffic from the Yard back into the centre corridor
+  // (instead of down the right side into the outlane) and extends the Perimeter funnel lip.
+  {
+    id: 'cellRoof',
+    pts: [
+      rp([DROP_B[0] - dnx * 0.2 - 0.45, DROP_B[1] - dny * 0.2 + 0.05]),
+      rp([funnelUp[0] + 1.3, funnelUp[1] + 1.29]),
+      funnelUp,
+      rp([DROP_A[0] - dnx * 0.5, DROP_A[1] - dny * 0.5]),
+    ],
+    loop: true,
+    mat: 'wood',
+    look: 'block',
+    h: 1.2,
+  },
   // Rubber Cement: plugs over both outlane entrances.
   {
     id: 'plugL',
@@ -537,8 +546,6 @@ const posts: PostDef[] = [
   },
   { id: 'holeLipL', x: HOLE_X - HOLE_HW - 0.14, y: 24.35, r: 0.16, mat: 'post' },
   { id: 'holeLipR', x: HOLE_X + HOLE_HW + 0.14, y: 24.35, r: 0.16, mat: 'post' },
-  { id: 'dropPostA', x: DROP_A[0] - dnx * 0.4, y: DROP_A[1] - dny * 0.4, r: 0.3, mat: 'post' },
-  { id: 'dropPostB', x: DROP_B[0] - dnx * 0.4, y: DROP_B[1] - dny * 0.4, r: 0.3, mat: 'post' },
   { id: 'orbitLTop', x: orbitLInner[0][0] + 0.1, y: orbitLInner[0][1], r: 0.12, mat: 'metal' },
   { id: 'orbitRTop', x: COL_WALL_X - 0.09, y: COL_WALL_TOP, r: 0.12, mat: 'metal' },
   // Bent Nail hardware mount: narrows the left outlane entrance.
@@ -558,7 +565,7 @@ const triggers: TriggerDef[] = [
   tr('inlaneR', [mx(DIV_X), 11.2], [mx(slingX - SLING_POST_R), 11.2]),
   tr('outlaneL', [DIV_X - DIV_T, 10.0], [0, 10.0]),
   tr('outlaneR', [MX, 10.0], [mx(DIV_X - DIV_T), 10.0]),
-  tr('centerDrain', [mx(FLIP_LX + 2.0), 2.2], [FLIP_LX + 2.0, 2.2]),
+  tr('centerDrain', [mx(FLIP_LX - 0.5), 2.2], [FLIP_LX - 0.5, 2.2]),
   tr('perimL', [0, 24.6], [orbitLInner[0][0], 24.6]),
   tr('perimLTop', [0, 28.8], [orbitLInner[0][0], 28.8]),
   tr('perimRTop', [COL_WALL_X, 28.8], [OUT, 28.8]),

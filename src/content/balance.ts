@@ -11,7 +11,10 @@ export const PHYSICS = {
   slopeGravity: 20,
   ballRadius: 0.5,
   ballDensity: 1,
-  ballLinearDamping: 0.08,
+  /** Air drag (proportional). Rolling losses are modelled separately as a constant decel. */
+  ballLinearDamping: 0.03,
+  /** Constant rolling resistance (units/s^2), ~9% of slope gravity like a real ball. */
+  rollingResistance: 2.2,
   ballAngularDamping: 1.5,
   /** Hard cap on ball speed (kept far below maxTranslation * hz = 480). */
   maxBallSpeed: 150,

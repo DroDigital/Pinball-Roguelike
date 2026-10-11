@@ -353,17 +353,26 @@ export class Bot {
       br.delay = this.rng.int(45, 75); // along-the-bat % at which to flip a rolling ball
     }
 
-    // Ball on the lowered flipper (rolling along it): trap it at the base, or flip it once it
-    // has rolled to a useful point along the bat.
+    // Inlane feed: raise while the ball is still in the inlane so it rolls onto a raised bat
+    // into the cradle. Raising once it reaches the base squirts it back over the inlane.
+    const inInlane =
+      (br.side === 'left' ? best.x < 3.3 : best.x > 15.1) &&
+      best.y > d.y + 2.6 &&
+      best.y < 12.6 &&
+      best.vy < 0;
+    if (br.willCatch && inInlane) {
+      br.state = FState.Catching;
+      br.ballId = best.id;
+      br.timer = 0;
+      this.stats.catches++;
+      return true;
+    }
+
+    // Ball on the lowered flipper (rolling along it): flip once it has rolled to a useful
+    // point along the bat; never at the base.
     const onBat = bestT === 0 && p.th < d.restDeg + 16 && p.th > d.restDeg - 14;
     if (onBat) {
-      if (br.willCatch && p.r < d.len * 0.45 && speed < 9) {
-        br.state = FState.Catching;
-        br.ballId = best.id;
-        br.timer = 0;
-        this.stats.catches++;
-        return true;
-      }
+      if (p.r < d.len * 0.4) return false;
       if ((p.r / d.len) * 100 < br.delay && speed < 14) return false;
     } else if (
       br.willCatch &&
@@ -373,11 +382,11 @@ export class Bot {
       bestT > 0 &&
       bestT <= 24
     ) {
-      // Dropping onto the flipper from above: raise early so it lands on the bat and rolls
-      // down into the cradle.
-      const fx = best.x + best.vx * bestT * sim.dt;
-      const along = this.frame(f, fx, best.y).r / d.len;
-      if (along < 0.65) {
+      // Dropping onto the bat from above: raise early so it lands on the bat and rolls down
+      // into the cradle (only when it will land well out from the base).
+      const t = bestT * sim.dt;
+      const along = this.frame(f, best.x + best.vx * t, best.y + best.vy * t).r / d.len;
+      if (along > 0.45 && along < 0.75) {
         br.state = FState.Catching;
         br.ballId = best.id;
         br.timer = 0;
