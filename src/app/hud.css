@@ -1,0 +1,831 @@
+/*
+ * The play HUD (see hud.ts). Landscape: two columns in the margins beside the table.
+ * Portrait: a top band and a bottom strip. Between rounds: a slim ribbon across the top.
+ * It is pointer-events: none (except the touch buttons) and never covers the playfield.
+ */
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.hud-cols {
+  position: absolute;
+  inset: 0;
+}
+.hc-left,
+.hc-right {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  width: var(--side);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hc-left {
+  left: max(14px, env(safe-area-inset-left));
+}
+.hc-right {
+  right: max(14px, env(safe-area-inset-right));
+}
+.hc-card {
+  padding: 0.65rem 0.8rem;
+  background: linear-gradient(180deg, rgba(30, 21, 15, 0.94), rgba(16, 10, 7, 0.94));
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-card);
+}
+.hc-dmd {
+  line-height: 0;
+  overflow: hidden;
+  background: #000;
+  border: 3px solid #0a0604;
+  border-radius: 9px;
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    0 0 30px rgba(255, 120, 30, 0.22),
+    var(--shadow-card);
+}
+canvas.dmd {
+  width: 100%;
+  height: auto;
+  display: block;
+  image-rendering: pixelated;
+}
+/* Only the DMD (instant replays, the fall). */
+#hud[data-layout='dmd'] .hc-left > :not(.hc-dmd),
+#hud[data-layout='dmd'] .hc-right {
+  display: none;
+}
+
+/* Debt, Bank and Pocket */
+.ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.ledger-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--red-hi);
+}
+.ledger-debt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.ledger-debt .amt-ico {
+  width: 0.62em;
+  height: 0.62em;
+  color: var(--gold);
+}
+.hc-ledger .meter {
+  margin: 0.5rem 0 0.45rem;
+}
+.ledger-legend,
+.rb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0.9rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+.lg b {
+  color: var(--ink);
+  font-weight: 800;
+}
+.lg-bank .ico {
+  color: var(--gold);
+}
+.lg-pocket .ico {
+  color: var(--ink-2);
+}
+/* What is left to deposit is the number the player acts on: it reads bigger than its row. */
+.lg-need {
+  margin-left: auto;
+  font-size: var(--fs-s);
+  font-weight: 800;
+  color: var(--gold-hi);
+}
+.lg-need.ok,
+.rb-need.ok {
+  color: var(--green);
+}
+.hc-pocket {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--gap-3);
+}
+.pocket-label {
+  grid-column: 1 / -1;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pocket-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  font-family: var(--font-display);
+  font-size: 3.1rem;
+  line-height: 1.05;
+  color: var(--gold);
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.55),
+    0 0 26px rgba(255, 150, 20, 0.28);
+}
+.pocket-row .amt-ico {
+  width: 0.55em;
+  height: 0.55em;
+}
+.pocket-n {
+  display: inline-block;
+  transform-origin: left center;
+}
+.pocket-earn {
+  display: none;
+  font-size: var(--fs-s);
+  font-weight: 800;
+  color: var(--green);
+  text-align: right;
+}
+.pocket-earn.on {
+  display: block;
+}
+.hc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-bonus {
+  font-size: var(--fs-s);
+}
+.hc-combo {
+  display: none;
+  padding: 0.5rem 0.8rem 0.6rem;
+  background: linear-gradient(180deg, rgba(60, 36, 8, 0.95), rgba(30, 18, 6, 0.95));
+  border: 1px solid var(--gold-lo);
+  border-radius: var(--r-l);
+  box-shadow:
+    var(--shadow-card),
+    0 0 24px rgba(255, 150, 20, 0.28);
+}
+.hc-combo.on {
+  display: block;
+  animation: toast-in 0.25s cubic-bezier(0.2, 1.2, 0.3, 1) backwards;
+}
+.combo-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.combo-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-hi);
+}
+.combo-mult {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.combo-bar {
+  height: 5px;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 99px;
+}
+.combo-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-hi));
+  transform-origin: left;
+  will-change: transform;
+}
+
+/* Deadline, round, balls */
+.round-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.round-deadline {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.round-round {
+  font-size: var(--fs-s);
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.round-balls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  margin-top: 0.45rem;
+}
+.balls-text {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-sentence {
+  margin-top: 0.5rem;
+}
+.hc-job {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.job-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.job-head .ico {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 1px;
+  color: var(--gold);
+}
+.job-title {
+  font-size: var(--fs-s);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.job-count {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+}
+.hc-job.done {
+  border-color: var(--green-lo);
+}
+.hc-job.done .bar-fill {
+  background: linear-gradient(180deg, #c8ffce, var(--green));
+}
+.hc-job.done .job-count {
+  color: var(--green);
+}
+.hc-jb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-color: var(--red-lo);
+  background: linear-gradient(180deg, rgba(60, 14, 8, 0.95), rgba(30, 8, 5, 0.95));
+}
+.jb-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--red-hi);
+}
+.jb-count {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+.jb-sub {
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+.jb-bar .bar-fill {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+}
+.hc-actives {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.active-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-s);
+  font-weight: 700;
+}
+.active-row.spent {
+  opacity: 0.55;
+}
+.active-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+  background: linear-gradient(180deg, #2c2118, #1b130d);
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+.active-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.active-hint {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-charms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.hc-label {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.hc-charm-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.hc-charm-list .charm-chip {
+  padding: 0.12rem 0.55rem;
+  font-size: var(--fs-xs);
+}
+.hc-res {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hc-tip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-tip .ico {
+  color: var(--steel);
+}
+
+/* The plunger meter sits beside the table's shooter lane. */
+.hud-plunger {
+  position: absolute;
+  right: calc(var(--side) + 14px);
+  bottom: 28px;
+  width: 16px;
+  height: 130px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid var(--line-2);
+  border-radius: 6px;
+}
+.hud-plunger i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, #ffb347, #ff4a2a);
+  border-radius: 3px;
+}
+.hud-plunger em {
+  position: absolute;
+  left: -5px;
+  right: -5px;
+  height: 3px;
+  background: #fff3d0;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255, 240, 200, 0.8);
+}
+
+/* Touch buttons (lockbar, pause): bottom-left, away from the plunger corner. */
+.hud-touch {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: none;
+  gap: 8px;
+  pointer-events: auto;
+}
+.touch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 1rem;
+  font: 800 var(--fs-xs) / 1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(24, 16, 11, 0.92);
+  border: 1px solid var(--line-2);
+  border-bottom-width: 3px;
+  border-radius: var(--r-m);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-btn .ico {
+  width: 1.2em;
+  height: 1.2em;
+  color: var(--gold);
+}
+.touch-btn:active {
+  background: var(--s3);
+  transform: translateY(1px);
+}
+.touch-btn.pause {
+  padding: 0;
+  width: 48px;
+}
+@media (pointer: coarse) {
+  #hud.playing .hud-touch {
+    display: flex;
+  }
+}
+
+/* Between rounds: the status ribbon. */
+.hud-ribbon {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-5);
+  width: min(1060px, calc(100vw - 2 * var(--gutter)));
+  min-height: 54px;
+  padding: 0.3rem 1.1rem;
+  background: linear-gradient(180deg, rgba(30, 21, 15, 0.96), rgba(16, 10, 7, 0.96));
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-card);
+}
+.rb-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.rb-where {
+  flex: none;
+}
+.rb-deadline {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.rb-round {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.rb-ledger {
+  flex: 1;
+  gap: 5px;
+}
+.rb-ledger-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-3);
+}
+.rb-ledger .ledger-label {
+  font-size: var(--fs-xs);
+  color: var(--red-hi);
+}
+.rb-ledger .ledger-label .n {
+  margin-left: 0.2em;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.rb-legend {
+  flex-wrap: nowrap;
+}
+.rb-need {
+  color: var(--gold-hi);
+  font-size: var(--fs-s);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.rb-res {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------ phones in portrait */
+@media (max-aspect-ratio: 6/5) {
+  .hud-cols {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 8px;
+    row-gap: 5px;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  }
+  .hc-left,
+  .hc-right {
+    display: contents;
+  }
+  .hc-card {
+    padding: 0.3rem 0.55rem;
+    border-radius: var(--r-m);
+  }
+  .hc-pocket {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    min-width: 5.2rem;
+  }
+  .pocket-label {
+    font-size: var(--fs-2xs);
+  }
+  .pocket-row {
+    font-size: 2rem;
+  }
+  .pocket-earn {
+    display: none !important;
+  }
+  .hc-dmd {
+    grid-area: 1 / 2;
+    align-self: center;
+    border-width: 2px;
+  }
+  .hc-round {
+    grid-area: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 5.6rem;
+  }
+  .round-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .round-deadline {
+    font-size: 0.95rem;
+  }
+  .round-round {
+    font-size: var(--fs-2xs);
+  }
+  .round-balls {
+    margin-top: 0;
+    gap: 6px;
+  }
+  .balls-text,
+  .hc-sentence {
+    display: none;
+  }
+  .pip {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+  .hc-ledger {
+    grid-area: 2 / 1 / 3 / 4;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0 0.6rem;
+    padding: 0.3rem 0.6rem;
+  }
+  .ledger-head {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .ledger-label {
+    font-size: var(--fs-2xs);
+  }
+  .ledger-debt {
+    font-size: 1.3rem;
+  }
+  .hc-ledger .meter {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0.1rem 0;
+    height: 10px;
+  }
+  .ledger-legend {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: var(--fs-2xs);
+  }
+  .ledger-legend .ico {
+    display: none;
+  }
+  /* Small pills under the band: the Jailbreak count on the left, bonus and luck on the right.
+     They sit in the grid's spare row, so they follow the band whatever its height. */
+  .hc-chips {
+    grid-area: 3 / 2 / 4 / 4;
+    align-self: start;
+    justify-self: end;
+    gap: 4px;
+  }
+  /* The DMD already calls out the combo on a phone. */
+  .hc-combo {
+    display: none !important;
+  }
+  .hc-jb {
+    grid-area: 3 / 1 / 4 / 3;
+    align-self: start;
+    justify-self: start;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.2rem 0.6rem;
+  }
+  .hc-jb .jb-title {
+    font-size: 0.85rem;
+  }
+  .hc-jb .jb-count {
+    font-size: 1rem;
+  }
+  .hc-jb .jb-bar,
+  .hc-jb .jb-sub {
+    display: none;
+  }
+  .hc-job {
+    position: relative;
+    grid-area: 4 / 1 / 5 / 4;
+    margin-left: 124px;
+    padding: 0.3rem 0.6rem;
+    gap: 0.25rem;
+  }
+  .job-head .ico {
+    display: none;
+  }
+  .job-title {
+    overflow: hidden;
+    padding-right: 3.4rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-2xs);
+  }
+  .hc-job .bar {
+    height: 6px;
+  }
+  .job-count {
+    position: absolute;
+    right: 0.7rem;
+    top: 0.3rem;
+    font-size: var(--fs-2xs);
+  }
+  .hc-actives {
+    position: absolute;
+    left: 8px;
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 56px);
+    padding: 0.3rem 0.5rem;
+    gap: 0.2rem;
+  }
+  .active-name,
+  .active-hint {
+    display: none;
+  }
+  .hc-res,
+  .hc-tip,
+  .hc-charms {
+    display: none;
+  }
+  .hud-plunger {
+    right: 10px;
+    bottom: 76px;
+  }
+  .hud-touch {
+    left: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .touch-btn {
+    min-height: 44px;
+    padding: 0 0.7rem;
+  }
+  .touch-label {
+    display: none;
+  }
+  .touch-btn {
+    width: 48px;
+    padding: 0;
+  }
+  /* The status ribbon: where you are and what you have on top, the debt bar under it. */
+  .hud-ribbon {
+    top: max(6px, env(safe-area-inset-top));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'where res'
+      'ledger ledger';
+    align-items: center;
+    gap: 4px var(--gap-3);
+    min-height: 84px;
+    padding: 0.4rem 0.7rem;
+  }
+  .rb-where {
+    grid-area: where;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: 0.5rem;
+    overflow: hidden;
+  }
+  .rb-round {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rb-deadline {
+    font-size: 1rem;
+  }
+  .rb-res {
+    grid-area: res;
+    gap: 4px;
+  }
+  .rb-res .chip {
+    padding: 0.1rem 0.45rem;
+  }
+  .rb-ledger {
+    grid-area: ledger;
+  }
+  .rb-legend .lg-pocket {
+    display: none;
+  }
+}
+
+/* Phones in landscape and other short screens. The right column drops what the ribbon shows
+   between rounds (charms, tickets and keys, the tip) so the notices have room under it. */
+@media (max-height: 520px) and (min-aspect-ratio: 6/5) {
+  .hc-dmd,
+  .hc-charms,
+  .hc-res,
+  .hc-tip,
+  .active-hint,
+  .balls-text {
+    display: none;
+  }
+  .hc-left,
+  .hc-right {
+    gap: 6px;
+    top: 8px;
+  }
+  .pocket-row {
+    font-size: 2.2rem;
+  }
+  .hc-card {
+    padding: 0.4rem 0.6rem;
+  }
+  .hud-ribbon {
+    top: 6px;
+    height: 44px;
+  }
+  .hud-plunger {
+    bottom: 14px;
+    height: 100px;
+  }
+}

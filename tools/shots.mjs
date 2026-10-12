@@ -1,4 +1,4 @@
-/* global console, process */
+/* global console, document, process */
 /**
  * Screenshot tour for visual and UI work. It walks title -> lineup -> deadline -> Jobs ->
  * buy -> cell -> play (the bot plays) -> ball end, then opens the ATM, shop, phone, settings,
@@ -19,6 +19,8 @@ const out = arg('--out', 'screenshots/tour');
 const [w, h] = arg('--size', '1280x800').split('x').map(Number);
 const touch = process.argv.includes('--touch');
 const only = arg('--only', '');
+// --text 1.3 renders the tour at a larger text-size setting (the CSS scale the Settings screen sets).
+const text = arg('--text', '');
 mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({
@@ -59,6 +61,8 @@ const step = async (re, name, wait = 900) => {
 try {
   await page.goto(`${url}/?bot=expert&seed=SHOTS`);
   await waitMode(/title/);
+  if (text)
+    await page.evaluate((t) => document.documentElement.style.setProperty('--text-scale', t), text);
   await page.waitForTimeout(1800);
   await shot('01-title');
   await step(/lineup/, '02-lineup');
@@ -75,7 +79,8 @@ try {
   await page.waitForTimeout(700);
   await shot('09-tally');
   await waitMode(/ballEnd/, 30000);
-  await page.waitForTimeout(700);
+  // The tally counts up for about 1.6 s; shoot it settled.
+  await page.waitForTimeout(2200);
   await shot('10-ball-end');
   if (only !== 'play') {
     await step(/cell|buy|deadline/, '11-after-ball');

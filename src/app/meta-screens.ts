@@ -3,6 +3,9 @@
  * the Rap Sheet (lifetime stats, endings, milestones, the collection).
  */
 import { h } from './ui';
+import { icon } from './icons';
+import { btn, chip, keyFor, panel, section, stat } from './widgets';
+import { fmtInt } from './counter';
 import { paintMugshot } from '../present/mugshot';
 import { INMATES, inmateDef } from '../content/inmates';
 import { HARD_TIME } from '../content/hard-time';
@@ -39,86 +42,147 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
     const canvas = h('canvas', { class: 'mug' });
     paintMugshot(canvas, d.id, d.number, !open);
     const why = UNLOCKS.find((u) => u.inmate === d.id)?.text ?? '';
+    const sel = c.inmate === d.id;
     return h(
       'button',
       {
-        class: `mugcard${c.inmate === d.id ? ' sel' : ''}`,
-        disabled: !open,
+        type: 'button',
+        class: `mugcard stagger${sel ? ' sel' : ''}${open ? '' : ' locked'}`,
+        'data-k': `inmate-${d.id}`,
+        'aria-pressed': sel ? 'true' : 'false',
+        ...(open ? {} : { 'aria-disabled': 'true', 'data-why': `Locked: ${why}` }),
         title: open ? d.name : `Locked: ${why}`,
-        onclick: () => on.change({ ...c, inmate: d.id, hardTime: 0 }),
+        onclick: () => {
+          if (open) on.change({ ...c, inmate: d.id, hardTime: 0 });
+        },
       },
-      canvas,
+      h('span', { class: 'mug-frame' }, canvas, open ? null : icon('lock', 'mug-lock')),
       h('b', null, open ? d.name.replace('The ', '') : '???'),
       h('small', null, open ? `No. ${d.number}` : why),
+      sel ? h('span', { class: 'mug-tag' }, icon('check'), 'Selected') : null,
     );
   });
   const d = inmateDef(c.inmate);
   const maxHt = maxHardTime(meta, c.inmate);
   const ht = Math.min(c.hardTime, maxHt);
   const htRows = HARD_TIME.filter((l) => l.level <= ht).map((l) =>
-    h('li', null, `${l.level}. ${l.text}`),
+    h('li', null, h('b', null, String(l.level)), l.text),
   );
-  return h(
-    'div',
-    { class: 'panel lineup' },
-    h('h2', null, 'Booking'),
-    h('div', { class: 'mugs' }, ...cards),
-    h(
+  const endless = endlessUnlocked(meta);
+  return panel({
+    screen: 'lineup',
+    size: 'xl',
+    eyebrow: 'Intake',
+    title: 'Booking',
+    lede: 'Pick who you are this time. Each inmate starts with a different loadout.',
+    body: h(
       'div',
-      { class: 'inmate' },
-      h('b', null, `${d.name}, No. ${d.number}`),
-      h('p', { class: 'dim' }, `Charge: ${d.charge}`),
-      h('p', { class: 'up' }, `+ ${d.upside}`),
-      h('p', { class: 'down' }, `− ${d.downside}`),
-    ),
-    h(
-      'div',
-      { class: 'row' },
-      h('button', { disabled: ht <= 0, onclick: () => on.change({ ...c, hardTime: ht - 1 }) }, '−'),
-      h('span', { class: 'ht' }, `Hard Time ${ht}${maxHt ? ` / ${maxHt}` : ''}`),
+      { class: 'two-col lineup-cols' },
+      h('div', { class: 'col' }, h('div', { class: 'mugs' }, cards)),
       h(
-        'button',
-        { disabled: ht >= maxHt, onclick: () => on.change({ ...c, hardTime: ht + 1 }) },
-        '+',
-      ),
-      endlessUnlocked(meta)
-        ? h(
-            'button',
-            { onclick: () => on.change({ ...c, endless: !c.endless }) },
-            c.endless ? 'Endless: on' : 'Endless: off',
-          )
-        : null,
-    ),
-    h(
-      'div',
-      { class: 'row seed' },
-      h('span', null, 'Seed'),
-      h('input', {
-        type: 'text',
-        value: c.seed,
-        maxlength: 24,
-        placeholder: 'random',
-        spellcheck: 'false',
-        // Typing doesn't re-render (it would steal focus); the choice is read on start.
-        oninput: (e: Event) => {
-          c.seed = (e.target as HTMLInputElement).value.trim().toUpperCase();
-        },
-      }),
-    ),
-    ht
-      ? h('ul', { class: 'htlist' }, ...htRows)
-      : h(
-          'p',
-          { class: 'dim' },
-          maxHt ? 'No Hard Time.' : 'Win with this inmate to unlock Hard Time.',
+        'div',
+        { class: 'col dossier' },
+        h(
+          'div',
+          { class: 'dossier-head' },
+          h('h3', null, d.name),
+          chip(`No. ${d.number}`, 'ghost'),
         ),
-    h(
-      'div',
-      { class: 'row' },
-      h('button', { onclick: () => on.back() }, 'Back'),
-      h('button', { class: 'primary', onclick: () => on.start() }, 'Wake up'),
+        h('p', { class: 'charge' }, `Charge: ${d.charge}`),
+        h('p', { class: 'perk up' }, icon('plus'), d.upside),
+        h('p', { class: 'perk down' }, icon('minus'), d.downside),
+        section('Hard Time', [
+          h(
+            'div',
+            { class: 'stepper' },
+            btn(icon('minus'), {
+              class: 'small square',
+              disabled: ht <= 0,
+              why: 'Hard Time is already at its lowest.',
+              cue: 'slider',
+              k: 'ht-',
+              onclick: () => on.change({ ...c, hardTime: ht - 1 }),
+            }),
+            h(
+              'span',
+              { class: 'stepper-value' },
+              ht ? `Level ${ht}` : 'Off',
+              maxHt ? h('small', null, ` of ${maxHt}`) : null,
+            ),
+            btn(icon('plus'), {
+              class: 'small square',
+              disabled: ht >= maxHt,
+              why: maxHt
+                ? 'Hard Time is at your highest unlocked level.'
+                : 'Win with this inmate to unlock Hard Time.',
+              cue: 'slider',
+              k: 'ht+',
+              onclick: () => on.change({ ...c, hardTime: ht + 1 }),
+            }),
+          ),
+          ht
+            ? h('ul', { class: 'htlist' }, htRows)
+            : h(
+                'p',
+                { class: 'dim' },
+                maxHt
+                  ? 'Harder debts and tougher rules, for a better ending.'
+                  : 'Win with this inmate to unlock Hard Time.',
+              ),
+        ]),
+        endless
+          ? h(
+              'div',
+              { class: 'setting-row' },
+              h(
+                'span',
+                { class: 'sr-text' },
+                h('b', null, 'Endless'),
+                h('small', null, 'Deadlines keep coming after the last one.'),
+              ),
+              btn(c.endless ? 'On' : 'Off', {
+                class: `switch${c.endless ? ' on' : ''}`,
+                cue: c.endless ? 'toggleOff' : 'toggleOn',
+                k: 'endless',
+                onclick: () => on.change({ ...c, endless: !c.endless }),
+              }),
+            )
+          : null,
+        h(
+          'label',
+          { class: 'setting-row seed' },
+          h(
+            'span',
+            { class: 'sr-text' },
+            h('b', null, 'Seed'),
+            h('small', null, 'Same seed, same inmate: same run. Leave empty for a random one.'),
+          ),
+          h('input', {
+            type: 'text',
+            value: c.seed,
+            maxlength: 24,
+            placeholder: 'random',
+            spellcheck: 'false',
+            autocomplete: 'off',
+            // Typing doesn't re-render (it would steal focus); the choice is read on start.
+            oninput: (e: Event) => {
+              c.seed = (e.target as HTMLInputElement).value.trim().toUpperCase();
+            },
+          }),
+        ),
+      ),
     ),
-  );
+    foot: [
+      btn('Back', { variant: 'ghost', cue: 'back', k: 'back', onclick: () => on.back() }),
+      btn('Wake up', {
+        variant: 'primary',
+        icon: 'chevron',
+        key: keyFor('confirm'),
+        k: 'start',
+        onclick: () => on.start(),
+      }),
+    ],
+  });
 }
 
 /** Lifetime Rap Sheet: stats, endings, milestones and everything found so far. */
@@ -130,10 +194,15 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
     h(
       'span',
       {
-        class: `chip${found.has(c.id) ? '' : ' unknown'}`,
-        style: found.has(c.id) ? { borderColor: RARITY_COLORS[c.rarity] } : undefined,
+        class: `chip chip-plain${found.has(c.id) ? '' : ' unknown'}`,
+        style: found.has(c.id) ? { '--chip': RARITY_COLORS[c.rarity] } : undefined,
         title: found.has(c.id) ? c.text : locked.has(c.id) ? 'Locked' : 'Not found yet',
       },
+      found.has(c.id)
+        ? icon('star', 'chip-ico')
+        : locked.has(c.id)
+          ? icon('lock', 'chip-ico')
+          : null,
       found.has(c.id) ? c.name : locked.has(c.id) ? 'locked' : '???',
     ),
   );
@@ -141,63 +210,90 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
     all.map((x) =>
       h(
         'span',
-        { class: `chip${seen.includes(x.id) ? '' : ' unknown'}` },
+        { class: `chip chip-plain${seen.includes(x.id) ? '' : ' unknown'}` },
         seen.includes(x.id) ? x.name : '???',
       ),
     );
-  return h(
-    'div',
-    { class: 'panel rapsheet' },
-    h('h1', null, 'Rap sheet'),
-    h(
-      'div',
-      { class: 'grid' },
-      'Runs (marks on the wall)',
-      h('b', null, String(tallies)),
-      'Most deadlines paid',
-      h('b', null, String(s.bestDeadline)),
-      'Biggest PAYDAY',
-      h('b', null, `${s.biggestPayday}c`),
-      'Longest combo',
-      h('b', null, String(s.longestCombo)),
-      'Balls played',
-      h('b', null, String(s.balls)),
-      'Coins earned',
-      h('b', null, String(s.coins)),
-      'RIOTs',
-      h('b', null, String(s.riots)),
-      'Ways out',
-      h('b', null, String(s.wins)),
-    ),
-    h('h3', null, 'Endings'),
-    meta.endings.length
-      ? h(
+  const done = UNLOCKS.filter((u) => meta.unlocked.includes(u.id)).length;
+  return panel({
+    screen: 'meta',
+    size: 'xl',
+    class: 'rapsheet',
+    eyebrow: 'Lifetime',
+    title: 'Rap sheet',
+    titleIcon: 'trophy',
+    body: [
+      h(
+        'div',
+        { class: 'stats four' },
+        stat({ label: 'Runs on the wall', value: fmtInt(tallies) }),
+        stat({ label: 'Most deadlines paid', value: String(s.bestDeadline), tone: 'gold' }),
+        stat({ label: 'Biggest PAYDAY', value: fmtInt(s.biggestPayday), tone: 'gold' }),
+        stat({ label: 'Longest combo', value: String(s.longestCombo) }),
+        stat({ label: 'Balls played', value: fmtInt(s.balls) }),
+        stat({ label: 'Coins earned', value: fmtInt(s.coins), tone: 'gold' }),
+        stat({ label: 'RIOTs', value: String(s.riots) }),
+        stat({ label: 'Ways out', value: String(s.wins), tone: 'green' }),
+      ),
+      section(
+        'Endings',
+        meta.endings.length
+          ? h(
+              'ul',
+              { class: 'endings' },
+              meta.endings.map((e) =>
+                h(
+                  'li',
+                  null,
+                  h('b', null, ENDING_NAMES[e.ending]),
+                  ` run ${e.run}, ${inmateDef(e.inmate).name}${e.hardTime ? `, Hard Time ${e.hardTime}` : ''}`,
+                  h('small', null, ` seed ${e.seed}`),
+                ),
+              ),
+            )
+          : h('p', { class: 'dim' }, 'None yet. Nobody gets out on the first try.'),
+      ),
+      section(
+        'Milestones',
+        h(
           'ul',
-          null,
-          ...meta.endings.map((e) =>
-            h(
+          { class: 'milestones' },
+          UNLOCKS.map((u) => {
+            const ok = meta.unlocked.includes(u.id);
+            return h(
               'li',
-              null,
-              `Run ${e.run}: ${ENDING_NAMES[e.ending]} — ${inmateDef(e.inmate).name}${e.hardTime ? `, Hard Time ${e.hardTime}` : ''} (seed ${e.seed})`,
-            ),
-          ),
-        )
-      : h('p', { class: 'dim' }, 'None yet. Nobody gets out on the first try.'),
-    h('h3', null, 'Milestones'),
-    h(
-      'ul',
-      { class: 'milestones' },
-      ...UNLOCKS.map((u) => {
-        const done = meta.unlocked.includes(u.id);
-        return h('li', { class: done ? 'done' : '' }, `${done ? '■' : '□'} ${u.text}`);
+              { class: ok ? 'done' : '' },
+              icon(ok ? 'check' : 'lock', 'ms-ico'),
+              u.text,
+            );
+          }),
+        ),
+        { aside: `${done} / ${UNLOCKS.length}` },
+      ),
+      section('Charms', h('div', { class: 'chips' }, charms), {
+        aside: `${found.size} / ${CHARMS.length}`,
       }),
-    ),
-    h('h3', null, `Charms ${found.size}/${CHARMS.length}`),
-    h('div', { class: 'chips' }, ...charms),
-    h('h3', null, `Contraband ${meta.discovered.contraband.length}/${CONTRABAND.length}`),
-    h('div', { class: 'chips' }, ...list(CONTRABAND, meta.discovered.contraband)),
-    h('h3', null, `Sentences ${meta.discovered.sentences.length}/${SENTENCES.length}`),
-    h('div', { class: 'chips' }, ...list(SENTENCES, meta.discovered.sentences)),
-    h('div', { class: 'row' }, h('button', { class: 'primary', onclick: back }, 'Back')),
-  );
+      section(
+        'Contraband',
+        h('div', { class: 'chips' }, list(CONTRABAND, meta.discovered.contraband)),
+        {
+          aside: `${meta.discovered.contraband.length} / ${CONTRABAND.length}`,
+        },
+      ),
+      section(
+        'Sentences',
+        h('div', { class: 'chips' }, list(SENTENCES, meta.discovered.sentences)),
+        {
+          aside: `${meta.discovered.sentences.length} / ${SENTENCES.length}`,
+        },
+      ),
+    ],
+    foot: btn('Back', {
+      variant: 'primary',
+      key: keyFor('confirm'),
+      cue: 'back',
+      k: 'back',
+      onclick: back,
+    }),
+  });
 }

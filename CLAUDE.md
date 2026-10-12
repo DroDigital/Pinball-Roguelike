@@ -15,6 +15,12 @@ design, milestone checklist and decisions log; update both as you work.
 - `npm run botstats` — per-ball stat distributions at three bot skill levels
 - `npm run economy` — Monte Carlo economy sim (clear rates per deadline); `--arch <a>` per
   build archetype, then `npm run economy:summary` pools them (win rates, charm dominance)
+- `npm run sfx:build` — rebuild the sample bank in `public/sfx/` (plus CREDITS.md, the licence
+  texts and the service-worker file list) from the staged CC0 packs and `tools/lib/foley.mjs`;
+  prints peak/RMS/centroid and the small-speaker drop per file
+- `npm run audio:check` — offline level check (starts its own dev server): decodes the bank,
+  renders rally/stress/cue-reel scenarios and prints peak, RMS and small-speaker levels;
+  `npm run audio:payouts` — payout-sound tiers on bot balls
 - `npm run e2e` — Playwright smoke (builds, serves, plays a bot ball, screenshots)
 
 ## Architecture rules

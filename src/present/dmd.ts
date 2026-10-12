@@ -38,6 +38,7 @@ export class Dmd {
   time = 0;
   /** Any change since last draw (to skip texture uploads). */
   dirty = true;
+  private lastHash = -1;
 
   constructor(dotPx = 4) {
     this.dot = dotPx;
@@ -166,6 +167,12 @@ export class Dmd {
   }
 
   private draw(): void {
+    // Most frames repeat the last picture: hash the grid and skip the canvas work and upload.
+    let h = 2166136261;
+    for (let i = 0; i < this.buf.length; i++) h = Math.imul(h ^ this.buf[i], 16777619);
+    this.dirty = h !== this.lastHash;
+    if (!this.dirty) return;
+    this.lastHash = h;
     const sm = this.small;
     const img = this.img;
     const px = img.data;
@@ -187,7 +194,6 @@ export class Dmd {
     g.globalCompositeOperation = 'destination-over';
     g.drawImage(this.unlit, 0, 0);
     g.globalCompositeOperation = 'source-over';
-    this.dirty = true;
   }
 
   private small!: CanvasRenderingContext2D;

@@ -1,13 +1,24 @@
 /**
  * The 3D world: the cell, the cabinet with DEBTOR'S PRISON on it, lights (incl. the bare bulb),
  * and cameras (Play cam, Seated cam, look-around between balls).
+ *
+ * Visual hooks for juice (all honour Settings.reducedFlashing):
+ *   world.table.flashPart('bumper' | 'sling' | 'target' | 'spinner', index, strength)
+ *   world.table.fireFlasher(id | 'red' | 'yellow' | 'white' | 'all', strength)
+ *   world.table.giPulse(colour, strength)       GI bulbs and GI lights surge in a colour
+ *   world.table.flashLamp(lampId | 'all', strength)   insert overdrive past full brightness
+ *   world.backbox.pulseGlass(k)                 backglass, DMD and the glow spill blaze
+ *   renderer.bloomPulse(k)                      bloom and exposure kick (RetroRenderer)
+ *   LampShowPlayer.play(name)                   named lamp shows (attract, riot, payday, ...)
+ *   world.kick(strength, dir) / world.swingBulb(amount)   camera shove and the bare bulb
  */
 import * as THREE from 'three';
 import { TableView } from './table-view';
 import { TW, TH } from './coords';
-import { CellRoom, PROPS } from './cell';
+import { CellRoom, PROPS, ROOM } from './cell';
 import { ROOM_UNIFORMS } from './retro-material';
 import { CoinTray } from './coins';
+import { Backbox, buildBody, buildLegs } from './cabinet';
 
 export type CamMode =
   | 'top'
@@ -24,14 +35,21 @@ export type CamMode =
   | 'tray';
 
 const TILT = 6.5 * (Math.PI / 180);
-export const FOG_DENSITY = 0.018;
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+const AXIS_Y = new THREE.Vector3(0, 1, 0);
+export const FOG_DENSITY = 0.006;
+/** The bare bulb hangs off to the left so it never sits in front of the backglass. */
+const BULB_X = -11;
 
 export class World {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 400);
   readonly table: TableView;
   readonly cabinet = new THREE.Group();
-  readonly bulb: THREE.PointLight;
+  readonly backbox: Backbox;
+  /** The bare bulb: a position for the cell's shader and the mesh (not a real light, which
+   * would add per-fragment cost to every machine material). */
+  readonly bulb = { position: new THREE.Vector3(BULB_X, 26, 12), visible: true };
   readonly bulbMesh: THREE.Mesh;
   readonly cell: CellRoom;
   readonly coins = new CoinTray();
@@ -43,6 +61,10 @@ export class World {
   private readonly fill: THREE.HemisphereLight;
   private readonly key: THREE.DirectionalLight;
   private readonly gi: THREE.PointLight[] = [];
+  private readonly giBase: number[] = [];
+  private readonly giTint = new THREE.Color();
+  /** Warm pool of light the machine throws on the floor (follows GI level and surges). */
+  private readonly floorGlow: THREE.Mesh;
   private readonly camPos = new THREE.Vector3();
   private readonly camLook = new THREE.Vector3();
   private readonly goalPos = new THREE.Vector3();
@@ -65,34 +87,24 @@ export class World {
   bulbPower = 1800;
   aspect = 16 / 9;
 
-  constructor(tags: ReadonlySet<string>) {
-    const envMap = makeEnvMap();
-    this.table = new TableView(undefined, tags, envMap);
+  constructor(tags: ReadonlySet<string>, env: THREE.Texture | null = null) {
+    this.table = new TableView(undefined, tags, env);
     this.scene.background = new THREE.Color(0x050403);
     this.scene.fog = new THREE.FogExp2(0x070504, FOG_DENSITY);
 
     // Cabinet: the table group tilts toward the player like a real machine.
     this.table.root.rotation.x = TILT;
     this.cabinet.add(this.table.root);
-    const wood = new THREE.MeshStandardMaterial({ color: 0x1d120c, roughness: 0.8 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(TW + 3.4, 6, TH + 5), wood);
-    body.position.set(0, -3.2, -0.5);
+    const mats = this.table.materials;
     // The body tilts with the playfield so its top never cuts through the lower table.
-    this.table.root.add(body);
-    const lockbar = new THREE.Mesh(
-      new THREE.BoxGeometry(TW + 3.6, 0.8, 1.2),
-      new THREE.MeshStandardMaterial({ color: 0x8a8a90, metalness: 0.9, roughness: 0.3 }),
-    );
-    lockbar.position.set(0, 0.6, TH / 2 + 2.6);
-    this.table.root.add(lockbar);
-    // Backbox (DMD and backglass are attached later by the presentation layer).
-    const back = new THREE.Mesh(new THREE.BoxGeometry(TW + 3.4, 16, 4), wood);
-    back.position.set(0, 7.5, -TH / 2 - 4.2);
-    back.name = 'backbox';
-    this.cabinet.add(back);
+    this.table.root.add(buildBody(mats, env));
+    // Backbox: backlit glass, DMD and flasher domes (attached by the app via attach()).
+    this.backbox = new Backbox(mats, this.table.flashers);
+    this.cabinet.add(this.backbox.group);
     this.scene.add(this.cabinet);
-    // Coin tray hung on the cabinet front, under the lockbar and right of centre.
     this.cabinet.updateMatrixWorld(true);
+    this.cabinet.add(buildLegs(this.table.root, mats, ROOM.floor));
+    // Coin tray hung on the cabinet front, under the lockbar and right of centre.
     this.table.root.localToWorld(this.trayPos.set(TW / 2 - 4.2, -3.8, TH / 2 + 2));
     this.trayPos.z += 1.5;
     this.coins.group.position.copy(this.trayPos);
@@ -101,38 +113,35 @@ export class World {
     // The cell around the machine.
     this.cell = new CellRoom();
     this.scene.add(this.cell.group);
+    this.floorGlow = makeFloorGlow();
+    this.floorGlow.position.set(0, ROOM.floor + 0.06, 8);
+    this.scene.add(this.floorGlow);
 
     // Lights: a dim cell lit by one bare bulb; the machine's GI makes the playfield the
     // brightest thing in the room so it always reads.
-    this.fill = new THREE.HemisphereLight(0x8a7458, 0x140c08, 1.1);
+    this.fill = new THREE.HemisphereLight(0x8a7458, 0x140c08, 0.5);
     this.scene.add(this.fill);
-    this.bulb = new THREE.PointLight(0xffd59a, 1800, 140, 2);
-    this.bulb.position.set(0, 26, 12);
-    this.scene.add(this.bulb);
     this.bulbMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.6, 8, 6),
-      new THREE.MeshBasicMaterial({ color: 0xfff0c0 }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 4, 2.6), toneMapped: false }),
     );
     this.bulbMesh.position.copy(this.bulb.position);
     this.scene.add(this.bulbMesh);
-    const key = new THREE.DirectionalLight(0xfff2dd, 2.2);
+    const key = new THREE.DirectionalLight(0xfff2dd, 1.0);
     key.position.set(-4, 30, 14);
     this.scene.add(key);
     this.key = key;
-    // GI strings down both side rails plus the backbox spill.
+    // GI: two real lights (fragment cost scales with light count on phones); the rest of the
+    // glow is the instanced bulbs on the rails.
     for (const [x, z, c, i] of [
-      [-9, 14, 0xffc890, 40],
-      [9, 14, 0xffc890, 40],
-      [-9, 4, 0xffc080, 40],
-      [9, 4, 0xffc080, 40],
-      [-8, -7, 0xff9a70, 40],
-      [8, -7, 0x90b8ff, 40],
-      [0, -17, 0xffd0a0, 60],
+      [0, 9, 0xffc890, 24],
+      [0, -10, 0xffc08c, 24],
     ] as const) {
-      const l = new THREE.PointLight(c, i, 22, 1.6);
-      l.position.set(x, 3.2, z);
+      const l = new THREE.PointLight(c, i, 38, 1.5);
+      l.position.set(x, 5, z);
       this.table.root.add(l);
       this.gi.push(l);
+      this.giBase.push(i);
     }
     this.goalFor('title');
     this.camPos.copy(this.goalPos);
@@ -150,21 +159,41 @@ export class World {
   /** Bring the machine's GI back after JAILBREAK. */
   restoreLights(): void {
     this.lightsDying = false;
-    if (!this.table.blackout) for (const l of this.gi) l.intensity = l.userData.base ?? l.intensity;
+    this.table.giLevel = 1;
+    this.applyGi(1);
   }
 
   setBlackout(on: boolean): void {
     if (this.table.blackout === on) return;
     this.table.blackout = on;
     const k = on ? 0.06 : 1;
-    this.fill.intensity = 1.1 * k;
-    this.key.intensity = 2.2 * k;
-    for (const l of this.gi) l.intensity = (l.userData.base ??= l.intensity) * k;
+    this.fill.intensity = 0.5 * k;
+    this.key.intensity = 1.0 * k;
+    this.table.giLevel = k;
+    this.applyGi(k);
     this.bulb.visible = !on;
   }
 
-  /** JAILBREAK: the machine's lights are dying (GI stutters and sags). */
+  /** JAILBREAK: the machine's lights are dying (GI sags slowly). */
   lightsDying = false;
+  private sagPhase = 0;
+  private sagDepth = 0.5;
+
+  /** GI lights follow the table's level and its colour surge (giPulse). */
+  private applyGi(level: number): void {
+    const p = this.table.gi;
+    const glow = this.floorGlow.material as THREE.MeshBasicMaterial;
+    glow.opacity = Math.min(1, 0.15 * level * (1 + p.pulse * 3));
+    glow.color.setHex(0xffa860).lerp(p.color, Math.min(1, p.pulse * 0.8));
+    this.giTint.setHex(0xffc890);
+    for (let i = 0; i < this.gi.length; i++) {
+      // A surge brightens the real GI lights but never tints them: the printed field keeps
+      // its colour (the bulbs and inserts carry the surge colour).
+      const l = this.gi[i];
+      l.intensity = this.giBase[i] * level * (1 + p.pulse * 0.9);
+      l.color.setHex(0xffc890);
+    }
+  }
 
   setMode(m: CamMode): void {
     if (m === 'fall' && this.mode !== 'fall') this.fallT = 0;
@@ -194,16 +223,16 @@ export class World {
       }
       case 'top': {
         // Dev: straight down the table normal.
-        const n = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), TILT);
         l.set(0, 0, 0);
-        p.copy(n)
-          .multiplyScalar(TH * 1.25)
-          .add(new THREE.Vector3(0, 0, 0.01));
+        p.set(0, 1, 0)
+          .applyAxisAngle(AXIS_X, TILT)
+          .multiplyScalar(TH * 1.25);
+        p.z += 0.01;
         break;
       }
       case 'seated':
-        p.set(0, 12, TH / 2 + 15);
-        l.set(0, 1, -6);
+        p.set(0, 13, TH / 2 + 17);
+        l.set(0, 4.5, -6);
         break;
       case 'atm':
         p.set(18, 9, 24);
@@ -242,19 +271,46 @@ export class World {
         p.copy(this.trayPos).add(this.tmpOff.set(-7, 10.5, 11));
         break;
       case 'title':
-        p.set(9, 16, TH / 2 + 16);
-        l.set(0, 2, -3);
+        p.set(9, 17, TH / 2 + 18);
+        l.set(0, 4.5, -3);
         break;
       default:
-        p.set(0, 12, TH / 2 + 15);
-        l.set(0, 1, -6);
+        p.set(0, 13, TH / 2 + 17);
+        l.set(0, 4.5, -6);
     }
+    if (m === 'seated' || m === 'title') this.fitTable(p, l);
     if (m === 'seated' && this.lookYaw !== 0) {
-      const eye = p.clone();
-      const dir = l.clone().sub(eye);
-      dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.lookYaw);
-      l.copy(eye.add(dir));
+      this.tmpOff.copy(l).sub(p).applyAxisAngle(AXIS_Y, this.lookYaw);
+      l.copy(p).add(this.tmpOff);
     }
+  }
+
+  /**
+   * Back the camera off until the whole table fits, by width (narrow screens) and by height
+   * (the flippers and drain stay in frame at any aspect), the same contract as the play view.
+   */
+  private fitTable(p: THREE.Vector3, l: THREE.Vector3): void {
+    const half = (this.camera.fov * Math.PI) / 360;
+    const fitW = (TW + 6) / 2 / (Math.tan(half) * this.aspect);
+    const fitH = (TH * 0.62) / Math.tan(half);
+    const fit = Math.max(fitW, fitH);
+    const off = this.tmpOff.copy(p).sub(l);
+    const len = off.length();
+    if (len < fit) p.copy(l).addScaledVector(off, fit / len);
+  }
+
+  /**
+   * A slow swell (about 0.4 Hz, 0..depth) for the JAILBREAK sag and the decaying bulb. The
+   * depth is re-rolled once per cycle, so the randomness sets the rate and depth of the
+   * dimming, never a per-frame on/off.
+   */
+  private sag(dt: number): number {
+    this.sagPhase += dt * 0.4;
+    if (this.sagPhase >= 1) {
+      this.sagPhase -= 1;
+      this.sagDepth = 0.4 + Math.random() * 0.6;
+    }
+    return (0.5 - 0.5 * Math.cos(this.sagPhase * Math.PI * 2)) * this.sagDepth;
   }
 
   kick(strength: number, dir = new THREE.Vector3(0, 0, -1)): void {
@@ -293,18 +349,24 @@ export class World {
     this.bulbSwingV *= Math.exp(-dt * 0.6);
     this.bulbSwing += this.bulbSwingV * dt;
     this.bulb.position.set(
-      Math.sin(this.bulbSwing) * 6,
+      BULB_X + Math.sin(this.bulbSwing) * 6,
       26 - Math.abs(Math.sin(this.bulbSwing)) * 1.5,
       12,
     );
     this.bulbMesh.position.copy(this.bulb.position);
     ROOM_UNIFORMS.uBulbPos.value.copy(this.bulb.position);
-    const flicker = Math.random() < this.flickerChance ? 0.4 : 1;
-    this.bulb.intensity = this.bulbPower * flicker;
+    const swell = this.sag(dt);
+    // Decay: the bulb dims in slow swells, never a per-frame blink (reduced: steady).
+    const flicker = this.table.reducedFlashing
+      ? 1
+      : 1 - Math.min(0.5, this.flickerChance * 4) * swell;
     ROOM_UNIFORMS.uBulbPower.value = this.bulb.visible ? (this.bulbPower / 1800) * flicker : 0.05;
-    if (this.lightsDying && !this.table.blackout)
-      for (const l of this.gi)
-        l.intensity = (l.userData.base ??= l.intensity) * (Math.random() < 0.15 ? 0.05 : 0.35);
+    if (this.lightsDying && !this.table.blackout) {
+      // JAILBREAK: the GI sags and recovers slowly; reduced flashing holds it steady and dim.
+      this.table.giLevel = this.table.reducedFlashing ? 0.25 : 0.22 + 0.2 * (1 - swell);
+    }
+    this.applyGi(this.table.blackout ? 0.06 : this.table.giLevel);
+    this.backbox.update(dt);
     this.cell.update(dt);
     if (this.mode === 'fall') {
       this.fallT += dt;
@@ -313,30 +375,32 @@ export class World {
   }
 }
 
-/** A tiny procedural environment map for the chrome ball: warm bulb, dark room, lit glass. */
-function makeEnvMap(): THREE.Texture {
+function makeFloorGlow(): THREE.Mesh {
   const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
+  c.width = c.height = 128;
   const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 0, 128);
-  grad.addColorStop(0, '#4a3a2a');
-  grad.addColorStop(0.45, '#1a120c');
-  grad.addColorStop(0.55, '#2a1810');
-  grad.addColorStop(1, '#0a0605');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 128);
-  const r = g.createRadialGradient(128, 18, 2, 128, 18, 30);
-  r.addColorStop(0, 'rgba(255,240,200,1)');
-  r.addColorStop(1, 'rgba(255,200,120,0)');
+  const r = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  r.addColorStop(0, 'rgba(255,255,255,0.9)');
+  r.addColorStop(0.35, 'rgba(255,255,255,0.4)');
+  r.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = r;
-  g.fillRect(80, 0, 96, 60);
-  g.fillStyle = 'rgba(255,120,60,0.5)';
-  g.fillRect(20, 70, 50, 10);
-  g.fillStyle = 'rgba(120,180,255,0.4)';
-  g.fillRect(180, 74, 40, 8);
+  g.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(c);
-  tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(64, 84),
+    new THREE.MeshBasicMaterial({
+      map: tex,
+      color: 0xffa860,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 1;
+  m.name = 'floor-glow';
+  return m;
 }

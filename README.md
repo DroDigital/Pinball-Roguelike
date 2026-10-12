@@ -5,8 +5,10 @@ cell in front of **DEBTOR'S PRISON**, a battered late-70s pinball machine. An AT
 you owe the Warden. Bank enough coins before each deadline, or the trapdoor under the stool
 opens.
 
-Built with Vite, TypeScript (strict), Three.js and Planck.js. No assets: the art, sound and
-music are all generated in code. [DESIGN.md](DESIGN.md) holds the design, the milestone
+Built with Vite, TypeScript (strict), Three.js and Planck.js. The art and the music are
+generated in code; the sound effects are a small bank (under 1 MB) of synthesised foley and
+CC0 recordings, rebuilt by `node tools/build-sfx.mjs` and credited in [CREDITS.md](CREDITS.md).
+[DESIGN.md](DESIGN.md) holds the design, the milestone
 checklist, calibration numbers and the decisions log; [CLAUDE.md](CLAUDE.md) holds the
 architecture rules and conventions.
 
@@ -176,3 +178,15 @@ npm run economy:summary              # pool every archetype's report: win rates,
 
 The report shows clear rates per deadline, win rate and the charms in winning builds.
 Calibration history is in DESIGN.md.
+
+## Credits and licences
+
+The game's text is set in three free fonts, bundled as woff2 files and credited in Settings:
+
+- [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1): body text and buttons
+- [Saira Stencil One](https://github.com/Omnibus-Type/Saira) (SIL Open Font License 1.1): titles
+  and big numbers
+- [Special Elite](https://fonts.google.com/specimen/Special+Elite) (Apache License 2.0): notes,
+  tips and the Warden's lines
+
+The licence texts ship in `public/licenses/` (served at `/licenses/` in a build).

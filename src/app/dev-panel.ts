@@ -20,6 +20,7 @@ import { gainCharm, jobTarget, roundsIn } from '../rules/run';
 import { restock } from '../rules/shop';
 import { CHARMS } from '../content/charms';
 import { CONTRABAND } from '../content/contraband';
+import { addAudioFolder } from './dev-audio';
 
 const MAX_SEG = 12000;
 
@@ -169,6 +170,8 @@ export function attachDevPanel(app: GameApp): void {
   for (const k of ['paidInFull', 'breakout', 'cellmate'] as const)
     run.addButton({ title: `Ending: ${k}` }).on('click', () => app.devEnding(k));
 
+  addAudioFolder(pane);
+
   // ---- tuning
   const tune = pane.addFolder({ title: 'Physics (next ball)', expanded: false });
   addNumbers(tune, 'physics', BASE_CONFIG.physics as unknown as Record<string, unknown>);
@@ -209,6 +212,26 @@ export function attachDevPanel(app: GameApp): void {
   lines.visible = false;
   app.world.table.root.add(lines);
   view.addBinding(state, 'colliders').on('change', (e) => (lines.visible = e.value));
+  // ---- visual hooks (the juice pass wires these to game events)
+  const fx = pane.addFolder({ title: 'Visual FX', expanded: false });
+  const table = app.world.table;
+  const fxBtn = (title: string, fn: () => void) => fx.addButton({ title }).on('click', fn);
+  fxBtn('Flash bumpers', () => [0, 1, 2, 3].forEach((i) => table.flashPart('bumper', i, 1.2)));
+  fxBtn('Flash slings + targets', () => {
+    [0, 1].forEach((i) => table.flashPart('sling', i, 1.2));
+    [0, 1, 2].forEach((i) => table.flashPart('target', i, 1.2));
+  });
+  fxBtn('Fire red flashers', () => table.fireFlasher('red', 1.2));
+  fxBtn('Fire yellow flashers', () => table.fireFlasher('yellow', 1.2));
+  fxBtn('Fire all flashers', () => table.fireFlasher('all', 1.3));
+  fxBtn('GI pulse (red)', () => table.giPulse(0xff3020, 1));
+  fxBtn('GI pulse (gold)', () => table.giPulse(0xffc040, 1));
+  fxBtn('Overdrive all lamps', () => table.flashLamp('all', 1.2));
+  fxBtn('Bloom pulse', () => app.renderer.bloomPulse(1.2));
+  fxBtn('Backglass pulse', () => app.world.backbox.pulseGlass(1.2));
+  for (const id of ['attract', 'riot', 'payday'])
+    fxBtn(`Lamp show: ${id}`, () => app.shows.play(id));
+
   const cam = { camera: 'auto' };
   view
     .addBinding(cam, 'camera', {

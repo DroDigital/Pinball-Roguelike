@@ -42,5 +42,7 @@ console.log(
 );
 const worst = top[0];
 if (worst && worst[1] / all.length > 0.5)
-  console.log(`\nOVER HALF: ${worst[0]} is in ${Math.round((worst[1] / all.length) * 100)}% of wins`);
+  console.log(
+    `\nOVER HALF: ${worst[0]} is in ${Math.round((worst[1] / all.length) * 100)}% of wins`,
+  );
 else console.log('\nNo charm is in more than half of the winning builds.');

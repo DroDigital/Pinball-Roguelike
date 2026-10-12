@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { ROOM_UNIFORMS, canvasTexture, retroMaterial } from './retro-material';
+import { bakeStatic } from './materials';
 
 /** Room bounds (world units, 1 = one ball diameter). */
 export const ROOM = { x0: -46, x1: 46, z0: -46, z1: 62, floor: -12, ceil: 50 } as const;
@@ -77,6 +78,21 @@ const tiles = () =>
       g.stroke();
     }
     speckle(g, 64, 64, 400, 0.2);
+  });
+
+/** A lit sign: amber pixel text between two red rules (nearest-filtered like the room). */
+const marqueeTexture = (label: string) =>
+  canvasTexture(128, 24, (g, w, h) => {
+    g.fillStyle = '#1a0f08';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffb84a';
+    g.font = 'bold 14px monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(label, w / 2, h / 2 + 1);
+    g.fillStyle = '#ff5a30';
+    g.fillRect(4, 2, w - 8, 1);
+    g.fillRect(4, h - 3, w - 8, 1);
   });
 
 const flat = (color: string) =>
@@ -176,7 +192,11 @@ export class CellRoom {
     this.atmTex = new THREE.CanvasTexture(this.atmCanvas);
     this.atmTex.magFilter = THREE.NearestFilter;
     this.atmTex.colorSpace = THREE.SRGBColorSpace;
-    this.atmScreen = new THREE.MeshBasicMaterial({ map: this.atmTex });
+    // HDR colour makes the practical lights (ATM screen, vending glass) bloom in the dark cell.
+    this.atmScreen = new THREE.MeshBasicMaterial({
+      map: this.atmTex,
+      color: new THREE.Color(2, 2, 2),
+    });
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.5), this.atmScreen);
     screen.rotation.y = -Math.PI / 2;
     screen.position.set(-2.05, 3, 0);
@@ -187,6 +207,40 @@ export class CellRoom {
     );
     slot.position.set(-2.1, -2, 0);
     atm.add(slot);
+    // Bezel, a lit marquee, a keypad and a glowing card slot: a grim bank terminal.
+    const bezel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 5.8, 8.2),
+      retroMaterial({ map: flat('#16181a'), rust: 0.3 }),
+    );
+    // Just behind the screen plane (x -2.05) so the LCD stays in front of its frame.
+    bezel.position.set(-1.97, 3, 0);
+    atm.add(bezel);
+    const keyGeo = new THREE.BoxGeometry(0.25, 0.7, 0.9);
+    const keyMat = retroMaterial({ map: flat('#3a3e42'), rust: 0.2 });
+    for (let r = 0; r < 4; r++)
+      for (let c = 0; c < 3; c++) {
+        const k = new THREE.Mesh(keyGeo, keyMat);
+        k.position.set(-2.1, -4.4 - r * 1.0, (c - 1) * 1.25);
+        atm.add(k);
+      }
+    const marquee = new THREE.Mesh(
+      new THREE.PlaneGeometry(8, 1.6),
+      new THREE.MeshBasicMaterial({
+        map: marqueeTexture("DEBTOR'S BANK"),
+        color: new THREE.Color(1.6, 1.4, 1.1),
+      }),
+    );
+    marquee.rotation.y = -Math.PI / 2;
+    marquee.position.set(-2.06, 7.4, 0);
+    atm.add(marquee);
+    const slotGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.2, 0.22),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 2.2, 0.7) }),
+    );
+    slotGlow.rotation.y = -Math.PI / 2;
+    slotGlow.position.set(-2.12, -1.4, 0);
+    atm.add(slotGlow);
+    bakeStatic(atm);
     atm.position.copy(PROPS.atm);
     this.group.add(atm);
     this.drawAtm('INSERT\nCARD');
@@ -221,11 +275,21 @@ export class CellRoom {
     });
     const glass = new THREE.Mesh(
       new THREE.PlaneGeometry(11, 20),
-      new THREE.MeshBasicMaterial({ map: glassTex, color: 0xb0a090 }),
+      new THREE.MeshBasicMaterial({ map: glassTex, color: new THREE.Color(1.5, 1.35, 1.2) }),
     );
     glass.rotation.y = Math.PI / 2;
     glass.position.set(4.05, 3, 0);
     vend.add(glass);
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(11, 2.4),
+      new THREE.MeshBasicMaterial({
+        map: marqueeTexture('CONTRABAND'),
+        color: new THREE.Color(1.5, 1.3, 1.0),
+      }),
+    );
+    sign.rotation.y = Math.PI / 2;
+    sign.position.set(4.06, 13.8, 0);
+    vend.add(sign);
     vend.position.copy(PROPS.vending).add(new THREE.Vector3(0, 3, 0));
     this.group.add(vend);
 
@@ -378,6 +442,8 @@ export class CellRoom {
   /** The neighbour's wall falls away from you (0 standing .. 1 down). */
   dropWall(k: number): void {
     this.leftWall.rotation.z = k * (Math.PI / 2);
+    // Lift the fallen wall off the floor it lies on: at rest it would z-fight with the tiles.
+    this.leftWall.position.y = ROOM.floor + k * 0.08;
   }
 
   /** The trapdoor swings open (0 closed .. 1 open). */

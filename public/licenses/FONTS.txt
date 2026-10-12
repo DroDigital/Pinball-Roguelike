@@ -1,0 +1,18 @@
+Fonts used by Ball & Chain
+==========================
+
+All three are free fonts that may be used and redistributed with the game. They are bundled as
+woff2 files (npm: @fontsource/*); the licence texts sit beside this file.
+
+Inter                 SIL Open Font License 1.1   Inter-OFL.txt
+                      Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+                      Body text, labels and buttons.
+
+Saira Stencil One     SIL Open Font License 1.1   SairaStencilOne-OFL.txt
+                      Copyright 2019 The Saira Stencil Project Authors
+                      (https://github.com/Omnibus-Type/Saira)
+                      Titles and big numbers.
+
+Special Elite         Apache License 2.0          SpecialElite-Apache-2.0.txt
+                      Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI)
+                      Typewritten notes, tips and the Warden's lines.

@@ -199,10 +199,12 @@ dominate Riot wins; samples are small (24 runs).
 
 ### M5 — The cell
 
-- [x] Retro renderer: 240p internal resolution, ordered dither, palette crush, grain and
-      vignette for the frame; room surfaces get vertex snapping to the pixel grid, affine
-      texture wobble, a hard-falloff bare-bulb light and fog. The machine keeps standard
-      materials so the playfield always reads
+- [x] Retro renderer: HDR scene target (540p default; 360/240/180p stay in Settings), a
+      dual-filter bloom, ACES, then a light retro stack (anti-banding dither, optional
+      ordered dither and palette crush, grain, vignette; "Grain and dither" 35% by default);
+      room surfaces keep vertex snapping to a chunky grid, affine texture wobble, a
+      hard-falloff bare-bulb term and fog. The machine uses standard PBR materials with a
+      PMREM reflection environment so the playfield always reads (see the visual overhaul)
 - [x] The cell: brick and concrete walls, tiled floor, ATM with a live LCD (debt, bank,
       round; red PAY NOW at the deadline), rotary phone, vending cabinet, contraband stash,
       wall of tally marks (one per run, scratched in), door, trapdoor under the stool
@@ -214,9 +216,14 @@ dominate Riot wins; samples are small (24 runs).
       shows (attract, skill, RIOT, PAYDAY, drain)
 - [x] Cell decay across the deadlines: rust streaks spread, a leak and a growing puddle,
       the bulb dims and flickers more
-- [x] Audio: synthesised SFX for every table part, coin clinks that climb through combos,
-      adaptive music (cell drone and clock that speeds with tension; table layers for
-      combos, RIOT and Sentence rounds)
+- [x] Audio: a sample engine over a 164-file bank in `public/sfx` (procedural modal foley for
+      the machine, CC0 uisfx and Kenney sounds for menus and stingers; live synthesis as the
+      fallback), a mix with a reverb of a concrete cell, a glue compressor and limiter, music
+      ducking and a muffle when the camera looks away from the machine; flipper thunk and
+      coil hum, bumpers, a three-bar chime unit, coins that climb through combos, escalating
+      combo and jackpot/PAYDAY fanfares, the hurry-up pulse, the door, ATM, vending, phone,
+      endings; adaptive music (cell drone and clock that speeds with tension; table layers
+      for combos, RIOT and Sentence rounds)
 - [x] Juice: hit-stop on the Hole and PAYDAY, shake, flash, score pops, bulb swing, a coin
       fountain from the coin return into the tray (the pile is your pocket; the ATM takes
       it), a reaction to last-second saves (a ball dropping through the flipper gap sent
@@ -262,8 +269,14 @@ dominate Riot wins; samples are small (24 runs).
       flashing, rebinding, Assist mode (0.8x table, +5 s ball save, flagged run)
 - [x] Touch: menu taps no longer reach the flipper zones; on-screen lockbar and pause; compact
       panels on short screens. Gamepad: Start pauses, B / Back back out
-- [x] Phone performance: about 180 draw calls and 3 ms of script per frame at 240p; a
-      watchdog drops to 180p if a device stays under 40 FPS for 5 s
+- [x] Phone performance: a watchdog steps the resolution down one tier (540 -> 360 -> 240 ->
+      180p, which also drops MSAA and bloom levels) whenever a device stays under 40 FPS for
+      5 s. The drop is a runtime cap kept apart from the saved choice (`present/quality.ts`):
+      a settings change keeps it, and only changing the resolution clears it. Draw calls
+      (headless Chromium, SwiftShader, production build, the same flippers close-up): 64
+      before the visual review (d22883a) and 64 after (ac4dfdb), 45k vs 44k triangles. No
+      device FPS was measured: SwiftShader runs about 11 FPS here with the sim running, both
+      before and after, so those numbers say nothing about a phone.
 - [x] Instant replays of a ball's biggest moment (PAYDAY, SUPER PAYDAY, JAILBREAK, the
       escape) by deterministic re-simulation; bug reports (run + ball snapshot + inputs) from
       the pause menu, played back from the dev panel
@@ -307,6 +320,32 @@ weakest focused builds but both can win.
 - [x] Seed sharing: typed seeds on the lineup, shared links that carry inmate and Hard Time
 - [x] Offline PWA: manifest, icons, a service worker that precaches the shell and assets
 - [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
+
+### M9 — Overhaul wave 1: UI/UX (branch overhaul/ui-r2)
+
+- [x] Design system: tokens (colour, spacing, radii, type scale with floors), buttons, cards,
+      chips, meters, key caps, focus ring, locked states that say why (`styles.css`, `widgets.ts`)
+- [x] Fonts: Saira Stencil One, Inter 400/600/800, Special Elite (woff2 only), loaded before the
+      UI shows; licences in `public/licenses/`, credited in Settings
+- [x] Play HUD in the margins (landscape) / bands (portrait) / ribbon (between rounds); juice
+      hooks `hud.banner`, `hud.count`, `hud.bump`, `hud.comboSlot`
+- [x] Every screen redesigned: title, lineup, deadline intro, Jobs, buy, cell, ATM, vending
+      cabinet, phone, red phone, knock, ball over, payment, Rap Sheet, settings, pause
+- [x] Notice center (`notices.ts`): toasts, tips and captions share one reserved slot per
+      layout; tips belong to screens and wait for the plunger on a portrait phone
+- [x] Honest ball-over arithmetic (loose change carried in and kept), ATM buttons that say what
+      they do to the debt, locked buttons reachable by flippers and gamepad
+- [x] Menu cue names for the audio pass (`cues.ts`): hover, slider, close, toggleOn/Off
+- [x] Screenshot tour at 1280x800, 390x844 portrait, 844x390 phone landscape and 130% text,
+      console clean (`node tools/shots.mjs`, with `--size`, `--touch`, `--text`)
+- [x] Flipper and gamepad reach locked buttons and get the reason (checked in a browser)
+- [ ] Wire `cues.ts` to the richer cue set once the audio branch is merged (the UI already
+      raises hover, slider, close and toggle cues; `AUDIO_CUE` maps them for now)
+- [ ] `npm run e2e` not run on this pass (the balance sim holds the CPUs); the smoke flow and
+      its HUD selectors are unchanged
+- [ ] Unused font packages `@fontsource/bebas-neue`, `oswald` and `vt323`: not imported; remove
+      them with an npm uninstall in the main checkout
+- [ ] Juice pass on top of the hooks above
 
 ## Decisions log
 
@@ -515,3 +554,153 @@ Format: date — decision — why.
   Luck, Money and Lone builds won 0-2.5%: their payoffs were rare or too small to matter
   against x2.4 debt. The economy tool's Lone policy now skips buying balls with Solitary,
   as a player would.
+- 2026-10-12 — Visual overhaul of the machine: crisp 540p HDR render with bloom and a PMREM
+  environment, a high-resolution printed playfield (about 52 px per ball diameter, 1035 x
+  2026), translucent inserts that warm up and cool down like filaments, solid wireform
+  habitrails, a backbox with a backlit glass and a glowing DMD, and warm GI bulbs. — The old
+  240p dithered look made the machine muddy and noisy; the machine is now the one bright,
+  saturated thing in a dark cell, and only the room keeps the chunky retro shader.
+- 2026-10-12 — Bloom stays honest: broad environment panels stay at or below 1.0, long trims
+  use a satin chrome, clear plastics and the printed field use rough reflections, the bare
+  bulb is a position (not a real light) and only two GI point lights are real. — Hot specular
+  glints on chrome and clearcoat read as lens-flare blobs once bloom is on, and every real
+  light costs fragment time on phones. Only lit inserts, flashers, bumper caps, the DMD and
+  the ball's glints go past the bloom threshold.
+- 2026-10-12 — The backbox is taller (DMD above the glass' base, both above the cabinet's
+  rear edge) and the cameras frame it. — The cabinet's rear rail hid everything under world
+  y 5.3, including the DMD.
+- 2026-10-12 — Visual juice hooks live on the presentation objects, not in the rules:
+  `table.flashPart / fireFlasher / giPulse / flashLamp`, `backbox.pulseGlass`,
+  `renderer.bloomPulse` and `LampShowPlayer.play`, with a "Visual FX" folder in the ?dev
+  panel to try each one. With Settings > Reduced flashing on, each is capped: flashes hold
+  steady, sweeps and chases slow to at most one step a second (under three state changes
+  a second per lamp, checked by `tests/present/lampshow.test.ts` over every show), the
+  JAILBREAK sag holds steady and dim, and the bloom and insert pulses are small. — Lamp
+  shows, Slow/Fast inserts and the flasher domes used to strobe at 4-16 Hz regardless of
+  the setting; the review found that the claim was false. Flashes now fade and Slow/Fast
+  breathe on smooth curves in every mode, so no square wave reaches the screen.
+- 2026-10-12 — The JAILBREAK sag and the decaying bulb use a slow swell (about 0.4 Hz) whose
+  depth is re-rolled once per cycle, not a per-frame random dip. — Per-frame random blackouts
+  flashed roughly nine times a second, which breaks the reduced-flashing promise.
+- 2026-10-12 — The Seated and Title cameras fit the table's height as well as its width (the
+  play view's contract), so the flippers and drain stay in frame at 16:10 and 16:9. — The
+  width-only fit cropped the flippers.
+- 2026-10-12 — Blackout lights are a fixed pool of two point lights kept in the scene at zero
+  intensity. — Showing or hiding a light changes the shader's light count, which recompiles
+  every material at that moment. The endings corridor still adds its
+  lights when the ending starts (one recompile at that point; open).
+- 2026-10-12 — The steel ball has a broader sheen and a darker tint, the reflection room's
+  softbox is smaller and the bare bulb in it is dimmer (about 3.5 instead of 9). The
+  printed field's clear coat is rougher. — Point-light speculars and HDR reflections peaked
+  into white discs that bloom then turned into light sources. A lit Ball Save insert still
+  glows hot close to the camera, which is intended.
+  Screenshots for the visual review are in `screenshots/overhaul/visuals/`: the 17-shot tour
+  at 1280x800, four phone frames at 390x844, playfield close-ups, and the flasher and lamp
+  show frames in the play camera with reduced flashing off and on.
+- 2026-10-12 — Nothing on the playfield may read as a second ball: flasher domes are mostly
+  see-through with a warm bulb inside, and the plunger runs out through the cabinet front to
+  a chrome knob that slides with the pull. The frame walls carry printed pinstripe bands with
+  the machine's name, so the cabinet is never a black slab above the painted body. — Pale
+  opaque domes were mistaken for balls in the play view; the plain frame wall was the largest
+  unfinished surface in the tray and ball-end shots.
+- 2026-10-12 — Art that uses web fonts repaints once they can be drawn to a canvas (cabinet
+  textures, coin-door legend, backglass); otherwise the first paint used a fallback face
+  until something forced a repaint. On narrow screens the title and seated cameras back off
+  until the whole machine fits the width.
+- 2026-10-12 — Sound is a bank of mono mp3 samples plus a sample engine, with live synthesis
+  kept as the per-sound fallback and for the music. The machine's foley is synthesised
+  offline (modal resonators, filtered noise, sub thumps) by `tools/build-sfx.mjs` rather than
+  downloaded; only menus, stingers and chip accents are recordings (CC0 uisfx and Kenney).
+  — kenney.nl, freesound, opengameart and pixabay were unreachable, and the machine needs
+  hundreds of tiny, tuned, variant-rich hits that a seeded generator gives for ~1 MB and a
+  reproducible build. Better recordings drop in by name (see the build script's header).
+- 2026-10-12 — The machine's sounds sit on a `table` bus that is low-passed and wetted when the
+  camera looks away from it (ATM, phone, vending, wall, trapdoor fall); menus and the cell
+  stay on the `sfx` bus. — Hearing the machine through the wall is the point of the cell;
+  the UI must stay crisp wherever the camera is.
+- 2026-10-12 — Payout sounds are tiered on a shot's worth in points (amount / `SCORE.scale`),
+  not on coins: a quiet coin tick for pops, lanes and drop targets, a coin and a low bar for
+  the Hole and outlanes, a ladder note for the Chute, Perimeter and Cell Block, and a bright
+  coin with a second note for combo-chained or levelled shots; bursts back off so a pop-bumper
+  rally stays a texture. `npm run audio:payouts` shows the split on bot balls. — The first
+  version gated on one whole coin, and with the 0.2 scale nothing a bot ball earned reached
+  it, so the core payout loop was silent. The tiers live in `src/present/sfx-payout.ts`, not in
+  balance.ts, because they are presentation tuning that must not change the economy.
+- 2026-10-12 — The machine's foley is built to carry on a laptop or phone speaker: every hit has
+  a body at 150-500 Hz and a crack at 600-3000 Hz, and the sub-bass is capped. `npm run
+sfx:build` fails if a hit loses more than 6.5 dB of its loudest 100 ms behind a 180 Hz
+  high-pass. The flipper coil hum is a 120 Hz saw (its harmonics are what a small speaker
+  plays) rather than a bare 60 Hz sine. — Most players hear the game on small speakers or
+  earbuds; the first foley pass was 98% below 250 Hz and would have read as vague thuds.
+- 2026-10-12 — The replay knocker is kept for PAYDAY, the extra ball and the super skill shot;
+  jackpots, RIOT and JAILBREAK starts use the kicker's slam and a boom, a ball save is only a
+  swoosh, bells and the feed solenoid, and fanfare layers start 30-60 ms apart. — A sound that
+  is everyone's reward is nobody's; the stacked version was one block of mush.
+- 2026-10-12 — The generated sound files are dedicated to the public domain (CC0 1.0), like the
+  CC0 recordings they ship beside, and the upstream licence texts ship verbatim in
+  `public/sfx/`. — The repository has no licence file of its own to point at.
+- 2026-10-12 — Audio levels are set per class at build time (tools/build-sfx.mjs, active RMS
+  with one -1 dBFS peak ceiling); manifest gains are relative intent on top. — Peak-normalised
+  files left the contacts 10-20 dB under the groove, and gains were carrying the whole balance.
+  audio:check fails if a ball contact sits more than 8 dB under the flippers.
+- 2026-10-12 — The table's sound mixing constants (FOCUS trims, MUSIC_TRIM, the live-ball groove
+  step, duck depths, voice pools in `src/present/`) are presentation tuning, not gameplay, so
+  they live beside the sound code rather than in `src/content/balance.ts`. Gameplay tunables
+  stay in balance.ts. — The mix is measured by audio:check, not by the sim.
+- 2026-10-12 — Every press is sounded once by a document-level listener (sfx-controls.ts): a
+  toggle clicks on or off, a stepper ticks, a disabled control buzzes, and a screen can name its
+  cue with `data-cue`. Screens do not wire their own clicks. — One rule set is easier to keep
+  consistent across the menus than a call in each button.
+- 2026-10-12 — The reverb is fed only while a wet sound can still be heard (plus its 1.7 s
+  tail), so an idle table costs no convolver. — Phones pay for a convolver they are not using.
+- 2026-10-12 — UI overhaul: one design system (`styles.css` tokens, `widgets.ts` kit, inline
+  SVG icons) with Saira Stencil One for titles and big numbers, Inter for everything read,
+  Special Elite for notes and the Warden. Screens are pure view builders in `screens.ts`;
+  `game-app.ts` keeps the flow. — The old uppercase monospace boxes carried every screen the
+  same way; the loop's decisions (what to deposit, what to buy, what a Sentence does) needed
+  hierarchy, one primary action and plain-language explanations.
+- 2026-10-12 — The play HUD sits in the margins beside the table (two columns), in a top
+  and bottom band on portrait phones, and shrinks to a status ribbon between rounds; it never
+  covers the playfield. Debt vs Bank vs Pocket is one bar. Tips, captions and toasts share
+  one notice area (right margin while playing, a strip under the panel in menus). — The core
+  loop is "bank enough before the deadline", so that bar is the HUD's spine. Juice hooks for
+  later passes: `hud.banner()`, `hud.count()` / `hud.bump()` (count-up numbers), `hud.comboSlot`.
+- 2026-10-12 — A locked button stays clickable and says why (error cue plus a toast); the
+  flippers and the gamepad reach it after the usable buttons. — A silently disabled button
+  teaches nothing, and the reason (not enough tickets, slots full) is the useful part of the
+  screen; players on flippers deserve it as much as the mouse.
+- 2026-10-12 — The HUD publishes where its bands end (`--band-bottom` under the portrait play
+  band, `--ribbon-bottom` under the between-rounds ribbon) with a ResizeObserver, and notes,
+  toasts and panels position from those. Panels are size containers: a narrow panel with
+  several actions drops the key hints and gives the buttons the whole footer row. The right
+  column lists the passive charms you own beside the active ones' charge pips. — Fixed pixel
+  guesses for the band height broke at large text sizes (chips over the debt row, a clipped
+  ribbon); measuring costs nothing per frame.
+- 2026-10-12 — Notices are one center, not three widgets: `notices.ts` owns a queue and a
+  per-layout capacity (three in the right margin while playing, a toast beside a note in a
+  menu strip, one at a time on phones). A toast jumps the queue, a caption beats a tip, and
+  what is bumped returns with its time left. Tips carry the screens they belong to and are
+  dropped when the game moves on; on a portrait phone they wait for the plunger so they never
+  sit over a live ball. — Stacked toasts hid panel titles and HUD cards on phones, and tips
+  outlived their screen. One owner of the slot makes "never covers anything" checkable.
+- 2026-10-12 — Panels do not repeat the ribbon: the cell, ATM and payment screens show only
+  what the ribbon cannot (the verdict, what is still owed). Shop cards are about 120 px with
+  the price in the corner; a sticky jump row appears only when the panel scrolls. — The same
+  three numbers three times cost 150 px and pushed Contraband and Sell below the fold.
+- 2026-10-12 — The ball-over tally shows the loose change carried in and kept. —
+  `finishBall` floors the total and carries the fraction, so Table + Bonus alone looked 0.7
+  short of "Into your Pocket".
+
+- 2026-10-12 — The ATM's terminal ledger (Bank, Pocket, Still owed) goes; its panel shows one
+  verdict line from the same sentence the Cell uses, above the deposit and loan controls. —
+  The ribbon already shows those figures, and repeating them pushed the loans off screen.
+- 2026-10-12 — The ball-over tally ends in a Total row when loose change is involved: Table +
+  Bonus + carried change = Pocket + kept. The fraction is shown as "Kept for next ball", never
+  dropped. — Settled numbers add up on screen, not just in the rules.
+- 2026-10-12 — In play on a portrait phone a toast is one line under the top band, so it
+  covers as little of the table as it can; menus keep their wrapping strip. — A two-line toast
+  over the top of the table hid the top lanes.
+- 2026-10-12 — The short-landscape layout shrinks the panel title and reserves 58 px for notes,
+  so a two-line tip clears the footer's buttons. — Tips overlapped the Done and Reroll row.
+- 2026-10-12 — `tests/app` typechecks in the browser project (DOM lib), not the Node-tools
+  project. — Its notices test imports `src/app`, so the tools config failed on DOM names.
