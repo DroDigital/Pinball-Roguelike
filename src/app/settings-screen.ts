@@ -19,7 +19,7 @@ const REBINDABLE: [Action, string][] = [
   ['pause', 'Pause'],
 ];
 
-const PIXEL_HEIGHTS = [180, 240, 360, 0];
+const PIXEL_HEIGHTS = [180, 240, 360, 540, 0];
 const TEXT_SIZES = [0.85, 1, 1.15, 1.3];
 
 export interface SettingsHandlers {

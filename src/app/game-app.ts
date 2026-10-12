@@ -12,7 +12,15 @@ import { audio } from '../present/audio';
 import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
+import { loadArtFonts } from '../present/art-kit';
 import { LampShowPlayer } from '../present/lampshow';
+import {
+  LOW_FPS,
+  LOW_FPS_SECS,
+  capAfterSettings,
+  effectivePixelHeight,
+  nextQualityStep,
+} from '../present/quality';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
 import { UI, h } from './ui';
@@ -112,9 +120,6 @@ const SAVE_COOLDOWN_MS = 4000;
 const REPLAY_LEAD = 6;
 const REPLAY_TAIL = 2.5;
 /** Below this FPS for this long, drop to the lowest internal resolution. */
-const LOW_FPS = 40;
-const LOW_FPS_SECS = 5;
-const MIN_PIXEL_HEIGHT = 180;
 /** The Warden remarks on a PAYDAY worth this share of the debt, and on some center drains. */
 const BIG_PAYDAY_SHARE = 0.1;
 const CENTER_DRAIN_CHANCE = 0.6;
@@ -223,7 +228,7 @@ export class GameApp {
     this.renderer = new RetroRenderer(canvas);
     this.renderer.settings.crt = this.save.settings.crt;
     this.renderer.settings.pixelHeight = this.save.settings.pixelHeight;
-    this.world = new World(new Set(['outlanePosts']));
+    this.world = new World(new Set(['outlanePosts']), this.renderer.env);
     this.world.scene.add(this.pops.group);
     this.input = new Input(document.body);
     this.ui = new UI(uiRoot, toast);
@@ -256,31 +261,22 @@ export class GameApp {
         h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
       ),
     );
-    // DMD on the backbox too.
+    // DMD and backglass live on the backbox: a glowing dot-matrix panel and a backlit glass.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
     this.dmdTex.colorSpace = THREE.SRGBColorSpace;
-    this.dmdTex.magFilter = THREE.NearestFilter;
-    const backbox = this.world.cabinet.getObjectByName('backbox');
-    if (backbox) {
-      const panel = new THREE.Mesh(
-        new THREE.PlaneGeometry(18, 4.5),
-        new THREE.MeshBasicMaterial({ map: this.dmdTex }),
-      );
-      panel.position.set(0, -4.5, 2.05);
-      backbox.add(panel);
-      // Backglass art and the shot-level ladders above the DMD.
-      this.glassCanvas = document.createElement('canvas');
-      paintBackglass(this.glassCanvas, null);
-      this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
-      this.glassTex.colorSpace = THREE.SRGBColorSpace;
-      this.glassTex.magFilter = THREE.NearestFilter;
-      const glass = new THREE.Mesh(
-        new THREE.PlaneGeometry(20.5, 10.25),
-        new THREE.MeshBasicMaterial({ map: this.glassTex }),
-      );
-      glass.position.set(0, 2.6, 2.05);
-      backbox.add(glass);
-    }
+    this.dmdTex.anisotropy = 4;
+    this.glassCanvas = document.createElement('canvas');
+    paintBackglass(this.glassCanvas, null);
+    this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
+    this.glassTex.colorSpace = THREE.SRGBColorSpace;
+    this.glassTex.anisotropy = 4;
+    // The glass is painted before the web fonts can be drawn to a canvas: paint it again.
+    void loadArtFonts().then(() => {
+      if (!this.glassCanvas || !this.glassTex) return;
+      paintBackglass(this.glassCanvas, this.glassLevels);
+      this.glassTex.needsUpdate = true;
+    });
+    this.world.backbox.attach(this.dmdTex, this.glassTex);
     this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
     this.hints.enabled = this.save.settings.hints;
     this.endings = new EndingDirector(this.world, document.body, this.glassTex);
@@ -329,7 +325,10 @@ export class GameApp {
     audio.volumes = { ...s.volume };
     audio.applyVolumes();
     this.renderer.settings.crt = s.crt;
-    this.renderer.settings.pixelHeight = s.pixelHeight;
+    this.renderer.settings.pixelHeight = effectivePixelHeight(s.pixelHeight, this.qualityCap);
+    this.renderer.reducedFlashing = s.reducedFlashing;
+    this.world.table.reducedFlashing = s.reducedFlashing;
+    this.shows.reducedFlashing = s.reducedFlashing;
     this.input.vibration = s.vibration;
     if (s.bindings) {
       this.input.bindings = {
@@ -345,7 +344,9 @@ export class GameApp {
   resize(): void {
     this.renderer.resize();
     this.world.aspect = this.renderer.aspect;
-    ROOM_UNIFORMS.uSnap.value.set(this.renderer.lowSize.w / 2, this.renderer.lowSize.h / 2);
+    // The cell keeps its wobbly low-res vertex snap even when the machine renders crisp.
+    const { w, h } = this.renderer.lowSize;
+    ROOM_UNIFORMS.uSnap.value.set(Math.min(w / 2, 213), Math.min(h / 2, 120));
   }
 
   persist(): void {
@@ -368,16 +369,22 @@ export class GameApp {
   }
 
   private lowFpsFor = 0;
-  private qualityDropped = false;
+  /** Runtime cap from the watchdog (0 = none). Kept apart from the saved choice; see quality.ts. */
+  private qualityCap = 0;
 
-  /** A struggling device drops to the lowest internal resolution once (not saved). */
+  /**
+   * A struggling device steps the internal resolution down one tier at a time (540 -> 360 ->
+   * 240 -> 180), so the machine stays as crisp as the hardware allows. Not saved.
+   */
   private watchQuality(dt: number): void {
-    if (this.mode !== 'play' || this.qualityDropped) return;
+    if (this.mode !== 'play') return;
     this.lowFpsFor = this.fps < LOW_FPS ? this.lowFpsFor + dt : 0;
-    const px = this.renderer.settings.pixelHeight;
-    if (this.lowFpsFor < LOW_FPS_SECS || (px > 0 && px <= MIN_PIXEL_HEIGHT)) return;
-    this.qualityDropped = true;
-    this.renderer.settings.pixelHeight = MIN_PIXEL_HEIGHT;
+    if (this.lowFpsFor < LOW_FPS_SECS) return;
+    this.lowFpsFor = 0;
+    const next = nextQualityStep(this.renderer.settings.pixelHeight);
+    if (next === null) return;
+    this.qualityCap = next;
+    this.renderer.settings.pixelHeight = next;
     this.resize();
     this.ui.toast('Running slow: resolution lowered (Settings to change)');
   }
@@ -483,7 +490,7 @@ export class GameApp {
     this.updateCoins(dt);
     this.pops.update(dt);
     this.dmd.update(dt);
-    this.dmdTex.needsUpdate = true;
+    if (this.dmd.dirty) this.dmdTex.needsUpdate = true;
     this.updateHud(shown);
     if (shown) {
       let maxV = 0;
@@ -930,6 +937,11 @@ export class GameApp {
 
   private changeSettings(s: Settings): void {
     const voiceOn = s.voice && !this.save.settings.voice;
+    this.qualityCap = capAfterSettings(
+      this.qualityCap,
+      this.save.settings.pixelHeight,
+      s.pixelHeight,
+    );
     this.save.settings = s;
     this.input.rebuildKeyMap();
     this.applySettings();
@@ -2488,6 +2500,7 @@ export class GameApp {
   private glassCanvas: HTMLCanvasElement | null = null;
   private glassTex: THREE.CanvasTexture | null = null;
   private glassKey = '';
+  private glassLevels: Record<string, number> | null = null;
   private atmKey = '';
 
   /** Set innerHTML only when it changed (the HUD updates every frame). */
@@ -2543,6 +2556,7 @@ export class GameApp {
       const lv = JSON.stringify(r.shotLevels);
       if (lv !== this.glassKey && this.glassCanvas && this.glassTex) {
         this.glassKey = lv;
+        this.glassLevels = r.shotLevels;
         paintBackglass(this.glassCanvas, r.shotLevels);
         this.glassTex.needsUpdate = true;
       }

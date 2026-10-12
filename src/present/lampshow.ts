@@ -1,6 +1,10 @@
 /**
  * Plays lamp shows over the rules' lamp states. While a show runs, `apply` returns an
  * override record (reused every frame, no allocations) that the table view renders.
+ *
+ * Reduced flashing (Settings) keeps every lamp under three state changes a second: flashes
+ * hold steady, chases and sweeps slow to at most one step a second, and the twinkle turns
+ * into a slow rotation. Tests enumerate every show segment against that bound.
  */
 import { Lamp } from '../rules/types';
 import { lampShow, type LampSegment, type LampShowDef } from '../content/lampshows';
@@ -8,15 +12,21 @@ import type { LampDef } from '../sim/table-def';
 
 const CX = 9.2;
 const CY = 20;
+/** Cycles or steps a second under reduced flashing (each lamp changes twice per step). */
+export const REDUCED_MAX_RATE = 1;
+/** Rotation speed of the reduced twinkle, in steps a second. */
+const REDUCED_TWINKLE_RATE = 0.5;
 
 export class LampShowPlayer {
   private show: LampShowDef | null = null;
   private t = 0;
+  private seed = 1;
   private readonly out: Record<string, Lamp> = {};
   private readonly order: { id: string; y: number; angle: number }[];
   private readonly yMin: number;
   private readonly yMax: number;
-  private seed = 1;
+  /** Honour Settings.reducedFlashing. */
+  reducedFlashing = false;
 
   constructor(lamps: readonly LampDef[]) {
     this.order = lamps.map((l) => ({ id: l.id, y: l.y, angle: Math.atan2(l.y - CY, l.x - CX) }));
@@ -62,7 +72,8 @@ export class LampShowPlayer {
       if (t < s.dur) break;
       t -= s.dur;
     }
-    const rate = seg.rate ?? 1;
+    const reduced = this.reducedFlashing;
+    const rate = reduced ? Math.min(seg.rate ?? 1, REDUCED_MAX_RATE) : (seg.rate ?? 1);
     const n = this.order.length;
     for (let i = 0; i < n; i++) {
       const o = this.order[i];
@@ -74,7 +85,8 @@ export class LampShowPlayer {
         case 'off':
           break;
         case 'flash':
-          on = Math.floor(t * rate * 2) % 2 === 0;
+          // Reduced: a steady light instead of a strobe.
+          on = reduced ? true : Math.floor(t * rate * 2) % 2 === 0;
           break;
         case 'sweep': {
           const k = (t * rate) % 1;
@@ -89,6 +101,10 @@ export class LampShowPlayer {
           break;
         }
         case 'sparkle':
+          if (reduced) {
+            on = (i + Math.floor(t * REDUCED_TWINKLE_RATE)) % 3 === 0;
+            break;
+          }
           // Cheap deterministic hash so the twinkle doesn't strobe every frame.
           this.seed = (Math.imul(i + 1, 2654435761) ^ Math.floor(t * 12)) >>> 0;
           on = this.seed % 7 === 0;

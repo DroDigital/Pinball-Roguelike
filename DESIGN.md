@@ -199,10 +199,12 @@ dominate Riot wins; samples are small (24 runs).
 
 ### M5 — The cell
 
-- [x] Retro renderer: 240p internal resolution, ordered dither, palette crush, grain and
-      vignette for the frame; room surfaces get vertex snapping to the pixel grid, affine
-      texture wobble, a hard-falloff bare-bulb light and fog. The machine keeps standard
-      materials so the playfield always reads
+- [x] Retro renderer: HDR scene target (540p default; 360/240/180p stay in Settings), a
+      dual-filter bloom, ACES, then a light retro stack (anti-banding dither, optional
+      ordered dither and palette crush, grain, vignette; "Grain and dither" 35% by default);
+      room surfaces keep vertex snapping to a chunky grid, affine texture wobble, a
+      hard-falloff bare-bulb term and fog. The machine uses standard PBR materials with a
+      PMREM reflection environment so the playfield always reads (see the visual overhaul)
 - [x] The cell: brick and concrete walls, tiled floor, ATM with a live LCD (debt, bank,
       round; red PAY NOW at the deadline), rotary phone, vending cabinet, contraband stash,
       wall of tally marks (one per run, scratched in), door, trapdoor under the stool
@@ -262,8 +264,14 @@ dominate Riot wins; samples are small (24 runs).
       flashing, rebinding, Assist mode (0.8x table, +5 s ball save, flagged run)
 - [x] Touch: menu taps no longer reach the flipper zones; on-screen lockbar and pause; compact
       panels on short screens. Gamepad: Start pauses, B / Back back out
-- [x] Phone performance: about 180 draw calls and 3 ms of script per frame at 240p; a
-      watchdog drops to 180p if a device stays under 40 FPS for 5 s
+- [x] Phone performance: a watchdog steps the resolution down one tier (540 -> 360 -> 240 ->
+      180p, which also drops MSAA and bloom levels) whenever a device stays under 40 FPS for
+      5 s. The drop is a runtime cap kept apart from the saved choice (`present/quality.ts`):
+      a settings change keeps it, and only changing the resolution clears it. Draw calls
+      (headless Chromium, SwiftShader, production build, the same flippers close-up): 64
+      before the visual review (d22883a) and 64 after (ac4dfdb), 45k vs 44k triangles. No
+      device FPS was measured: SwiftShader runs about 11 FPS here with the sim running, both
+      before and after, so those numbers say nothing about a phone.
 - [x] Instant replays of a ball's biggest moment (PAYDAY, SUPER PAYDAY, JAILBREAK, the
       escape) by deterministic re-simulation; bug reports (run + ball snapshot + inputs) from
       the pause menu, played back from the dev panel
@@ -515,3 +523,56 @@ Format: date — decision — why.
   Luck, Money and Lone builds won 0-2.5%: their payoffs were rare or too small to matter
   against x2.4 debt. The economy tool's Lone policy now skips buying balls with Solitary,
   as a player would.
+- 2026-10-12 — Visual overhaul of the machine: crisp 540p HDR render with bloom and a PMREM
+  environment, a high-resolution printed playfield (about 52 px per ball diameter, 1035 x
+  2026), translucent inserts that warm up and cool down like filaments, solid wireform
+  habitrails, a backbox with a backlit glass and a glowing DMD, and warm GI bulbs. — The old
+  240p dithered look made the machine muddy and noisy; the machine is now the one bright,
+  saturated thing in a dark cell, and only the room keeps the chunky retro shader.
+- 2026-10-12 — Bloom stays honest: broad environment panels stay at or below 1.0, long trims
+  use a satin chrome, clear plastics and the printed field use rough reflections, the bare
+  bulb is a position (not a real light) and only two GI point lights are real. — Hot specular
+  glints on chrome and clearcoat read as lens-flare blobs once bloom is on, and every real
+  light costs fragment time on phones. Only lit inserts, flashers, bumper caps, the DMD and
+  the ball's glints go past the bloom threshold.
+- 2026-10-12 — The backbox is taller (DMD above the glass' base, both above the cabinet's
+  rear edge) and the cameras frame it. — The cabinet's rear rail hid everything under world
+  y 5.3, including the DMD.
+- 2026-10-12 — Visual juice hooks live on the presentation objects, not in the rules:
+  `table.flashPart / fireFlasher / giPulse / flashLamp`, `backbox.pulseGlass`,
+  `renderer.bloomPulse` and `LampShowPlayer.play`, with a "Visual FX" folder in the ?dev
+  panel to try each one. With Settings > Reduced flashing on, each is capped: flashes hold
+  steady, sweeps and chases slow to at most one step a second (under three state changes
+  a second per lamp, checked by `tests/present/lampshow.test.ts` over every show), the
+  JAILBREAK sag holds steady and dim, and the bloom and insert pulses are small. — Lamp
+  shows, Slow/Fast inserts and the flasher domes used to strobe at 4-16 Hz regardless of
+  the setting; the review found that the claim was false. Flashes now fade and Slow/Fast
+  breathe on smooth curves in every mode, so no square wave reaches the screen.
+- 2026-10-12 — The JAILBREAK sag and the decaying bulb use a slow swell (about 0.4 Hz) whose
+  depth is re-rolled once per cycle, not a per-frame random dip. — Per-frame random blackouts
+  flashed roughly nine times a second, which breaks the reduced-flashing promise.
+- 2026-10-12 — The Seated and Title cameras fit the table's height as well as its width (the
+  play view's contract), so the flippers and drain stay in frame at 16:10 and 16:9. — The
+  width-only fit cropped the flippers.
+- 2026-10-12 — Blackout lights are a fixed pool of two point lights kept in the scene at zero
+  intensity. — Showing or hiding a light changes the shader's light count, which recompiles
+  every material at that moment. The endings corridor still adds its
+  lights when the ending starts (one recompile at that point; open).
+- 2026-10-12 — The steel ball has a broader sheen and a darker tint, the reflection room's
+  softbox is smaller and the bare bulb in it is dimmer (about 3.5 instead of 9). The
+  printed field's clear coat is rougher. — Point-light speculars and HDR reflections peaked
+  into white discs that bloom then turned into light sources. A lit Ball Save insert still
+  glows hot close to the camera, which is intended.
+  Screenshots for the visual review are in `screenshots/overhaul/visuals/`: the 17-shot tour
+  at 1280x800, four phone frames at 390x844, playfield close-ups, and the flasher and lamp
+  show frames in the play camera with reduced flashing off and on.
+- 2026-10-12 — Nothing on the playfield may read as a second ball: flasher domes are mostly
+  see-through with a warm bulb inside, and the plunger runs out through the cabinet front to
+  a chrome knob that slides with the pull. The frame walls carry printed pinstripe bands with
+  the machine's name, so the cabinet is never a black slab above the painted body. — Pale
+  opaque domes were mistaken for balls in the play view; the plain frame wall was the largest
+  unfinished surface in the tray and ball-end shots.
+- 2026-10-12 — Art that uses web fonts repaints once they can be drawn to a canvas (cabinet
+  textures, coin-door legend, backglass); otherwise the first paint used a fallback face
+  until something forced a repaint. On narrow screens the title and seated cameras back off
+  until the whole machine fits the width.

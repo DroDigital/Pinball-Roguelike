@@ -6,7 +6,7 @@ import { RUN_VERSION, type RunState } from '../rules/run';
 import { newMeta, type MetaState } from '../rules/meta';
 import { emptyLifetimeStats } from '../content/unlocks';
 import type { DailyRecord } from '../rules/daily';
-import { defaultSettings, type Settings } from './settings';
+import { defaultSettings, upgradeGraphics, type Settings } from './settings';
 
 export const SAVE_VERSION = 2;
 const KEY = 'ball-and-chain/save';
@@ -65,11 +65,12 @@ export function migrate(raw: Record<string, unknown>): SaveData {
   }
   const base = freshSave();
   const out = { ...base, ...d } as SaveData;
-  out.settings = {
+  const rawSettings = (out.settings ?? {}) as Partial<Settings>;
+  out.settings = upgradeGraphics(rawSettings, {
     ...base.settings,
-    ...(out.settings ?? {}),
-    volume: { ...base.settings.volume, ...(out.settings?.volume ?? {}) },
-  };
+    ...rawSettings,
+    volume: { ...base.settings.volume, ...(rawSettings.volume ?? {}) },
+  });
   const m = (out.meta ?? {}) as Partial<MetaState>;
   out.meta = {
     ...base.meta,
