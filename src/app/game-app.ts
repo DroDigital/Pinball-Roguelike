@@ -232,7 +232,6 @@ export class GameApp {
     this.world.scene.add(this.pops.group);
     this.input = new Input(document.body);
     this.ui = new UI(uiRoot, toast);
-    this.ui.onClick = () => audio.atmBeep();
     this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
     this.subs.voice = this.save.settings.voice;
     this.hud = hud;
@@ -305,8 +304,6 @@ export class GameApp {
     });
     this.input.onPress = (a) => this.onPress(a);
     window.addEventListener('resize', () => this.resize());
-    window.addEventListener('pointerdown', () => audio.unlock(), { once: false });
-    window.addEventListener('keydown', () => audio.unlock());
     const botParam = new URLSearchParams(location.search).get('bot');
     if (botParam)
       this.autoBot = new Bot(
@@ -492,15 +489,23 @@ export class GameApp {
     this.dmd.update(dt);
     if (this.dmd.dirty) this.dmdTex.needsUpdate = true;
     this.updateHud(shown);
-    if (shown) {
-      let maxV = 0;
-      let ramp = false;
+    // Runs with or without a session: a roll bed, a held coil or the hurry-up must never outlive
+    // the table (quit to title, a cell or shop screen).
+    let maxV = 0;
+    let ramp = false;
+    if (shown)
       for (const b of shown.sim.balls) {
         if (b.state === 'transport') ramp = true;
         else if (b.state === 'field') maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
       }
-      audio.roll(this.mode === 'play' ? maxV : maxV * 0.4, ramp);
-    }
+    const playing = shown !== null && this.mode === 'play' && !this.menuOpen;
+    audio.roll(this.menuOpen ? 0 : this.mode === 'play' ? maxV : maxV * 0.4, ramp);
+    audio.plungerPull(playing ? shown.sim.plungerPull : 0);
+    audio.hurryTick(playing ? shown.game.hurryLeft : 0);
+    if (!playing) audio.releaseCoils();
+    audio.frame(playing && shown.sim.balls.length > 0);
+    // The phone rings or the ATM chirps: a steady rim on the screen, so the cue is not audio-only.
+    this.hud.classList.toggle('pulse-alarm', audio.ringing() || audio.alarming());
     this.renderer.flash = Math.max(0, this.renderer.flash - dt * 4);
     this.onFrame?.(dt);
     this.renderer.render(this.world.scene, this.world.camera, this.time);
@@ -592,7 +597,11 @@ export class GameApp {
         if (!quiet) this.shake(0.15);
         break;
       case 'drop':
-        audio.drop(e.x);
+        audio.drop(e.x, e.value);
+        break;
+      case 'trigger':
+        // Rollover switches: a light tick as the ball runs the lanes.
+        if (e.dir === 1 && (e.id.startsWith('lane') || e.id.includes('nlane'))) audio.lane(e.x);
         break;
       case 'dropsReset':
         audio.dropReset();
@@ -650,16 +659,28 @@ export class GameApp {
     const evs = this.gameEvents;
     this.gameEvents = [];
     const combo = this.session?.game.combo.count ?? 0;
+    // PAYDAY pays through a jackpot score too and has its own fanfare; a hurry-up has none.
+    let paydayNow = false;
+    let jackpotNow = false;
+    for (const e of evs) {
+      if (e.t === 'payday') paydayNow = true;
+      else if (e.t === 'score' && e.shot === 'jackpot') jackpotNow = true;
+    }
     for (const e of evs) {
       switch (e.t) {
         case 'score': {
           const p = this.world.table.worldOf(e.x, e.y, 1.6, this.tmpV);
-          const big = e.amount >= 3 || e.shot === 'jackpot';
+          const jackpot = e.shot === 'jackpot';
+          const big = e.amount >= 3 || jackpot;
           this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
-          // Coin clinks rise in pitch through combos.
-          if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount) + combo));
+          // Coin clinks rise in pitch through combos; bigger payouts add a bell on the ladder.
+          if (jackpot && !paydayNow) audio.jackpot(1);
+          else audio.score(e.amount, combo, big);
           break;
         }
+        case 'hurry':
+          audio.hurry(e.on, jackpotNow);
+          break;
         case 'callout':
           if (e.sub === 'LOCKUP IS LIT' && this.mode === 'play') this.hints.show('lockup');
           this.dmd.show({
@@ -673,15 +694,16 @@ export class GameApp {
           break;
         case 'skillShot':
           this.shows.play('skill');
-          audio.knocker();
+          audio.skillShot(e.super);
           this.flash(0.25);
           this.shake(0.6);
           break;
         case 'combo':
+          audio.combo(e.count);
           if (e.count >= 3) this.shake(0.15 * e.count);
           break;
         case 'lock':
-          audio.kick();
+          audio.lock(e.locks);
           this.shake(0.5);
           break;
         case 'riot':
@@ -689,11 +711,11 @@ export class GameApp {
             this.react('riot');
             if (this.mode === 'play') this.hints.show('riot');
             this.shows.play('riot');
-            audio.knocker();
+            audio.riot(true);
             this.flash(0.4);
             this.shake(1);
             this.world.swingBulb(0.4);
-          }
+          } else audio.riot(false);
           break;
         case 'payday':
           if (this.mode === 'play' && this.session)
@@ -706,30 +728,31 @@ export class GameApp {
             this.react('bigPayday');
           this.shows.play('payday');
           this.hitStop = e.super ? 0.06 : 0.04;
-          audio.knocker();
+          audio.payday(e.super);
           this.flash(e.super ? 0.5 : 0.3);
           this.shake(e.super ? 1.4 : 0.9);
           this.world.swingBulb(e.super ? 0.6 : 0.3);
           this.input.buzz(e.super ? 120 : 60);
           break;
         case 'extraBall':
-          audio.knocker();
+          audio.extraBall();
           this.ui.toast('EXTRA BALL');
           break;
         case 'award':
           if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
+          else audio.levelUp();
           break;
         case 'luck':
           if (e.kind === 'spark') {
             this.flash(0.35);
-            audio.creak();
+            audio.spark();
           } else {
             audio.kick();
             this.shake(0.4);
           }
           break;
         case 'tunnel':
-          audio.clang();
+          audio.tunnel();
           this.shake(0.8);
           this.flash(0.3);
           this.react('tunnel', true);
@@ -738,16 +761,25 @@ export class GameApp {
           this.onJailbreak(e.phase, e.n);
           break;
         case 'active':
-          audio.kick();
+          audio.active();
           this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
           break;
         case 'jobDone':
           this.react('jobDone');
-          audio.knocker();
+          audio.jobComplete();
           this.flash(0.2);
           break;
         case 'ballSaved':
-          audio.knocker();
+          audio.save();
+          break;
+        case 'laneComplete':
+          audio.chime(1);
+          break;
+        case 'bonusMult':
+          audio.bonusMult(e.mult);
+          break;
+        case 'ballOver':
+          audio.ballOver(e.tilted);
           break;
         case 'tiltWarning':
           audio.warn();
@@ -795,15 +827,23 @@ export class GameApp {
   private onPress(a: Action): void {
     audio.unlock();
     if (a === 'pause' || (a === 'back' && this.overlays > 0)) {
-      if (this.overlays > 0) this.closeOverlay();
-      else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending')
+      if (this.overlays > 0) {
+        audio.ui('back');
+        this.closeOverlay();
+      } else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending') {
+        audio.ui('open');
         this.openPause();
+      }
       return;
     }
     if (this.ui.open) {
-      if (a === 'left' || a === 'lookLeft') this.ui.moveFocus(-1);
-      else if (a === 'right' || a === 'lookRight') this.ui.moveFocus(1);
-      else if (a === 'plunger' || a === 'confirm') this.ui.activate();
+      if (a === 'left' || a === 'lookLeft') {
+        this.ui.moveFocus(-1);
+        audio.ui('move');
+      } else if (a === 'right' || a === 'lookRight') {
+        this.ui.moveFocus(1);
+        audio.ui('move');
+      } else if (a === 'plunger' || a === 'confirm') this.ui.activate();
       return;
     }
     if (
@@ -867,6 +907,7 @@ export class GameApp {
   openPause(): void {
     this.menuOpen = this.mode === 'play';
     this.overlays++;
+    audio.ui('pause');
     this.ui.push(
       pausePanel(
         {
@@ -1072,6 +1113,7 @@ export class GameApp {
     this.world.cell.setTallies(this.save.tallies);
     this.persist();
     this.ui.toast(`Seed ${sd}`);
+    audio.runStart();
     this.enterDeadlineIntro();
   }
 
@@ -1121,6 +1163,7 @@ export class GameApp {
       u.inmate ? inmateDef(u.inmate).name : '',
       u.endless ? 'Endless' : '',
     ].filter(Boolean);
+    audio.unlocked();
     this.ui.toast(`Unlocked${what.length ? `: ${what.join(', ')}` : `: ${u.text}`}`, 3500);
   }
 
@@ -1144,23 +1187,21 @@ export class GameApp {
         label: phase === 'escaped' ? 'THE ESCAPE' : 'JAILBREAK',
         value: phase === 'escaped' ? 1e12 : 1e11,
       });
+    audio.jailbreak(phase, n);
     switch (phase) {
       case 'start':
         this.shows.play('jailbreak');
-        audio.knocker();
         this.flash(0.5);
         this.shake(1.2);
         this.world.swingBulb(0.7);
         this.react('jailbreak', true);
         break;
       case 'shot':
-        audio.creak();
         this.shake(0.3 + n * 0.08);
         this.world.swingBulb(0.15 + n * 0.03);
         this.input.buzz(40 + n * 6);
         break;
       case 'posts':
-        audio.clang();
         if (this.session) this.world.table.setTags(new Set(this.session.sim.tags));
         this.ui.toast('THE OUTLANE POSTS FALL OFF');
         break;
@@ -1169,7 +1210,6 @@ export class GameApp {
         this.ui.toast('THE LIGHTS ARE DYING');
         break;
       case 'glass':
-        audio.glassCrack();
         paintCracks(this.cracks, n * 7919 + 13);
         this.cracks.style.display = '';
         this.flash(0.4);
@@ -1177,7 +1217,6 @@ export class GameApp {
       case 'escaped':
         this.flash(0.8);
         this.shake(2);
-        audio.knocker();
         break;
       case 'failed':
         this.react('caught', true);
@@ -1188,8 +1227,11 @@ export class GameApp {
   /** The Warden reacts to play (rate-limited unless `force`). */
   private react(t: WardenTrigger, force = false): void {
     if (!this.run || this.mode !== 'play') return;
-    if (force) this.subs.say('THE WARDEN', this.warden(t));
-    else this.subs.react('THE WARDEN', () => this.warden(t), performance.now());
+    if (force) {
+      this.subs.say('THE WARDEN', this.warden(t));
+      audio.warden();
+    } else if (this.subs.react('THE WARDEN', () => this.warden(t), performance.now()))
+      audio.warden();
   }
 
   private lastSave = -1e9;
@@ -1214,6 +1256,7 @@ export class GameApp {
     const last = lastCall(r);
     this.autosave();
     const line = this.warden(r.deadline === 0 ? 'intro' : last ? 'lastCall' : 'sentence');
+    if (r.deadline > 0) audio.warden();
     this.dmd.say(`THE WARDEN: ${line}`);
     this.subs.say('THE WARDEN', line, false);
     const cards = r.sentences.map((id) => {
@@ -1355,7 +1398,7 @@ export class GameApp {
 
   private answerPhone(fn: () => boolean): void {
     if (!fn()) return;
-    audio.atmBeep();
+    audio.phonePick();
     this.enterDeadlineIntro();
   }
 
@@ -1556,6 +1599,7 @@ export class GameApp {
 
   buy(n: number): void {
     if (!this.run || !buyBalls(this.run, n)) return;
+    audio.ui('buy');
     this.enterCell();
   }
 
@@ -1628,7 +1672,7 @@ export class GameApp {
     this.world.setMode('seated');
     const dep = (n: number) => {
       deposit(r, n);
-      audio.atmBeep();
+      audio.deposit();
       this.enterAtm(back);
     };
     const need = Math.max(0, r.debt - r.bank);
@@ -1698,7 +1742,7 @@ export class GameApp {
       );
     const take = (n: number) => {
       if (borrow(r, n) > 0) {
-        audio.atmBeep();
+        audio.cashOut();
         this.subs.say('THE WARDEN', this.warden('loan'));
       }
       this.enterAtm(back);
@@ -1816,7 +1860,7 @@ export class GameApp {
           style: { borderColor: RARITY_COLORS[c.rarity] },
           disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
           onclick: () => {
-            if (buyCharm(r, i)) audio.coin(4);
+            if (buyCharm(r, i)) audio.vend();
             this.enterShop();
           },
         },
@@ -1834,7 +1878,7 @@ export class GameApp {
           class: 'job',
           disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
           onclick: () => {
-            if (buyContraband(r, i)) audio.coin(3);
+            if (buyContraband(r, i)) audio.vend();
             this.enterShop();
           },
         },
@@ -1849,7 +1893,7 @@ export class GameApp {
         {
           disabled: !!c.cursed,
           onclick: () => {
-            if (sellCharm(r, slot)) audio.atmBeep();
+            if (sellCharm(r, slot)) audio.ui('sell');
             this.enterShop();
           },
         },
@@ -1929,6 +1973,7 @@ export class GameApp {
     this.simInput = emptyInput();
     this.mode = 'play';
     this.world.setMode(this.save.settings.camera === 'seated' ? 'seated' : 'play');
+    audio.ballFeed();
   }
 
   private onBallOver(): void {
@@ -1956,7 +2001,7 @@ export class GameApp {
     if (ticks > t.ticks) {
       this.pourCoins(Math.floor((t.total * ticks) / 24) - Math.floor((t.total * t.ticks) / 24));
       t.ticks = ticks;
-      audio.coin(Math.min(8, Math.floor(ticks / 3)));
+      audio.countTick(ticks, 24);
     }
     if (t.k >= 1) {
       this.tally = null;
@@ -2183,6 +2228,7 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'deadline';
     this.world.cell.setAtmAlarm(true);
+    audio.atmAlarm();
     this.world.setMode('seated');
     const canPay = r.bank >= r.debt;
     const couldPay = r.bank + r.pocket >= r.debt;
@@ -2226,6 +2272,7 @@ export class GameApp {
     const r = this.run!;
     settleDeadline(r);
     recordDeadline(this.save.meta, r);
+    if (r.phase !== 'over') audio.deadlinePaid();
     this.unlockCheck();
     this.persist();
     if (r.phase === 'over') this.endRun();
@@ -2273,19 +2320,18 @@ export class GameApp {
     this.ui.hide();
     this.ending = r.result;
     this.endings.start(r.result);
-    if (r.result === 'cellmate') audio.knock(4);
-    if (r.result === 'paidInFull') audio.creak();
+    audio.ending(r.result);
   }
 
   private endingCue(who: string, text: string): void {
     if (who === 'TITLE') {
       this.dmd.show({ text, priority: 10, anim: 'jailbreak', duration: 4 });
-      audio.knocker();
+      audio.titleCard();
       return;
     }
     this.subs.say(who, text);
     if (this.ending === 'cellmate' && text.startsWith('Then the wall')) {
-      audio.clang();
+      audio.wallDown();
       window.setTimeout(() => this.shake(1.4), 900);
     }
   }
@@ -2445,6 +2491,7 @@ export class GameApp {
     if (this.mode === 'fall') {
       this.fallT += dt;
       if (this.world.mode !== 'fall') this.world.setMode('fall');
+      audio.setView('fall');
       // The light above shrinks to nothing over the three seconds.
       const k = Math.min(1, this.fallT / 2.6);
       this.renderer.tint.setScalar(Math.max(0, 1 - k * k * 1.1));
@@ -2455,6 +2502,7 @@ export class GameApp {
         ? (this.devCam ?? (this.save.settings.camera === 'seated' ? 'seated' : 'play'))
         : (CAMERA_FOR[this.mode] ?? 'seated');
     if (this.world.mode !== m) this.world.setMode(m);
+    audio.setView(m);
     if (this.mode !== 'play') {
       const look =
         (this.input.isHeld('lookLeft') ? 1 : 0) - (this.input.isHeld('lookRight') ? 1 : 0);

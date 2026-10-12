@@ -1,6 +1,7 @@
 // Offline support: precache the app shell and its hashed assets on install, serve them
 // cache-first, and fetch pages network-first so a new build is picked up when online.
-const CACHE = 'ball-and-chain-v1';
+// Bump CACHE whenever the sample bank (public/sfx) changes: its files are served cache-first.
+const CACHE = 'ball-and-chain-v4';
 const SHELL = [
   './',
   './index.html',
@@ -18,6 +19,14 @@ self.addEventListener('install', (e) => {
       const html = await (await fetch('./index.html', { cache: 'no-store' })).text();
       const assets = [...html.matchAll(/(?:src|href)="(\.?\/?assets\/[^"]+)"/g)].map((m) => m[1]);
       await cache.addAll(assets);
+      // The sample bank (tools/build-sfx.mjs lists its files). Sound is optional: a failure here
+      // must not stop the app shell from installing, and the game falls back to synthesis.
+      try {
+        const files = await (await fetch('./sfx/files.json', { cache: 'no-store' })).json();
+        await cache.addAll(files.map((f) => `./sfx/${f}`));
+      } catch {
+        // offline play still works; sounds are cached as they are first fetched
+      }
       await self.skipWaiting();
     })(),
   );

@@ -216,9 +216,14 @@ dominate Riot wins; samples are small (24 runs).
       shows (attract, skill, RIOT, PAYDAY, drain)
 - [x] Cell decay across the deadlines: rust streaks spread, a leak and a growing puddle,
       the bulb dims and flickers more
-- [x] Audio: synthesised SFX for every table part, coin clinks that climb through combos,
-      adaptive music (cell drone and clock that speeds with tension; table layers for
-      combos, RIOT and Sentence rounds)
+- [x] Audio: a sample engine over a 164-file bank in `public/sfx` (procedural modal foley for
+      the machine, CC0 uisfx and Kenney sounds for menus and stingers; live synthesis as the
+      fallback), a mix with a reverb of a concrete cell, a glue compressor and limiter, music
+      ducking and a muffle when the camera looks away from the machine; flipper thunk and
+      coil hum, bumpers, a three-bar chime unit, coins that climb through combos, escalating
+      combo and jackpot/PAYDAY fanfares, the hurry-up pulse, the door, ATM, vending, phone,
+      endings; adaptive music (cell drone and clock that speeds with tension; table layers
+      for combos, RIOT and Sentence rounds)
 - [x] Juice: hit-stop on the Hole and PAYDAY, shake, flash, score pops, bulb swing, a coin
       fountain from the coin return into the tray (the pile is your pocket; the ATM takes
       it), a reaction to last-second saves (a ball dropping through the flipper gap sent
@@ -576,3 +581,49 @@ Format: date — decision — why.
   textures, coin-door legend, backglass); otherwise the first paint used a fallback face
   until something forced a repaint. On narrow screens the title and seated cameras back off
   until the whole machine fits the width.
+- 2026-10-12 — Sound is a bank of mono mp3 samples plus a sample engine, with live synthesis
+  kept as the per-sound fallback and for the music. The machine's foley is synthesised
+  offline (modal resonators, filtered noise, sub thumps) by `tools/build-sfx.mjs` rather than
+  downloaded; only menus, stingers and chip accents are recordings (CC0 uisfx and Kenney).
+  — kenney.nl, freesound, opengameart and pixabay were unreachable, and the machine needs
+  hundreds of tiny, tuned, variant-rich hits that a seeded generator gives for ~1 MB and a
+  reproducible build. Better recordings drop in by name (see the build script's header).
+- 2026-10-12 — The machine's sounds sit on a `table` bus that is low-passed and wetted when the
+  camera looks away from it (ATM, phone, vending, wall, trapdoor fall); menus and the cell
+  stay on the `sfx` bus. — Hearing the machine through the wall is the point of the cell;
+  the UI must stay crisp wherever the camera is.
+- 2026-10-12 — Payout sounds are tiered on a shot's worth in points (amount / `SCORE.scale`),
+  not on coins: a quiet coin tick for pops, lanes and drop targets, a coin and a low bar for
+  the Hole and outlanes, a ladder note for the Chute, Perimeter and Cell Block, and a bright
+  coin with a second note for combo-chained or levelled shots; bursts back off so a pop-bumper
+  rally stays a texture. `npm run audio:payouts` shows the split on bot balls. — The first
+  version gated on one whole coin, and with the 0.2 scale nothing a bot ball earned reached
+  it, so the core payout loop was silent. The tiers live in `src/present/sfx-payout.ts`, not in
+  balance.ts, because they are presentation tuning that must not change the economy.
+- 2026-10-12 — The machine's foley is built to carry on a laptop or phone speaker: every hit has
+  a body at 150-500 Hz and a crack at 600-3000 Hz, and the sub-bass is capped. `npm run
+sfx:build` fails if a hit loses more than 6.5 dB of its loudest 100 ms behind a 180 Hz
+  high-pass. The flipper coil hum is a 120 Hz saw (its harmonics are what a small speaker
+  plays) rather than a bare 60 Hz sine. — Most players hear the game on small speakers or
+  earbuds; the first foley pass was 98% below 250 Hz and would have read as vague thuds.
+- 2026-10-12 — The replay knocker is kept for PAYDAY, the extra ball and the super skill shot;
+  jackpots, RIOT and JAILBREAK starts use the kicker's slam and a boom, a ball save is only a
+  swoosh, bells and the feed solenoid, and fanfare layers start 30-60 ms apart. — A sound that
+  is everyone's reward is nobody's; the stacked version was one block of mush.
+- 2026-10-12 — The generated sound files are dedicated to the public domain (CC0 1.0), like the
+  CC0 recordings they ship beside, and the upstream licence texts ship verbatim in
+  `public/sfx/`. — The repository has no licence file of its own to point at.
+- 2026-10-12 — Audio levels are set per class at build time (tools/build-sfx.mjs, active RMS
+  with one -1 dBFS peak ceiling); manifest gains are relative intent on top. — Peak-normalised
+  files left the contacts 10-20 dB under the groove, and gains were carrying the whole balance.
+  audio:check fails if a ball contact sits more than 8 dB under the flippers.
+- 2026-10-12 — The table's sound mixing constants (FOCUS trims, MUSIC_TRIM, the live-ball groove
+  step, duck depths, voice pools in `src/present/`) are presentation tuning, not gameplay, so
+  they live beside the sound code rather than in `src/content/balance.ts`. Gameplay tunables
+  stay in balance.ts. — The mix is measured by audio:check, not by the sim.
+- 2026-10-12 — Every press is sounded once by a document-level listener (sfx-controls.ts): a
+  toggle clicks on or off, a stepper ticks, a disabled control buzzes, and a screen can name its
+  cue with `data-cue`. Screens do not wire their own clicks. — One rule set is easier to keep
+  consistent across the menus than a call in each button.
+- 2026-10-12 — The reverb is fed only while a wet sound can still be heard (plus its 1.7 s
+  tail), so an idle table costs no convolver. — Phones pay for a convolver they are not using.

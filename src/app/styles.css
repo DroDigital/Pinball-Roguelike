@@ -720,3 +720,8 @@ canvas.ending-sky {
   font-size: 0.75rem;
   color: #ffd27a;
 }
+
+/* The phone rings or the ATM chirps: a steady rim on the screen (no animation, so no flashing). */
+#hud.pulse-alarm {
+  box-shadow: inset 0 0 0 2px rgba(255, 110, 70, 0.6);
+}

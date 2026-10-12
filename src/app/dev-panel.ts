@@ -20,6 +20,7 @@ import { gainCharm, jobTarget, roundsIn } from '../rules/run';
 import { restock } from '../rules/shop';
 import { CHARMS } from '../content/charms';
 import { CONTRABAND } from '../content/contraband';
+import { addAudioFolder } from './dev-audio';
 
 const MAX_SEG = 12000;
 
@@ -168,6 +169,8 @@ export function attachDevPanel(app: GameApp): void {
   });
   for (const k of ['paidInFull', 'breakout', 'cellmate'] as const)
     run.addButton({ title: `Ending: ${k}` }).on('click', () => app.devEnding(k));
+
+  addAudioFolder(pane);
 
   // ---- tuning
   const tune = pane.addFolder({ title: 'Physics (next ball)', expanded: false });

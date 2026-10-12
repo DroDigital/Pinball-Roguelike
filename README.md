@@ -5,8 +5,10 @@ cell in front of **DEBTOR'S PRISON**, a battered late-70s pinball machine. An AT
 you owe the Warden. Bank enough coins before each deadline, or the trapdoor under the stool
 opens.
 
-Built with Vite, TypeScript (strict), Three.js and Planck.js. No assets: the art, sound and
-music are all generated in code. [DESIGN.md](DESIGN.md) holds the design, the milestone
+Built with Vite, TypeScript (strict), Three.js and Planck.js. The art and the music are
+generated in code; the sound effects are a small bank (under 1 MB) of synthesised foley and
+CC0 recordings, rebuilt by `node tools/build-sfx.mjs` and credited in [CREDITS.md](CREDITS.md).
+[DESIGN.md](DESIGN.md) holds the design, the milestone
 checklist, calibration numbers and the decisions log; [CLAUDE.md](CLAUDE.md) holds the
 architecture rules and conventions.
 
