@@ -267,7 +267,39 @@ dominate Riot wins; samples are small (24 runs).
 - [x] Instant replays of a ball's biggest moment (PAYDAY, SUPER PAYDAY, JAILBREAK, the
       escape) by deterministic re-simulation; bug reports (run + ball snapshot + inputs) from
       the pause menu, played back from the dev panel
-- [ ] Balance pass at Hard Time 0 (below)
+- [ ] Balance pass at Hard Time 0 (partly met; see the calibration below)
+
+M7 calibration (`npm run economy -- --mode physics --runs 40 --arch <a>`, then
+`npm run economy:summary`; average bot, every archetype, Hard Time 0). Round 2, after the
+payout and charm changes in the decisions log:
+
+| build  | d1    | d4    | d8    | wins        | most common charms in its wins        |
+| ------ | ----- | ----- | ----- | ----------- | ------------------------------------- |
+| none   | 95.0% | 40.0% | 5.0%  | 2/40 (5%)   | no charms: the "average player" line  |
+| random | 95.0% | 57.5% | 20.0% | 8/40 (20%)  | Roll Call Sheet, Brass Knuckles (50%) |
+| bonus  | 95.0% | 55.0% | 25.0% | 10/40 (25%) | Cooked Books, Roll Call Sheet (80%)   |
+| riot   | 95.0% | 55.0% | 22.5% | 9/40 (22%)  | Crowbar (89%), Feeding Bowl (78%)     |
+| luck   | 95.0% | 57.5% | 17.5% | 7/40 (17%)  | Wishbone (100%), Candle Stub (86%)    |
+| yard   | 95.0% | 50.0% | 12.5% | 5/40 (12%)  | Gold Filling, Jar of Teeth (100%)     |
+| money  | 95.0% | 52.5% | 15.0% | 6/40 (15%)  | Piggy Bank, Stash Box (100%)          |
+| lone   | 95.0% | 52.5% | 10.0% | 4/40 (10%)  | Spare Bearing, Solitary (100%)        |
+| chute  | 95.0% | 55.0% | 10.0% | 4/40 (10%)  | Cracked Mirror, Oiled Hinge (100%)    |
+
+Each archetype's wins are full of its own tag's charms, which is what the shop policy
+buys. The brief's rule is about all winning builds together: pooled over the 55 winners,
+the most common charm is Roll Call Sheet at 22%, and no charm is in more than half.
+
+Against the Hard Time 0 targets: deadline 1 is at 95% (target ~90%); the no-charm average
+clears deadline 4 at 40% (target ~35%); Bonus and Riot win 22-25% and Luck and Random 17-20%
+(target ~20%), while Yard, Money, Lone and Chute win 10-15%; every archetype wins at least
+5%; no charm dominates the pooled wins. Not yet met: deadline 1 and deadline 4 sit a few
+points high, and the weakest focused builds are below the ~20% target. With 40 runs per
+build a standard error is about 7 points, so the small gaps are not resolved. Round 1
+(before the payout cut) cleared deadline 1 at 97.5% and won 0-40%.
+
+Calibration notes: "average player" is read as the no-focus policy (no charms, no shop
+spend beyond balls), which is the one the target describes. Money and Lone are the
+weakest focused builds but both can win.
 
 ### M8 — Stretch
 
@@ -277,6 +309,13 @@ dominate Riot wins; samples are small (24 runs).
 - [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
 
 ## Decisions log
+
+- 2026-10-12 — Payout pass for Hard Time 0: base table payout x0.875 (SCORE.scale 0.2 to
+  0.175), per-deadline payout growth 1.5 to 1.53; Feeding Bowl 3x to 2x; Jar of Teeth 3x to
+  4x; Piggy Bank and Mattress interest 15% to 20%; Solitary Confinement 5x to 6x. — Round 1
+  cleared deadline 1 at 97.5% and Riot won 40% of runs, against targets of ~90% and ~20%.
+  The cut keeps late payouts roughly where they were, so deadlines 5-8 still need builds.
+  Riot's Feeding Bowl was the dominant Riot charm (3x Hole); 2x keeps it useful.
 
 Format: date — decision — why.
 
