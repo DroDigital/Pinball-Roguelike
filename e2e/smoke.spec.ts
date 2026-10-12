@@ -43,6 +43,9 @@ test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   await page.screenshot({ path: 'screenshots/03-cell.png' });
   await page.keyboard.press('Enter');
   expect((await game(page)).mode).toBe('play');
+  // The play HUD: the debt bar and the live Pocket sit in the margins beside the table.
+  await expect(page.locator('#hud .hc-ledger')).toBeVisible();
+  await expect(page.locator('#hud .hc-pocket')).toBeVisible();
 
   await page.waitForTimeout(3000);
   await page.screenshot({ path: 'screenshots/04-play.png' });

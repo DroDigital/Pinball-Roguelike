@@ -28,6 +28,28 @@ import { loadSave, writeSave, type SaveData } from './save';
 import { lineupPanel, rapSheetPanel, type LineupChoice } from './meta-screens';
 import { pausePanel, settingsPanel } from './settings-screen';
 import { Hints } from './hints';
+import { Notices } from './notices';
+import { AUDIO_CUE } from './cues';
+import { Hud, type HudLayout } from './hud';
+import { setReducedMotion } from './counter';
+import { btn, setKeyBindings } from './widgets';
+import {
+  atmPanel,
+  ballEndPanel,
+  buyPanel,
+  cellPanel,
+  deadlinePanel,
+  introPanel,
+  jobsPanel,
+  knockPanel,
+  phonePanel,
+  redPhonePanel,
+  runEndPanel,
+  shopPanel,
+  titlePanel,
+  unlockToast,
+  where,
+} from './screens';
 import type { Settings } from './settings';
 import { EndingDirector, type EndingKind } from '../present/endings';
 import { paintCracks } from '../present/cracks';
@@ -49,19 +71,15 @@ import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
 import { dailySeed, dayKey, recordDaily, shareLink } from '../rules/daily';
 import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
-import { Lamp, type GameEvent } from '../rules/types';
+import type { GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
 import { attachBot, defaultSnapshot } from '../bot/autoplay';
-import { jobDef, jobText, type JobDef } from '../content/jobs';
 import { AWARD_NAMES } from '../rules/table-game';
 import {
   newRun,
   buyBalls,
-  costForBalls,
-  maxAffordableBalls,
-  ballPrice,
   ballsLeft,
   nextBall,
   finishBall,
@@ -69,13 +87,7 @@ import {
   endRound,
   settleDeadline,
   pickJob,
-  jobCoins,
-  canPayEarly,
   payEarly,
-  payEarlyReward,
-  payScale,
-  loanAvailable,
-  loanCost,
   borrow,
   sentenceActive,
   roundsIn,
@@ -83,34 +95,19 @@ import {
   acceptBargain,
   hangUp,
   answerKnock,
-  canHelp,
-  jailbreakLit,
   lastCall,
   type BallOutcome,
   type RunKind,
   type RunState,
 } from '../rules/run';
 import { sentenceDef } from '../content/sentences';
-import { charmDef, RARITY_COLORS } from '../content/charms';
+import { charmDef } from '../content/charms';
 import { contrabandDef } from '../content/contraband';
-import {
-  buyCharm,
-  buyContraband,
-  canUse,
-  contrabandPrice,
-  contrabandSlots,
-  ownedTags,
-  reroll,
-  rerollCost,
-  sellCharm,
-  sellValue,
-  useContraband,
-} from '../rules/shop';
-import { perkDef, bargainDef } from '../content/phone';
+import { buyCharm, buyContraband, reroll, sellCharm, useContraband } from '../rules/shop';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
 import { SaveDetector } from '../present/save-detector';
-import { ASSIST, BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
+import { ASSIST, BONUS, ECONOMY, NEIGHBOR } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
@@ -154,7 +151,7 @@ export class GameApp {
   readonly input: Input;
   readonly ui: UI;
   save: SaveData;
-  mode: AppMode = 'title';
+  private screen: AppMode = 'title';
   run: RunState | null = null;
   session: BallSession | null = null;
   /** Attract-mode session played by the bot on the title screen. */
@@ -191,6 +188,16 @@ export class GameApp {
   private overlays = 0;
   private menuOpen = false;
   readonly hints: Hints;
+  readonly notices: Notices;
+  /** What the game is doing; a change also tells the hints which screen they are on. */
+  get mode(): AppMode {
+    return this.screen;
+  }
+  set mode(m: AppMode) {
+    if (m === this.screen) return;
+    this.screen = m;
+    this.hints.modeChanged(m);
+  }
   /** This ball's big moments (sim step), offered as an instant replay afterwards. */
   private moments: { step: number; label: string; value: number }[] = [];
   private replay: {
@@ -206,10 +213,9 @@ export class GameApp {
   private tally: { k: number; bonus: number; mult: number; total: number; ticks: number } | null =
     null;
   private outcome: BallOutcome | null = null;
-  private hud: HTMLElement;
-  private hudStats: HTMLElement;
-  private hudRight: HTMLElement;
-  private hudPlunger: HTMLElement;
+  /** The play HUD: also the home of the juice hooks (banner, count-up, combo slot). */
+  readonly hud: Hud;
+  private readonly portraitQuery = matchMedia('(max-aspect-ratio: 6/5)');
   private readonly tmpV = new THREE.Vector3();
   private fallT = 0;
   private dmdTex: THREE.CanvasTexture;
@@ -222,7 +228,7 @@ export class GameApp {
     canvas: HTMLCanvasElement,
     hud: HTMLElement,
     uiRoot: HTMLElement,
-    toast: HTMLElement,
+    noticeRoot: HTMLElement,
   ) {
     this.save = loadSave();
     this.renderer = new RetroRenderer(canvas);
@@ -231,35 +237,25 @@ export class GameApp {
     this.world = new World(new Set(['outlanePosts']), this.renderer.env);
     this.world.scene.add(this.pops.group);
     this.input = new Input(document.body);
-    this.ui = new UI(uiRoot, toast);
-    this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
+    // Toasts, tips and captions share one notice slot per layout (see notices.ts).
+    this.notices = new Notices(noticeRoot, () => this.ui.open);
+    this.ui = new UI(uiRoot, this.notices);
+    this.ui.onCue = (c) => {
+      const cue = AUDIO_CUE[c];
+      if (cue) audio.ui(cue);
+    };
+    setKeyBindings(() => this.input.bindings);
+    this.hints = new Hints(this.notices, this.save.seenHints, () => this.persist());
+    this.hints.enabled = this.save.settings.hints;
+    // On a portrait phone the top of the table is where the ball is: tips wait for the plunger.
+    this.hints.gate = () =>
+      !(this.portraitQuery.matches && this.mode === 'play' && !this.ballInShooter());
+    this.subs = new Subtitles(this.notices);
     this.subs.voice = this.save.settings.voice;
-    this.hud = hud;
-    this.hudStats = h('div', { class: 'stats' });
-    this.hudRight = h('div', { class: 'right' });
-    this.hudPlunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
-    const dmdCanvas = this.dmd.canvas;
-    dmdCanvas.className = 'dmd';
-    // Touch: the lockbar button (active charms) and pause, under the table.
-    const hold = (a: Action) => ({
-      onpointerdown: (e: PointerEvent) => {
-        e.preventDefault();
-        this.input.press(a, performance.now());
-      },
-      onpointerup: () => this.input.release(a, performance.now()),
-      onpointerleave: () => this.input.release(a, performance.now()),
+    this.hud = new Hud(hud, this.dmd.canvas, {
+      press: (a) => this.input.press(a, performance.now()),
+      release: (a) => this.input.release(a, performance.now()),
     });
-    hud.append(
-      h('div', { class: 'left' }, dmdCanvas, this.hudStats),
-      this.hudRight,
-      this.hudPlunger,
-      h(
-        'div',
-        { class: 'touch-lockbar' },
-        h('button', { class: 'touch-btn', ...hold('lockbar') }, 'LOCKBAR'),
-        h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
-      ),
-    );
     // DMD and backglass live on the backbox: a glowing dot-matrix panel and a backlit glass.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
     this.dmdTex.colorSpace = THREE.SRGBColorSpace;
@@ -276,8 +272,6 @@ export class GameApp {
       this.glassTex.needsUpdate = true;
     });
     this.world.backbox.attach(this.dmdTex, this.glassTex);
-    this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
-    this.hints.enabled = this.save.settings.hints;
     this.endings = new EndingDirector(this.world, document.body, this.glassTex);
     this.endings.onCue = (who, text) => this.endingCue(who, text);
     this.cracks = h('canvas', { class: 'cracks' });
@@ -335,6 +329,7 @@ export class GameApp {
       this.input.rebuildKeyMap();
     }
     document.documentElement.style.setProperty('--text-scale', String(s.textSize));
+    setReducedMotion(s.reducedFlashing);
     this.resize();
   }
 
@@ -383,7 +378,15 @@ export class GameApp {
     this.qualityCap = next;
     this.renderer.settings.pixelHeight = next;
     this.resize();
-    this.ui.toast('Running slow: resolution lowered (Settings to change)');
+    this.ui.toast('Running slow: resolution lowered (Settings to change)', 4000, 'warn');
+  }
+
+  /** True when no live ball is out on the table (waiting in the shooter lane, or between balls). */
+  private ballInShooter(): boolean {
+    const s = this.session;
+    if (!s) return true;
+    for (const b of s.sim.balls) if (b.inShooter && b.state === 'field') return true;
+    return false;
   }
 
   private activeSession(): { session: BallSession; bot: Bot | null } | null {
@@ -488,7 +491,7 @@ export class GameApp {
     this.pops.update(dt);
     this.dmd.update(dt);
     if (this.dmd.dirty) this.dmdTex.needsUpdate = true;
-    this.updateHud(shown);
+    this.updateHud(shown, dt);
     // Runs with or without a session: a roll bed, a held coil or the hurry-up must never outlive
     // the table (quit to title, a cell or shop screen).
     let maxV = 0;
@@ -505,7 +508,7 @@ export class GameApp {
     if (!playing) audio.releaseCoils();
     audio.frame(playing && shown.sim.balls.length > 0);
     // The phone rings or the ATM chirps: a steady rim on the screen, so the cue is not audio-only.
-    this.hud.classList.toggle('pulse-alarm', audio.ringing() || audio.alarming());
+    this.hud.root.classList.toggle('pulse-alarm', audio.ringing() || audio.alarming());
     this.renderer.flash = Math.max(0, this.renderer.flash - dt * 4);
     this.onFrame?.(dt);
     this.renderer.render(this.world.scene, this.world.camera, this.time);
@@ -736,10 +739,10 @@ export class GameApp {
           break;
         case 'extraBall':
           audio.extraBall();
-          this.ui.toast('EXTRA BALL');
+          this.hud.banner('Extra ball', { tone: 'green', sub: 'Shoot again' });
           break;
         case 'award':
-          if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
+          if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`, 2400, 'good');
           else audio.levelUp();
           break;
         case 'luck':
@@ -762,7 +765,7 @@ export class GameApp {
           break;
         case 'active':
           audio.active();
-          this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
+          this.ui.toast(`${charmDef(e.id).name}: ${e.charges} left`, 2200, 'good');
           break;
         case 'jobDone':
           this.react('jobDone');
@@ -783,7 +786,7 @@ export class GameApp {
           break;
         case 'tiltWarning':
           audio.warn();
-          this.ui.toast(`DANGER — WARNING ${e.n}`);
+          this.hud.banner(`Warning ${e.n}`, { tone: 'red', sub: 'Ease off or the table tilts' });
           break;
         case 'tilt':
           this.react('tilt', true);
@@ -828,22 +831,18 @@ export class GameApp {
     audio.unlock();
     if (a === 'pause' || (a === 'back' && this.overlays > 0)) {
       if (this.overlays > 0) {
-        audio.ui('back');
+        this.ui.cue('close');
         this.closeOverlay();
       } else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending') {
-        audio.ui('open');
+        this.ui.cue('open');
         this.openPause();
       }
       return;
     }
     if (this.ui.open) {
-      if (a === 'left' || a === 'lookLeft') {
-        this.ui.moveFocus(-1);
-        audio.ui('move');
-      } else if (a === 'right' || a === 'lookRight') {
-        this.ui.moveFocus(1);
-        audio.ui('move');
-      } else if (a === 'plunger' || a === 'confirm') this.ui.activate();
+      if (a === 'left' || a === 'lookLeft') this.ui.moveFocus(-1);
+      else if (a === 'right' || a === 'lookRight') this.ui.moveFocus(1);
+      else if (a === 'plunger' || a === 'confirm') this.ui.activate();
       return;
     }
     if (
@@ -868,36 +867,22 @@ export class GameApp {
     this.world.setMode('title');
     this.world.coins.clear();
     this.trayCoins = 0;
-    const saved = this.save.run;
     this.newAttractBall();
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h('h1', null, 'Ball & Chain'),
-        h('p', null, 'You owe the Warden. The machine is the only way out.'),
-        h('p', { class: 'dim' }, `Runs on the wall: ${this.save.tallies}`),
-        h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
-        h(
-          'div',
-          { class: 'row' },
-          saved
-            ? h('button', { class: 'primary', onclick: () => this.continueRun() }, 'Continue')
-            : null,
-          h(
-            'button',
-            { class: saved ? '' : 'primary', onclick: () => this.enterLineup() },
-            saved ? 'New run' : 'Wake up',
-          ),
-          h('button', { onclick: () => this.newRunFlow(undefined, true) }, this.dailyLabel()),
-          h('button', { onclick: () => this.enterMeta() }, 'Rap sheet'),
-          h('button', { onclick: () => this.openSettings() }, 'Settings'),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          'Flippers: Z / slash (or shift, arrows). Plunger: hold space. Nudge: X.',
-        ),
+      titlePanel(
+        {
+          saved: this.save.run,
+          tallies: this.save.tallies,
+          dailyBest: this.dailyBestText(),
+          touch: matchMedia('(pointer: coarse)').matches,
+        },
+        {
+          continueRun: () => this.continueRun(),
+          newRun: () => this.enterLineup(),
+          daily: () => this.newRunFlow(undefined, true),
+          rapSheet: () => this.enterMeta(),
+          settings: () => this.openSettings(),
+        },
       ),
     );
   }
@@ -921,6 +906,7 @@ export class GameApp {
           : this.mode === 'play'
             ? 'this ball is lost; the run is saved'
             : 'the run is saved',
+        this.run && this.run.phase !== 'over' ? where(this.run) : '',
       ),
     );
   }
@@ -1022,7 +1008,7 @@ export class GameApp {
       return;
     }
     navigator.clipboard.writeText(link).then(
-      () => this.ui.toast('Link copied: anyone who opens it plays this run'),
+      () => this.ui.toast('Link copied: anyone who opens it plays this run', 3000, 'good'),
       () => this.ui.toast(link, 8000),
     );
   }
@@ -1043,7 +1029,7 @@ export class GameApp {
       return;
     }
     navigator.clipboard.writeText(report).then(
-      () => this.ui.toast('Bug report copied to the clipboard'),
+      () => this.ui.toast('Bug report copied to the clipboard', 2600, 'good'),
       () => this.downloadReport(report),
     );
   }
@@ -1117,12 +1103,12 @@ export class GameApp {
     this.enterDeadlineIntro();
   }
 
-  private dailyLabel(): string {
+  /** Today's best Daily Sentence result, for the title screen ('' if none yet). */
+  private dailyBestText(): string {
     const d = this.save.daily;
-    const today = dayKey(new Date());
-    const best =
-      d.date === today && d.best ? ` (best: ${d.best.deadlines} paid, ${d.best.coins}c)` : '';
-    return `Daily Sentence${best}`;
+    return d.date === dayKey(new Date()) && d.best
+      ? `Today's best: ${d.best.deadlines} paid, ${d.best.coins} coins`
+      : '';
   }
 
   /** Resume the autosaved run at the start of its round. */
@@ -1164,7 +1150,8 @@ export class GameApp {
       u.endless ? 'Endless' : '',
     ].filter(Boolean);
     audio.unlocked();
-    this.ui.toast(`Unlocked${what.length ? `: ${what.join(', ')}` : `: ${u.text}`}`, 3500);
+    this.ui.toast(unlockToast('Unlocked', what.length ? what.join(', ') : u.text), 4500, 'unlock');
+    this.ui.cue('reward');
   }
 
   private decks = new Map<WardenTrigger, string[]>();
@@ -1203,11 +1190,11 @@ export class GameApp {
         break;
       case 'posts':
         if (this.session) this.world.table.setTags(new Set(this.session.sim.tags));
-        this.ui.toast('THE OUTLANE POSTS FALL OFF');
+        this.hud.banner('The posts fall off', { tone: 'red', sub: 'The outlanes are open' });
         break;
       case 'lights':
         this.world.lightsDying = true;
-        this.ui.toast('THE LIGHTS ARE DYING');
+        this.hud.banner('The lights are dying', { tone: 'red' });
         break;
       case 'glass':
         paintCracks(this.cracks, n * 7919 + 13);
@@ -1259,52 +1246,7 @@ export class GameApp {
     if (r.deadline > 0) audio.warden();
     this.dmd.say(`THE WARDEN: ${line}`);
     this.subs.say('THE WARDEN', line, false);
-    const cards = r.sentences.map((id) => {
-      const d = sentenceDef(id);
-      return h('div', { class: 'sentence' }, h('b', null, d.name), h('small', null, d.text));
-    });
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h(
-          'h2',
-          null,
-          last
-            ? `Deadline ${r.deadline + 1}: Last Call`
-            : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
-        ),
-        h('p', { class: 'warden' }, `“${line}”`),
-        r.deadline > 0
-          ? h(
-              'p',
-              { class: 'good' },
-              `A heavier coin mech: the machine now pays x${formatCoins(payScale(r))}.`,
-            )
-          : null,
-        h(
-          'div',
-          { class: 'grid' },
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-        ),
-        h(
-          'p',
-          null,
-          `${r.sentences.length > 1 ? 'Sentences' : 'Sentence'} for round ${ECONOMY.roundsPerDeadline}:`,
-        ),
-        ...cards,
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'To the ATM'),
-        ),
-      ),
-    );
+    this.ui.show(introPanel(r, line, { next: () => this.enterJobs() }));
   }
 
   /** The phone after a paid deadline: perks, or the red phone's bargains. */
@@ -1323,24 +1265,8 @@ export class GameApp {
       const line = this.warden('deadlinePaid');
       this.dmd.say(`THE WARDEN: ${line}`);
       this.subs.say('THE WARDEN', line, false);
-      const cards = call.offers.map((o, i) =>
-        h(
-          'button',
-          {
-            class: `job${i === 0 ? ' primary' : ''}`,
-            onclick: () => this.answerPhone(() => choosePerk(r, i)),
-          },
-          h('b', null, perkDef(o.id).text.replace('{shot}', o.shot ?? '')),
-        ),
-      );
       this.ui.show(
-        h(
-          'div',
-          { class: 'panel' },
-          h('h2', null, 'The phone rings'),
-          h('p', { class: 'warden' }, `“${line} Pick one. It is yours for the rest of your stay.”`),
-          h('div', { class: 'col' }, ...cards),
-        ),
+        phonePanel(r, line, { choose: (i) => this.answerPhone(() => choosePerk(r, i)) }),
       );
       return;
     }
@@ -1349,50 +1275,15 @@ export class GameApp {
     this.subs.say('THE RED PHONE', line, false);
     this.flash(0.15);
     audio.creak();
-    const cards = call.offers.map((id, i) => {
-      if (id.startsWith('charm:')) {
-        const c = charmDef(id.slice(6));
-        return h(
-          'button',
-          { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-          h('b', null, `${c.name} (devil charm)`),
-          h('small', null, c.text),
-          h('small', { class: 'cost' }, 'Takes a charm slot. It cannot be sold.'),
-        );
-      }
-      const b = bargainDef(id);
-      return h(
-        'button',
-        { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-        h('b', null, b.name),
-        h('small', null, b.gain),
-        h('small', { class: 'cost' }, b.cost),
-      );
-    });
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel red' },
-        h('h2', null, 'The red phone rings'),
-        h('p', { class: 'warden' }, `“${line}”`),
-        h('div', { class: 'col' }, ...cards),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            {
-              class: 'primary',
-              onclick: () =>
-                this.answerPhone(() => {
-                  this.subs.say('THE WARDEN', this.warden('hangUp'));
-                  return hangUp(r);
-                }),
-            },
-            'Hang up',
-          ),
-        ),
-      ),
+      redPhonePanel(r, line, {
+        accept: (i) => this.answerPhone(() => acceptBargain(r, i)),
+        hangUp: () =>
+          this.answerPhone(() => {
+            this.subs.say('THE WARDEN', this.warden('hangUp'));
+            return hangUp(r);
+          }),
+      }),
     );
   }
 
@@ -1411,7 +1302,7 @@ export class GameApp {
     this.unlockCheck();
     this.persist();
     this.subs.say('THE WARDEN', this.warden('payEarly'));
-    this.ui.toast(`+${r.tickets - before} tickets`);
+    this.ui.toast(`+${r.tickets - before} tickets`, 2600, 'good');
     if (r.phase === 'over') this.endRun();
     else this.enterPhone();
   }
@@ -1427,45 +1318,9 @@ export class GameApp {
     this.hints.show('jobs');
     if (sentenceActive(r)) this.hints.show('sentence');
     this.world.setMode('seated');
-    audio.atmBeep();
-    const cards = r.jobOffers.map((o, i) => {
-      const def = jobDef(o.id);
-      return h(
-        'button',
-        {
-          class: `job${def.key ? ' key' : ''}${i === 0 ? ' primary' : ''}`,
-          onclick: () => this.takeJob(i),
-        },
-        h('b', null, jobText(def, o.target)),
-        h('small', null, rewardText(def, r.deadline)),
-      );
-    });
+    this.ui.cue('open');
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm' },
-        h('h2', null, `Round ${r.round + 1}: jobs`),
-        sentenceActive(r)
-          ? h(
-              'p',
-              { class: 'cost' },
-              `SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
-            )
-          : null,
-        h('p', null, 'THE ATM POSTS THREE JOBS. TAKE ONE.'),
-        h('div', { class: 'col' }, ...cards),
-        canPayEarly(r)
-          ? h(
-              'div',
-              { class: 'row' },
-              h(
-                'button',
-                { onclick: () => this.payEarlyFlow() },
-                `Pay the debt now (+${payEarlyReward(r)} tickets)`,
-              ),
-            )
-          : null,
-      ),
+      jobsPanel(r, { take: (i) => this.takeJob(i), payEarly: () => this.payEarlyFlow() }),
     );
     if (sentenceActive(r))
       this.dmd.show({
@@ -1501,6 +1356,16 @@ export class GameApp {
         : k.ask === 'tickets'
           ? `${k.amount} tickets`
           : charmDef(k.charm!).name;
+    const get =
+      k.offer === 'key'
+        ? 'A key'
+        : k.offer === 'tip'
+          ? 'A tip about the table'
+          : k.offer === 'contraband'
+            ? k.item
+              ? contrabandDef(k.item).name
+              : 'Contraband'
+            : `${k.offerAmount ?? NEIGHBOR.ticketsOffered} tickets`;
     const answer = (help: boolean) => {
       if (!answerKnock(r, help)) return;
       recordKnock(this.save.meta);
@@ -1511,38 +1376,7 @@ export class GameApp {
       this.persist();
       this.enterJobs();
     };
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel knock' },
-        h('h2', null, 'Knocking'),
-        h('p', { class: 'neighbor' }, `“${ask}”`),
-        h('p', { class: 'neighbor' }, `“${offer}”`),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            {
-              class: canHelp(r) ? 'primary' : '',
-              disabled: !canHelp(r),
-              onclick: () => answer(true),
-            },
-            `Slide over ${give}`,
-          ),
-          h(
-            'button',
-            { class: canHelp(r) ? '' : 'primary', onclick: () => answer(false) },
-            'Ignore it',
-          ),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `The neighbor has asked ${r.neighbor.asked} time(s). You helped ${r.neighbor.helped}.`,
-        ),
-      ),
-    );
+    this.ui.show(knockPanel(r, k, { ask, offer, give, get }, { answer }));
   }
 
   takeJob(i: number): void {
@@ -1555,46 +1389,7 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'buy';
     this.world.setMode('seated');
-    const price = ballPrice(r);
-    const max = maxAffordableBalls(r);
-    const opts: HTMLElement[] = [];
-    for (let n = 1; n <= ECONOMY.maxBallsPerRound; n++) {
-      const cost = costForBalls(r, n);
-      opts.push(
-        h(
-          'button',
-          {
-            class: n === Math.min(3, max) ? 'primary' : '',
-            disabled: n > max,
-            onclick: () => this.buy(n),
-          },
-          `${n} ball${n > 1 ? 's' : ''} — ${cost ? `${cost}c` : 'free'}`,
-        ),
-      );
-    }
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h(
-          'h2',
-          null,
-          `Deadline ${r.deadline + 1} · Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-        ),
-        h(
-          'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-        ),
-        h('p', null, `Buy balls for this round. The first is free; each extra costs ${price}c.`),
-        h('div', { class: 'row' }, ...opts),
-      ),
-    );
+    this.ui.show(buyPanel(r, { buy: (n) => this.buy(n) }));
   }
 
   buy(n: number): void {
@@ -1608,60 +1403,20 @@ export class GameApp {
     this.mode = 'cell';
     this.world.setMode('seated');
     this.session = null;
-    const left = ballsLeft(r);
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h('h2', null, 'The cell'),
-        h(
-          'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Balls left',
-          h('b', null, String(left)),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `Deadline ${r.deadline + 1}/${r.deadlines} · Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-        ),
-        r.job
-          ? h(
-              'p',
-              { class: r.job.done ? 'good' : 'dim' },
-              `Job: ${jobText(jobDef(r.job.id), r.job.target)} — ${r.job.done ? 'done' : `${formatCoins(r.job.progress)}/${r.job.target}`}`,
-            )
-          : null,
-        h('p', { class: 'dim' }, `Shot levels: ${levelsText(r)}`),
-        this.charmBar(r),
-        this.stash(r, () => this.enterCell()),
-        h(
-          'p',
-          { class: sentenceActive(r) ? 'cost' : 'dim' },
-          `${sentenceActive(r) ? 'Sentence in force' : `Sentence (round ${ECONOMY.roundsPerDeadline})`}: ${r.sentences.map((id) => sentenceDef(id).name).join(', ')}`,
-        ),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            {
-              class: left > 0 ? 'primary' : '',
-              disabled: left <= 0,
-              onclick: () => this.startBall(),
-            },
-            'Play ball',
-          ),
-          h('button', { onclick: () => this.enterAtm('cell') }, 'ATM'),
-          h('button', { onclick: () => this.enterShop() }, 'Vending cabinet'),
-        ),
-      ),
+      cellPanel(r, {
+        play: () => this.startBall(),
+        atm: () => this.enterAtm('cell'),
+        shop: () => this.enterShop(),
+        use: (i, target) => {
+          const name = contrabandDef(r.contraband[i]).name;
+          if (useContraband(r, i, target ?? {})) {
+            audio.atmBeep();
+            this.ui.toast(`${name}: done.`, 2200, 'good');
+          }
+          this.enterCell();
+        },
+      }),
     );
   }
 
@@ -1670,177 +1425,22 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'atm';
     this.world.setMode('seated');
-    const dep = (n: number) => {
-      deposit(r, n);
-      audio.deposit();
-      this.enterAtm(back);
-    };
-    const need = Math.max(0, r.debt - r.bank);
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm' },
-        h('h2', null, 'Automated Teller'),
-        h(
-          'p',
-          null,
-          back === 'deadline' ? 'FINAL DEPOSIT BEFORE THE DEADLINE.' : 'DEPOSITS ARE FINAL.',
-        ),
-        h(
-          'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Still owed',
-          h('b', null, `${need}c`),
-        ),
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { disabled: r.pocket < 1, onclick: () => dep(1) }, '+1'),
-          h('button', { disabled: r.pocket < 5, onclick: () => dep(5) }, '+5'),
-          h('button', { disabled: r.pocket < 10, onclick: () => dep(10) }, '+10'),
-          h(
-            'button',
-            { disabled: need < 1 || r.pocket < 1, onclick: () => dep(Math.min(need, r.pocket)) },
-            'Owed',
-          ),
-          h('button', { disabled: r.pocket < 1, onclick: () => dep(r.pocket) }, 'All'),
-        ),
-        this.loanRow(r, back),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            {
-              class: 'primary',
-              onclick: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
-            },
-            'Done',
-          ),
-        ),
-      ),
-    );
-  }
-
-  private loanRow(r: RunState, back: 'cell' | 'deadline'): HTMLElement | null {
-    const avail = loanAvailable(r);
-    const owed = r.loanDue ? h('p', { class: 'dim' }, `Added to next debt: ${r.loanDue}c`) : null;
-    if (avail <= 0)
-      return (
-        owed ??
-        h(
-          'p',
-          { class: 'dim' },
-          r.deadline >= r.deadlines - 1 ? 'NO LOANS ON LAST CALL.' : 'LOAN LIMIT REACHED.',
-        )
-      );
-    const take = (n: number) => {
-      if (borrow(r, n) > 0) {
-        audio.cashOut();
-        this.subs.say('THE WARDEN', this.warden('loan'));
-      }
-      this.enterAtm(back);
-    };
-    const half = Math.max(1, Math.floor(avail / 2));
-    return h(
-      'div',
-      null,
-      h(
-        'p',
-        null,
-        `LOAN: borrow up to ${avail}c, repaid at ${Math.round(r.mods.loanRate * 100)}% with the next debt.`,
-      ),
-      h(
-        'div',
-        { class: 'row' },
-        h('button', { onclick: () => take(half) }, `Borrow ${half}c (owe ${loanCost(r, half)}c)`),
-        h(
-          'button',
-          { onclick: () => take(avail) },
-          `Borrow ${avail}c (owe ${loanCost(r, avail)}c)`,
-        ),
-      ),
-      owed,
-    );
-  }
-
-  /** Owned charms in slot order (active ones show charges and their key). */
-  private charmBar(r: RunState): HTMLElement {
-    const items = r.charms.map((id, i) => {
-      const c = charmDef(id);
-      const charges = c.active
-        ? ` [${i + 1}] ${'●'.repeat(r.charges[id] ?? 0)}${'○'.repeat(c.active.charges - (r.charges[id] ?? 0))}`
-        : '';
-      return h(
-        'span',
-        { class: 'charm', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
-        `${c.name}${charges}`,
-      );
-    });
-    return h(
-      'div',
-      { class: 'charms' },
-      h(
-        'small',
-        { class: 'dim' },
-        `Charms ${r.charms.length}/${r.mods.charmSlots} · Tickets ${r.tickets} · Keys ${r.keys}`,
-      ),
-      h(
-        'div',
-        { class: 'chips' },
-        ...(items.length ? items : [h('span', { class: 'dim' }, 'none')]),
-      ),
-    );
-  }
-
-  /** Contraband stash with Use buttons (Oil Can and Shiv ask for a target). */
-  private stash(r: RunState, back: () => void): HTMLElement | null {
-    if (!r.contraband.length) return null;
-    const use = (i: number, t = {}) => {
-      const name = contrabandDef(r.contraband[i]).name;
-      if (useContraband(r, i, t)) {
-        audio.atmBeep();
-        this.ui.toast(`${name}: done.`);
-      }
-      back();
-    };
-    const rows = r.contraband.map((id, i) => {
-      const d = contrabandDef(id);
-      if (d.target === 'shot')
-        return h(
-          'div',
-          { class: 'row' },
-          h('small', null, `${d.name}:`),
-          ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
-            h('button', { onclick: () => use(i, { shot }) }, shot),
-          ),
-        );
-      if (d.target === 'charm')
-        return h(
-          'div',
-          { class: 'row' },
-          h('small', null, `${d.name}:`),
-          ...r.charms.map((cid, slot) =>
-            h('button', { onclick: () => use(i, { charmSlot: slot }) }, charmDef(cid).name),
-          ),
-        );
-      return h(
-        'button',
-        { disabled: !canUse(r, id), title: d.text, onclick: () => use(i) },
-        `Use ${d.name}`,
-      );
-    });
-    return h(
-      'div',
-      { class: 'stash' },
-      h('small', { class: 'dim' }, 'Contraband'),
-      h('div', { class: 'row' }, ...rows),
+      atmPanel(r, back, {
+        deposit: (n) => {
+          deposit(r, n);
+          audio.deposit();
+          this.enterAtm(back);
+        },
+        borrow: (n) => {
+          if (borrow(r, n) > 0) {
+            audio.cashOut();
+            this.subs.say('THE WARDEN', this.warden('loan'));
+          }
+          this.enterAtm(back);
+        },
+        done: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
+      }),
     );
   }
 
@@ -1849,95 +1449,26 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'shop';
     this.world.setMode('seated');
-    const tags = ownedTags(r);
-    const charmCards = r.shop.charms.map((id, i) => {
-      const c = charmDef(id);
-      const glow = c.tags.some((t) => tags.has(t));
-      return h(
-        'button',
-        {
-          class: `job charmcard${glow ? ' glow' : ''}`,
-          style: { borderColor: RARITY_COLORS[c.rarity] },
-          disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
-          onclick: () => {
-            if (buyCharm(r, i)) audio.vend();
-            this.enterShop();
-          },
-        },
-        h('b', null, `${c.name} — ${c.cost} ticket${c.cost === 1 ? '' : 's'}`),
-        h('small', null, c.text),
-        h('small', { class: 'tags' }, `${c.rarity} · ${c.tags.join(', ')}`),
-      );
-    });
-    const cbCards = r.shop.contraband.map((id, i) => {
-      const d = contrabandDef(id);
-      const price = contrabandPrice(r, id);
-      return h(
-        'button',
-        {
-          class: 'job',
-          disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
-          onclick: () => {
-            if (buyContraband(r, i)) audio.vend();
-            this.enterShop();
-          },
-        },
-        h('b', null, `${d.name} — ${price}c`),
-        h('small', null, d.text),
-      );
-    });
-    const sells = r.charms.map((id, slot) => {
-      const c = charmDef(id);
-      return h(
-        'button',
-        {
-          disabled: !!c.cursed,
-          onclick: () => {
-            if (sellCharm(r, slot)) audio.ui('sell');
-            this.enterShop();
-          },
-        },
-        c.cursed ? `${c.name} (cursed)` : `Sell ${c.name} +${sellValue(r, id)}t`,
-      );
-    });
-    const cost = rerollCost(r);
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel shop' },
-        h('h2', null, 'Vending cabinet'),
-        h(
-          'div',
-          { class: 'grid' },
-          'Tickets',
-          h('b', null, String(r.tickets)),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Charm slots',
-          h('b', null, `${r.charms.length}/${r.mods.charmSlots}`),
-          'Contraband',
-          h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`),
-        ),
-        h('div', { class: 'col' }, ...charmCards),
-        h('div', { class: 'col' }, ...cbCards),
-        sells.length ? h('div', { class: 'row' }, ...sells) : null,
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            {
-              disabled: r.pocket < cost,
-              onclick: () => {
-                if (reroll(r)) audio.atmBeep();
-                this.enterShop();
-              },
-            },
-            `Reroll ${cost}c`,
-          ),
-          h('button', { class: 'primary', onclick: () => this.enterCell() }, 'Done'),
-        ),
-      ),
+      shopPanel(r, {
+        buyCharm: (i) => {
+          if (buyCharm(r, i)) audio.vend();
+          this.enterShop();
+        },
+        buyContraband: (i) => {
+          if (buyContraband(r, i)) audio.vend();
+          this.enterShop();
+        },
+        sell: (slot) => {
+          if (sellCharm(r, slot)) audio.ui('sell');
+          this.enterShop();
+        },
+        reroll: () => {
+          if (reroll(r)) audio.atmBeep();
+          this.enterShop();
+        },
+        done: () => this.enterCell(),
+      }),
     );
   }
 
@@ -2038,7 +1569,7 @@ export class GameApp {
     const o = this.outcome!;
     this.mode = 'ballEnd';
     const res = finishBall(r, o);
-    if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
+    if (res.debtAdded) this.ui.toast(`Head count: +${res.debtAdded} debt`, 3200, 'bad');
     recordBall(this.save.meta, o, res.gained);
     this.hints.show('pocket');
     this.unlockCheck();
@@ -2056,59 +1587,23 @@ export class GameApp {
       anim: 'count',
       duration: 1.6,
     });
-    const lines: (string | HTMLElement)[] = [];
-    if (o.tilted) lines.push('The machine keeps everything that ball earned.');
-    const grid = h(
-      'div',
-      { class: 'grid' },
-      'Table',
-      h('b', null, `${formatCoins(o.earned)}c`),
-      'Bonus',
-      h('b', null, o.bonus > 0 ? `${formatCoins(o.bonus)}c` : '—'),
-      'Into Pocket',
-      h('b', null, `${res.gained}c`),
-      'Pocket',
-      h('b', null, `${r.pocket}c`),
-      'Balls left',
-      h('b', null, String(ballsLeft(r))),
-    );
-    const notes: HTMLElement[] = [];
-    if (o.extraBalls)
-      notes.push(h('p', { class: 'good' }, `Extra ball: +${o.extraBalls} this round.`));
-    for (const l of o.levelUps)
-      notes.push(h('p', { class: 'good' }, `${l.toUpperCase()} is now level ${r.shotLevels[l]}.`));
-    if (res.jobDone)
-      notes.push(
-        h(
-          'p',
-          { class: 'good' },
-          `Job done: ${jobText(res.jobDone, r.job!.target)}. ${rewardText(res.jobDone, r.deadline)}.`,
-        ),
-      );
-    else if (r.job && !r.job.done) {
-      const def = jobDef(r.job.id);
-      notes.push(
-        h(
-          'p',
-          { class: 'dim' },
-          `Job: ${jobText(def, r.job.target)} (${formatCoins(r.job.progress)}/${r.job.target})`,
-        ),
-      );
-    }
+    if (res.jobDone) this.ui.cue('reward');
+    let lastTick = 0;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h('h2', null, o.tilted ? 'Tilt' : 'Ball over'),
-        ...lines.map((l) => h('p', null, l)),
-        grid,
-        ...notes,
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.afterBall() }, 'Continue'),
-          this.replayButton(() => this.finishBallPanelAgain()),
-        ),
+      ballEndPanel(
+        { r, o, res },
+        {
+          next: () => this.afterBall(),
+          // A tick as the Pocket total counts up, at most a few a second.
+          tick: () => {
+            const now = performance.now();
+            if (now - lastTick > 120) {
+              lastTick = now;
+              this.ui.cue('tick');
+            }
+          },
+        },
+        this.replayButton(() => this.finishBallPanelAgain()),
       ),
     );
     this.ballEndPanel = this.ui.current;
@@ -2126,23 +1621,21 @@ export class GameApp {
     const s = this.session;
     if (!s || !this.moments.length) return null;
     const m = this.moments.reduce((a, b) => (b.value > a.value ? b : a));
-    return h(
-      'button',
-      {
-        onclick: () => {
-          before?.();
-          this.startReplay(
-            s.snapshot,
-            s.recording,
-            Math.max(0, m.step - Math.round(REPLAY_LEAD / STEP)),
-            m.step + Math.round(REPLAY_TAIL / STEP),
-            m.label,
-            back,
-          );
-        },
+    return btn(`Replay: ${m.label.toLowerCase()}`, {
+      icon: 'eye',
+      k: 'replay',
+      onclick: () => {
+        before?.();
+        this.startReplay(
+          s.snapshot,
+          s.recording,
+          Math.max(0, m.step - Math.round(REPLAY_LEAD / STEP)),
+          m.step + Math.round(REPLAY_TAIL / STEP),
+          m.label,
+          back,
+        );
       },
-      `Replay: ${m.label}`,
-    );
+    });
   }
 
   /** Re-simulate a recorded ball silently up to `from`, then show it live until `to`. */
@@ -2219,7 +1712,7 @@ export class GameApp {
       if (underSentence && r.bank + r.pocket >= r.debt)
         this.subs.say('THE WARDEN', this.warden('sentenceSurvived'));
     } else {
-      this.ui.toast(`Round ${roundBefore + 1} over. The bank pays interest.`);
+      this.ui.toast(`Round ${roundBefore + 1} over. The Bank pays interest.`);
       this.enterJobs();
     }
   }
@@ -2230,41 +1723,8 @@ export class GameApp {
     this.world.cell.setAtmAlarm(true);
     audio.atmAlarm();
     this.world.setMode('seated');
-    const canPay = r.bank >= r.debt;
-    const couldPay = r.bank + r.pocket >= r.debt;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm' },
-        h('h2', null, `Deadline ${r.deadline + 1}`),
-        h('p', null, 'THE ATM CHIRPS. THE WARDEN IS WAITING.'),
-        h(
-          'div',
-          { class: 'grid' },
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-        ),
-        h(
-          'div',
-          { class: 'row' },
-          h(
-            'button',
-            { disabled: r.pocket < 1, onclick: () => this.enterAtm('deadline') },
-            'Deposit',
-          ),
-          canPay
-            ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay the debt')
-            : h(
-                'button',
-                { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
-                'Face it',
-              ),
-        ),
-      ),
+      deadlinePanel(r, { deposit: () => this.enterAtm('deadline'), pay: () => this.payDeadline() }),
     );
   }
 
@@ -2363,104 +1823,32 @@ export class GameApp {
     this.mode = 'rapsheet';
     this.renderer.tint.set(1, 1, 1);
     if (!this.ending) this.world.setMode('seated');
-    const fell = r.result === 'fell';
-    const ENDING_TEXT: Record<string, string> = {
-      paidInFull: 'Paid in full. The door opens.',
-      breakout: 'Escaped through the drain. JAILBREAK.',
-      cellmate: 'Paid in full. The wall came down.',
-    };
-    const drains = Object.entries(r.stats.drains)
-      .map(([k, v]) => `${k} ${v}`)
-      .join(', ');
+    const daily = this.save.daily.best;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel' },
-        h('h1', null, 'Rap sheet'),
-        h(
-          'p',
-          null,
-          fell
-            ? `Fell at deadline ${r.deadline + 1}${r.endless ? ' (Endless)' : ` of ${r.deadlines}`}, owing ${r.debt}c.`
-            : (ENDING_TEXT[r.result ?? ''] ?? ''),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `${inmateDef(r.inmate).name}${r.hardTime ? `, Hard Time ${r.hardTime}` : ''} · seed ${r.seed}${r.assist ? ' · assist' : ''}`,
-        ),
-        r.kind === 'daily'
-          ? h(
-              'p',
-              { class: this.dailyBest ? 'good' : 'dim' },
-              this.dailyBest
-                ? `Daily Sentence: a new best for today (${r.deadline} paid, ${r.stats.coinsEarned}c).`
-                : `Daily Sentence: today's best is ${this.save.daily.best?.deadlines ?? 0} paid, ${this.save.daily.best?.coins ?? 0}c.`,
+      runEndPanel(
+        {
+          r,
+          fresh: this.fresh,
+          tallies: this.save.tallies,
+          dailyBest: this.dailyBest,
+          dailyLine:
+            r.kind === 'daily'
+              ? this.dailyBest
+                ? `Daily Sentence: a new best for today (${r.deadline} paid, ${r.stats.coinsEarned} coins).`
+                : `Daily Sentence: today's best is ${daily?.deadlines ?? 0} paid, ${daily?.coins ?? 0} coins.`
+              : null,
+          unlockText: (u) => (u.ending ? u.text : `${u.text} → ${unlockReward(u)}`),
+        },
+        { again: () => this.enterTitle(), copyLink: () => this.copyLink(r) },
+        r.result === 'breakout'
+          ? this.replayButton(
+              () => this.rapSheet(),
+              () => {
+                this.endings.stop();
+                this.ending = null;
+              },
             )
           : null,
-        h(
-          'div',
-          { class: 'grid' },
-          'Balls played',
-          h('b', null, String(r.stats.balls)),
-          'Coins earned',
-          h('b', null, String(r.stats.coinsEarned)),
-          'Best ball',
-          h('b', null, `${r.stats.biggestBall}c`),
-          'Skill shots',
-          h('b', null, String(r.stats.skillShots)),
-          'RIOTs',
-          h('b', null, String(r.stats.riots)),
-          'Biggest PAYDAY',
-          h('b', null, `${Math.round(r.stats.biggestPayday)}c`),
-          'Longest combo',
-          h('b', null, String(r.stats.longestCombo)),
-          'Jobs done',
-          h('b', null, String(r.stats.jobsDone)),
-          'Sentences survived',
-          h('b', null, String(r.stats.sentencesSurvived)),
-          'Loans',
-          h('b', null, String(r.stats.loans)),
-          'Paid early',
-          h('b', null, String(r.stats.earlyPays)),
-          'Red calls',
-          h('b', null, `${r.stats.redCalls} (${r.bargains.length} taken)`),
-          'Tilts',
-          h('b', null, String(r.stats.tilts)),
-        ),
-        h('p', { class: 'dim' }, `Drains: ${drains || 'none'}`),
-        h(
-          'p',
-          { class: 'dim' },
-          `Build: ${r.charms.map((id) => charmDef(id).name).join(', ') || 'no charms'}`,
-        ),
-        this.fresh.length
-          ? h(
-              'div',
-              { class: 'unlocks' },
-              h('b', null, 'Unlocked'),
-              ...this.fresh.map((u) =>
-                h('p', null, u.ending ? u.text : `${u.text} → ${unlockReward(u)}`),
-              ),
-            )
-          : null,
-        h('p', { class: 'dim' }, 'A new mark is scratched into the wall.'),
-        h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.enterTitle() }, 'Again'),
-          h('button', { onclick: () => this.copyLink(r) }, 'Copy seed link'),
-          r.result === 'breakout'
-            ? this.replayButton(
-                () => this.rapSheet(),
-                () => {
-                  this.endings.stop();
-                  this.ending = null;
-                },
-              )
-            : null,
-        ),
       ),
     );
   }
@@ -2544,88 +1932,67 @@ export class GameApp {
     d.text(`DEBT ${r.debt}`, 126, 26, { font: FONT_SMALL, v: 10, align: 'right' });
   }
 
-  private hudCache = new Map<HTMLElement, string>();
   private glassCanvas: HTMLCanvasElement | null = null;
   private glassTex: THREE.CanvasTexture | null = null;
-  private glassKey = '';
+  private glassSig = -1;
+  private atmSig = -1;
   private glassLevels: Record<string, number> | null = null;
-  private atmKey = '';
 
-  /** Set innerHTML only when it changed (the HUD updates every frame). */
-  private setHtml(el: HTMLElement, html: string): void {
-    if (this.hudCache.get(el) === html) return;
-    this.hudCache.set(el, html);
-    el.innerHTML = html;
+  /** Which HUD layout a screen gets: columns beside the table, a ribbon, the DMD, or none. */
+  private hudLayout(): HudLayout {
+    switch (this.mode) {
+      case 'play':
+      case 'tally':
+        return 'columns';
+      // The ball-over panel is narrow enough to sit between the columns (not on a phone).
+      case 'ballEnd':
+        return this.portraitQuery.matches ? 'ribbon' : 'columns';
+      case 'intro':
+      case 'phone':
+      case 'jobs':
+      case 'shop':
+      case 'buy':
+      case 'cell':
+      case 'atm':
+      case 'deadline':
+      case 'knock':
+        return 'ribbon';
+      case 'replay':
+      case 'fall':
+      case 'ending':
+        return 'dmd';
+      default:
+        return 'off';
+    }
   }
 
-  private updateHud(shown: BallSession | null): void {
+  private updateHud(shown: BallSession | null, dt: number): void {
     const r = this.run;
     const playing = this.mode === 'play' || this.mode === 'tally';
-    const m = this.mode;
-    this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
-    this.hud.classList.toggle('playing', m === 'play');
-    // Endings keep the DMD (it shows the title) but drop the run's numbers.
-    const quiet = m === 'ending' || m === 'replay' || (m === 'rapsheet' && this.ending !== null);
-    this.hudStats.style.display = this.hudRight.style.display = quiet ? 'none' : '';
+    const g = shown && playing ? shown.game : null;
     if (r) {
-      const g = shown && playing ? shown.game : null;
-      let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`;
-      if (g) {
-        left += `<br>Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}`;
-        if (g.luck > 0) left += `<br>Luck <b>${g.luck}</b>`;
-      }
-      this.setHtml(this.hudStats, left);
-      let right = `Deadline ${r.deadline + 1}${r.endless ? '' : `/${r.deadlines}`}<br>Round ${r.round + 1}/${roundsIn(r)}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
-      if (g?.jailbreak)
-        right += `<div class="job jb">JAILBREAK<br><b>${g.jbShots}/${JAILBREAK.shotsToEscape}</b></div>`;
-      else if (jailbreakLit(r)) right += `<div class="job jb">JAILBREAK LIT<br>AT THE HOLE</div>`;
-      if (r.job) {
-        const def = jobDef(r.job.id);
-        const prog = g ? g.jobProgress() : r.job.progress;
-        const done = r.job.done || (g?.jobDone ?? false);
-        right += `<div class="job${done ? ' done' : ''}">${jobText(def, r.job.target)}<br><b>${done ? 'DONE' : `${formatCoins(Math.min(prog, r.job.target))}/${r.job.target}`}</b></div>`;
-      }
       if (r.keys) this.hints.show('keys');
       if (g && g.stats.seconds > 25) this.hints.show('nudge');
-      if (r.tickets || r.keys)
-        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
-      if (r.neighbor.tip && !g?.jailbreak)
-        right += `<br><small>Tunnel: Cell Block top to bottom</small>`;
-      const actives = g ? g.ctx.actives : [];
-      if (actives.length)
-        right += `<div class="actives">${actives
-          .map(
-            (a) =>
-              `[${a.slot}] ${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
-          )
-          .join('<br>')}<br><small>B fires the first charged</small></div>`;
-      this.setHtml(this.hudRight, right);
+    }
+    this.hud.update(dt, this.hudLayout(), r, shown, playing);
+    if (r) {
       // Backglass ladders and the ATM's LCD follow the run.
-      const lv = JSON.stringify(r.shotLevels);
-      if (lv !== this.glassKey && this.glassCanvas && this.glassTex) {
-        this.glassKey = lv;
+      let lv = 0;
+      for (const k in r.shotLevels) lv = lv * 31 + r.shotLevels[k as keyof typeof r.shotLevels];
+      if (lv !== this.glassSig && this.glassCanvas && this.glassTex) {
+        this.glassSig = lv;
         this.glassLevels = r.shotLevels;
         paintBackglass(this.glassCanvas, r.shotLevels);
         this.glassTex.needsUpdate = true;
       }
-      const atm = `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`;
-      if (atm !== this.atmKey) {
-        this.atmKey = atm;
-        this.world.cell.drawAtm(atm);
+      const atm = (r.debt * 31 + r.bank) * 31 + r.round * 2 + (r.phase === 'deadline' ? 1 : 0);
+      if (atm !== this.atmSig) {
+        this.atmSig = atm;
+        this.world.cell.drawAtm(
+          `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`,
+        );
       }
     }
-    const pull = shown ? shown.sim.plungerPull : 0;
-    this.hudPlunger.style.display =
-      playing && shown && shown.sim.balls.some((b) => b.inShooter && b.state === 'field')
-        ? ''
-        : 'none';
-    (this.hudPlunger.firstChild as HTMLElement).style.height = `${Math.round(pull * 100)}%`;
-    // Mark the pull that drops into the lit Roll Call lane.
-    const mark = this.hudPlunger.lastChild as HTMLElement;
-    const armed = shown ? shown.game.lamps.skill !== Lamp.Off : false;
-    mark.style.display = armed ? '' : 'none';
-    if (shown && armed)
-      mark.style.bottom = `${Math.round(shown.sim.cfg.plunger.lanePull[shown.game.machine.skillLane] * 100)}%`;
   }
 }
 
@@ -2645,29 +2012,6 @@ const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
   tally: 'tray',
   ballEnd: 'tray',
 };
-
-function tallyMarks(n: number): string {
-  let s = '';
-  for (let i = 0; i < n; i++) s += (i + 1) % 5 === 0 ? '/ ' : '|';
-  return s || '—';
-}
-
-function rewardText(def: JobDef, deadline: number): string {
-  const r = def.reward;
-  const parts: string[] = [];
-  if (r.keys) parts.push(`${r.keys} KEY`);
-  if (r.tickets) parts.push(`${r.tickets} ticket${r.tickets > 1 ? 's' : ''}`);
-  const coins = jobCoins(def, deadline);
-  if (coins) parts.push(`${coins}c`);
-  if (r.level) parts.push(`+1 ${r.level} level`);
-  return `Reward: ${parts.join(', ')}`;
-}
-
-function levelsText(r: RunState): string {
-  return (Object.entries(r.shotLevels) as [string, number][])
-    .map(([k, v]) => `${k} ${v}`)
-    .join(' · ');
-}
 
 /** What a milestone gave, for the Rap Sheet. */
 function unlockReward(u: UnlockDef): string {

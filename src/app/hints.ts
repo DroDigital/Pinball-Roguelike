@@ -1,63 +1,89 @@
 /**
- * Hint notes: one at a time, bottom-left, never blocking play. Each shows once per save;
- * tap or click to dismiss early.
+ * Hint notes: small paper notes in the notice slot (never over the flippers or the HUD). Each
+ * shows once per save, and only on the screens it is about: when the game moves on, a note that
+ * is still waiting is dropped (it was never seen, so it comes back next time) and one that is up
+ * fades. It dismisses itself, or on its close button.
  */
 import { HINTS, type HintId } from '../content/hints';
+import type { Notices } from './notices';
+import { h } from './ui';
 
-const MIN_MS = 5500;
-/** Hints raised within this many ms belong to the same moment and queue. */
-const SAME_MOMENT_MS = 250;
-const MS_PER_CHAR = 65;
+const MIN_MS = 4500;
+const MAX_MS = 9000;
+const MS_PER_CHAR = 55;
+
+/** The modes (see AppMode) each hint belongs to. */
+const WHERE: Record<HintId, readonly string[]> = {
+  flippers: ['play'],
+  plunger: ['play'],
+  nudge: ['play'],
+  pocket: ['ballEnd'],
+  jobs: ['jobs'],
+  buy: ['buy'],
+  atm: ['atm'],
+  shop: ['shop'],
+  phone: ['phone'],
+  redCall: ['phone'],
+  knock: ['knock'],
+  lockup: ['play'],
+  riot: ['play'],
+  sentence: ['jobs'],
+  keys: ['play'],
+  actives: ['play'],
+};
 
 export class Hints {
-  readonly el: HTMLElement;
   enabled = true;
-  private readonly queue: HintId[] = [];
-  private timer = 0;
-  private lastShow = -1e9;
+  /** Set by the game: false while a note would land where the player is looking (play). */
+  gate: (() => boolean) | null = null;
+  private readonly pending = new Set<HintId>();
 
   constructor(
-    parent: HTMLElement,
+    private readonly notices: Notices,
     private readonly seen: string[],
     private readonly onSeen: () => void,
-  ) {
-    this.el = document.createElement('div');
-    this.el.id = 'hint';
-    this.el.addEventListener('pointerdown', () => this.next());
-    parent.append(this.el);
-  }
+  ) {}
 
-  /**
-   * Show a hint the first time it comes up. Hints raised together queue; a new moment
-   * replaces whatever is still waiting (it was never shown, so it comes back next time).
-   */
+  /** Show a hint the first time it comes up; notes raised together queue in order. */
   show(id: HintId): void {
-    if (!this.enabled || this.seen.includes(id) || this.queue.includes(id)) return;
-    const now = performance.now();
-    const fresh = now - this.lastShow > SAME_MOMENT_MS;
-    this.lastShow = now;
-    if (fresh) this.queue.length = 0;
-    this.queue.push(id);
-    if (fresh || !this.el.classList.contains('on')) this.next();
+    if (!this.enabled || this.seen.includes(id) || this.pending.has(id)) return;
+    const d = HINTS[id] as { text: string; touch?: string };
+    const text = (matchMedia('(pointer: coarse)').matches && d.touch) || d.text;
+    const ms = Math.min(MAX_MS, Math.max(MIN_MS, text.length * MS_PER_CHAR));
+    this.pending.add(id);
+    const close = h(
+      'button',
+      { type: 'button', class: 'note-x', 'aria-label': 'Dismiss tip' },
+      '×',
+    );
+    const el = h(
+      'div',
+      { class: 'note tip', role: 'status' },
+      h('b', { class: 'note-tag' }, 'Tip'),
+      h('span', { class: 'note-text' }, text),
+      close,
+    );
+    const handle = this.notices.post({
+      kind: 'tip',
+      key: id,
+      el,
+      ms,
+      gate: () => !this.gate || this.gate(),
+      onShown: () => {
+        this.seen.push(id);
+        this.onSeen();
+      },
+      onEnd: () => this.pending.delete(id),
+    });
+    close.addEventListener('click', () => handle.close());
+    // A mouse can dismiss with a click anywhere on the note; touch uses the close button.
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') handle.close();
+    });
   }
 
-  private next(): void {
-    window.clearTimeout(this.timer);
-    const id = this.queue.shift();
-    if (!id) {
-      this.el.classList.remove('on');
-      return;
-    }
-    this.seen.push(id);
-    this.onSeen();
-    const d = HINTS[id] as { text: string; touch?: string };
-    const touch = matchMedia('(pointer: coarse)').matches;
-    const text = (touch && d.touch) || d.text;
-    this.el.replaceChildren();
-    const tag = document.createElement('b');
-    tag.textContent = 'NOTE';
-    this.el.append(tag, text);
-    this.el.classList.add('on');
-    this.timer = window.setTimeout(() => this.next(), Math.max(MIN_MS, text.length * MS_PER_CHAR));
+  /** The game moved to another screen: notes about the old one go. */
+  modeChanged(mode: string): void {
+    this.notices.dropWhere('tip', (id) => !WHERE[id as HintId]?.includes(mode));
   }
 }

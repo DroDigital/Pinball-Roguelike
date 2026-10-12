@@ -178,3 +178,15 @@ npm run economy:summary              # pool every archetype's report: win rates,
 
 The report shows clear rates per deadline, win rate and the charms in winning builds.
 Calibration history is in DESIGN.md.
+
+## Credits and licences
+
+The game's text is set in three free fonts, bundled as woff2 files and credited in Settings:
+
+- [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1): body text and buttons
+- [Saira Stencil One](https://github.com/Omnibus-Type/Saira) (SIL Open Font License 1.1): titles
+  and big numbers
+- [Special Elite](https://fonts.google.com/specimen/Special+Elite) (Apache License 2.0): notes,
+  tips and the Warden's lines
+
+The licence texts ship in `public/licenses/` (served at `/licenses/` in a build).

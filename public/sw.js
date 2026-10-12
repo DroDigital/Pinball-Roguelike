@@ -27,6 +27,16 @@ self.addEventListener('install', (e) => {
       } catch {
         // offline play still works; sounds are cached as they are first fetched
       }
+      // Fonts and images named inside the built stylesheets.
+      for (const css of assets.filter((a) => a.endsWith('.css'))) {
+        const base = new URL(css, location.href);
+        const text = await (await fetch(css)).text();
+        const refs = [...text.matchAll(/url\(([^)]+)\)/g)]
+          .map((m) => m[1].replace(/['"]/g, ''))
+          .filter((u) => !u.startsWith('data:'))
+          .map((u) => new URL(u, base).href);
+        await cache.addAll(refs);
+      }
       await self.skipWaiting();
     })(),
   );

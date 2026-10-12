@@ -321,6 +321,32 @@ weakest focused builds but both can win.
 - [x] Offline PWA: manifest, icons, a service worker that precaches the shell and assets
 - [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
 
+### M9 — Overhaul wave 1: UI/UX (branch overhaul/ui-r2)
+
+- [x] Design system: tokens (colour, spacing, radii, type scale with floors), buttons, cards,
+      chips, meters, key caps, focus ring, locked states that say why (`styles.css`, `widgets.ts`)
+- [x] Fonts: Saira Stencil One, Inter 400/600/800, Special Elite (woff2 only), loaded before the
+      UI shows; licences in `public/licenses/`, credited in Settings
+- [x] Play HUD in the margins (landscape) / bands (portrait) / ribbon (between rounds); juice
+      hooks `hud.banner`, `hud.count`, `hud.bump`, `hud.comboSlot`
+- [x] Every screen redesigned: title, lineup, deadline intro, Jobs, buy, cell, ATM, vending
+      cabinet, phone, red phone, knock, ball over, payment, Rap Sheet, settings, pause
+- [x] Notice center (`notices.ts`): toasts, tips and captions share one reserved slot per
+      layout; tips belong to screens and wait for the plunger on a portrait phone
+- [x] Honest ball-over arithmetic (loose change carried in and kept), ATM buttons that say what
+      they do to the debt, locked buttons reachable by flippers and gamepad
+- [x] Menu cue names for the audio pass (`cues.ts`): hover, slider, close, toggleOn/Off
+- [x] Screenshot tour at 1280x800, 390x844 portrait, 844x390 phone landscape and 130% text,
+      console clean (`node tools/shots.mjs`, with `--size`, `--touch`, `--text`)
+- [x] Flipper and gamepad reach locked buttons and get the reason (checked in a browser)
+- [ ] Wire `cues.ts` to the richer cue set once the audio branch is merged (the UI already
+      raises hover, slider, close and toggle cues; `AUDIO_CUE` maps them for now)
+- [ ] `npm run e2e` not run on this pass (the balance sim holds the CPUs); the smoke flow and
+      its HUD selectors are unchanged
+- [ ] Unused font packages `@fontsource/bebas-neue`, `oswald` and `vt323`: not imported; remove
+      them with an npm uninstall in the main checkout
+- [ ] Juice pass on top of the hooks above
+
 ## Decisions log
 
 - 2026-10-12 — Payout pass for Hard Time 0: base table payout x0.875 (SCORE.scale 0.2 to
@@ -627,3 +653,54 @@ sfx:build` fails if a hit loses more than 6.5 dB of its loudest 100 ms behind a 
   consistent across the menus than a call in each button.
 - 2026-10-12 — The reverb is fed only while a wet sound can still be heard (plus its 1.7 s
   tail), so an idle table costs no convolver. — Phones pay for a convolver they are not using.
+- 2026-10-12 — UI overhaul: one design system (`styles.css` tokens, `widgets.ts` kit, inline
+  SVG icons) with Saira Stencil One for titles and big numbers, Inter for everything read,
+  Special Elite for notes and the Warden. Screens are pure view builders in `screens.ts`;
+  `game-app.ts` keeps the flow. — The old uppercase monospace boxes carried every screen the
+  same way; the loop's decisions (what to deposit, what to buy, what a Sentence does) needed
+  hierarchy, one primary action and plain-language explanations.
+- 2026-10-12 — The play HUD sits in the margins beside the table (two columns), in a top
+  and bottom band on portrait phones, and shrinks to a status ribbon between rounds; it never
+  covers the playfield. Debt vs Bank vs Pocket is one bar. Tips, captions and toasts share
+  one notice area (right margin while playing, a strip under the panel in menus). — The core
+  loop is "bank enough before the deadline", so that bar is the HUD's spine. Juice hooks for
+  later passes: `hud.banner()`, `hud.count()` / `hud.bump()` (count-up numbers), `hud.comboSlot`.
+- 2026-10-12 — A locked button stays clickable and says why (error cue plus a toast); the
+  flippers and the gamepad reach it after the usable buttons. — A silently disabled button
+  teaches nothing, and the reason (not enough tickets, slots full) is the useful part of the
+  screen; players on flippers deserve it as much as the mouse.
+- 2026-10-12 — The HUD publishes where its bands end (`--band-bottom` under the portrait play
+  band, `--ribbon-bottom` under the between-rounds ribbon) with a ResizeObserver, and notes,
+  toasts and panels position from those. Panels are size containers: a narrow panel with
+  several actions drops the key hints and gives the buttons the whole footer row. The right
+  column lists the passive charms you own beside the active ones' charge pips. — Fixed pixel
+  guesses for the band height broke at large text sizes (chips over the debt row, a clipped
+  ribbon); measuring costs nothing per frame.
+- 2026-10-12 — Notices are one center, not three widgets: `notices.ts` owns a queue and a
+  per-layout capacity (three in the right margin while playing, a toast beside a note in a
+  menu strip, one at a time on phones). A toast jumps the queue, a caption beats a tip, and
+  what is bumped returns with its time left. Tips carry the screens they belong to and are
+  dropped when the game moves on; on a portrait phone they wait for the plunger so they never
+  sit over a live ball. — Stacked toasts hid panel titles and HUD cards on phones, and tips
+  outlived their screen. One owner of the slot makes "never covers anything" checkable.
+- 2026-10-12 — Panels do not repeat the ribbon: the cell, ATM and payment screens show only
+  what the ribbon cannot (the verdict, what is still owed). Shop cards are about 120 px with
+  the price in the corner; a sticky jump row appears only when the panel scrolls. — The same
+  three numbers three times cost 150 px and pushed Contraband and Sell below the fold.
+- 2026-10-12 — The ball-over tally shows the loose change carried in and kept. —
+  `finishBall` floors the total and carries the fraction, so Table + Bonus alone looked 0.7
+  short of "Into your Pocket".
+
+- 2026-10-12 — The ATM's terminal ledger (Bank, Pocket, Still owed) goes; its panel shows one
+  verdict line from the same sentence the Cell uses, above the deposit and loan controls. —
+  The ribbon already shows those figures, and repeating them pushed the loans off screen.
+- 2026-10-12 — The ball-over tally ends in a Total row when loose change is involved: Table +
+  Bonus + carried change = Pocket + kept. The fraction is shown as "Kept for next ball", never
+  dropped. — Settled numbers add up on screen, not just in the rules.
+- 2026-10-12 — In play on a portrait phone a toast is one line under the top band, so it
+  covers as little of the table as it can; menus keep their wrapping strip. — A two-line toast
+  over the top of the table hid the top lanes.
+- 2026-10-12 — The short-landscape layout shrinks the panel title and reserves 58 px for notes,
+  so a two-line tip clears the footer's buttons. — Tips overlapped the Done and Reroll row.
+- 2026-10-12 — `tests/app` typechecks in the browser project (DOM lib), not the Node-tools
+  project. — Its notices test imports `src/app`, so the tools config failed on DOM names.

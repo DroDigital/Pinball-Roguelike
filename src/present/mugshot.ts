@@ -58,6 +58,7 @@ export function paintMugshot(
     g.textAlign = 'center';
     g.fillText('?', cx, 54);
     g.textAlign = 'left';
+    vignette(g, W, H);
     return;
   }
   // Shoulders in prison orange.
@@ -125,6 +126,16 @@ export function paintMugshot(
   g.textAlign = 'center';
   g.fillText(number, cx, 103);
   g.textAlign = 'left';
+  vignette(g, W, H);
+}
+
+/** Darkened corners, like an old flash photo. */
+function vignette(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const v = g.createRadialGradient(w / 2, h * 0.45, h * 0.25, w / 2, h * 0.5, h * 0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(10,6,2,0.55)');
+  g.fillStyle = v;
+  g.fillRect(0, 0, w, h);
 }
 
 function head(g: CanvasRenderingContext2D, cx: number, cy: number): void {
