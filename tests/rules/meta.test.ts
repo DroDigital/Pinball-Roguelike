@@ -25,6 +25,13 @@ const won = (seed: string, opts: Parameters<typeof newRun>[1] = {}): RunState =>
 };
 
 describe('meta progression', () => {
+  it('an unknown inmate id is never unlocked (bad link, stale save)', () => {
+    const meta = newMeta();
+    expect(inmateUnlocked(meta, 'Brawler')).toBe(false);
+    expect(inmateUnlocked(meta, '')).toBe(false);
+    expect(inmateUnlocked(meta, 'debtor')).toBe(true);
+  });
+
   it('about a third of the charms start locked; only the Debtor is on the lineup', () => {
     const m = newMeta();
     const locked = lockedCharms(m);

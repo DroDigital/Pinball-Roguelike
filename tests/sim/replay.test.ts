@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BallSession, InputRecording } from '../../src/rules/session';
 import { defaultSnapshot } from '../../src/bot/autoplay';
 import { Bot } from '../../src/bot/bot';
+import { emptyInput } from '../../src/sim/sim';
 
 function playRecorded(seed: number, steps: number) {
   const snap = defaultSnapshot(seed);
@@ -27,6 +28,18 @@ describe('replay determinism', () => {
     const rec = InputRecording.fromJSON(JSON.parse(JSON.stringify(s.recording)));
     const snap2 = JSON.parse(JSON.stringify(snap));
     expect(BallSession.replay(snap2, rec, s.steps).hash()).toBe(s.hash());
+  });
+
+  it('a touch plunge with an unrounded analog pull replays exactly', () => {
+    const snap = defaultSnapshot(41);
+    const s = new BallSession(snap);
+    const input = emptyInput();
+    for (let i = 0; i < 240 * 6 && !s.over; i++) {
+      input.pull = i < 200 ? 0.6123456 : -1;
+      s.step(input);
+    }
+    const replay = BallSession.replay(snap, s.recording, s.steps);
+    expect(replay.hash()).toBe(s.hash());
   });
 
   it('different seeds diverge', () => {

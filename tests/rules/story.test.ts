@@ -9,6 +9,7 @@ import {
   endRound,
   finishBall,
   freeBalls,
+  gainCharm,
   interestRate,
   jailbreakLit,
   lastCall,
@@ -191,6 +192,17 @@ describe('the neighbor', () => {
     pickJob(s, 0);
     buyBalls(s, 1);
     expect(nextBall(s).ctx.tunnel).toBe(true);
+  });
+
+  it("the neighbor's contraband fits the slot a Stash Box adds", () => {
+    const s = newRun('SB');
+    gainCharm(s, 'stashBox');
+    s.contraband = ['chalk', 'bribe'];
+    s.tickets = 5;
+    s.neighbor.knock = { ask: 'tickets', amount: 2, offer: 'contraband', item: 'moonshine' };
+    expect(answerKnock(s, true)).toBe(true);
+    expect(s.contraband).toEqual(['chalk', 'bribe', 'moonshine']);
+    expect(s.tickets).toBe(3);
   });
 
   it('Cellmate needs enough asks, every one helped', () => {
