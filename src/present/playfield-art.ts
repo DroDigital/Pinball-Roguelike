@@ -3,6 +3,7 @@
  * occult-prison motifs (a chained devil, eyes, keys, guards), shot labels and insert sockets.
  * Deliberately crude and a little wrong, like a cheap 70s screen print.
  */
+import { PLAYFIELD_ART } from '../content/art';
 import { TABLE } from '../content/table';
 import { Rng } from '../core/rng';
 import type { LampDef } from '../sim/table-def';
@@ -11,7 +12,10 @@ export const ART_PX = 32; // pixels per table unit
 
 type Ctx = CanvasRenderingContext2D;
 
-export function paintPlayfield(canvas: HTMLCanvasElement): void {
+export function paintPlayfield(
+  canvas: HTMLCanvasElement,
+  art: HTMLImageElement | null = null,
+): void {
   const W = Math.ceil(TABLE.width * ART_PX);
   const H = Math.ceil(TABLE.height * ART_PX);
   canvas.width = W;
@@ -50,27 +54,39 @@ export function paintPlayfield(canvas: HTMLCanvasElement): void {
   g.fillStyle = grad;
   g.fillRect(0, 0, W, H);
 
-  // Prison bars motif behind the Yard.
-  g.strokeStyle = 'rgba(10,8,8,0.55)';
-  g.lineWidth = 6;
-  for (let x = 9.8; x < 17; x += 0.9) {
-    g.beginPath();
-    g.moveTo(X(x), Y(25));
-    g.lineTo(X(x), Y(35.5));
-    g.stroke();
+  if (art) {
+    // The printed illustration: native aspect ratio, centred on the pack's suggested spot.
+    const w = PLAYFIELD_ART.width * ART_PX;
+    const h = (w * art.naturalHeight) / art.naturalWidth;
+    g.save();
+    g.globalAlpha = PLAYFIELD_ART.alpha;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(art, X(PLAYFIELD_ART.centerX) - w / 2, Y(PLAYFIELD_ART.centerY) - h / 2, w, h);
+    g.restore();
+  } else {
+    // Prison bars motif behind the Yard.
+    g.strokeStyle = 'rgba(10,8,8,0.55)';
+    g.lineWidth = 6;
+    for (let x = 9.8; x < 17; x += 0.9) {
+      g.beginPath();
+      g.moveTo(X(x), Y(25));
+      g.lineTo(X(x), Y(35.5));
+      g.stroke();
+    }
+    // The chained devil in the lower centre (between slings), crude and staring.
+    drawDevil(g, X(9.2), Y(15.8), ART_PX * 2.6);
+    // Chains across the lower playfield.
+    drawChain(g, X(3.6), Y(14.2), X(14.8), Y(14.2), rng);
   }
-
-  // The chained devil in the lower centre (between slings), crude and staring.
-  drawDevil(g, X(9.2), Y(15.8), ART_PX * 2.6);
-  // Chains across the lower playfield.
-  drawChain(g, X(3.6), Y(14.2), X(14.8), Y(14.2), rng);
   // Eyes watching from the upper left and around the Hole.
   drawEye(g, X(4.2), Y(31.5), 26);
   drawEye(g, X(6.2), Y(33.4), 18);
   drawEye(g, X(3.4), Y(34.6), 14);
-  // Keys near the Hole and in the lanes area.
-  drawKey(g, X(5.0), Y(19.6), 0.6);
-  drawKey(g, X(13.5), Y(17.2), -0.5);
+  // Keys near the Hole and in the lanes area (the illustration has its own).
+  if (!art) {
+    drawKey(g, X(5.0), Y(19.6), 0.6);
+    drawKey(g, X(13.5), Y(17.2), -0.5);
+  }
   // Guards' silhouettes on the flanks.
   drawGuard(g, X(1.4), Y(26.0), 46);
   drawGuard(g, X(16.2), Y(26.5), 46);

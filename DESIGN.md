@@ -308,6 +308,44 @@ weakest focused builds but both can win.
 - [x] Offline PWA: manifest, icons, a service worker that precaches the shell and assets
 - [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
 
+### M9 — Art pack
+
+The supplied Ball & Chain art pack (25 PNGs: menu frames, HUD frames, machine prints, a
+button plate, the title logo and a 12-item icon atlas) is integrated as the visual direction.
+Physics, rules, saves and replays are unchanged; every image has a procedural fallback while it
+loads.
+
+- [x] Pack installed as supplied under `public/assets/ball-and-chain/images`, SHA-256 checked
+      against its manifest; geometry, screen mapping and atlas rects in `src/content/art.ts`,
+      with a test against the files on disk (`tests/content/art.test.ts`)
+- [x] Menu screens on their printed frames (title, lineup, deadline, jobs as tickets, buy,
+      cell, ATM, shop, knock, phone, red call, tally, pause, settings, rap sheet, ending)
+- [x] HUD on the three frames: score/DMD, ledger, status rack (landscape gutters, tablet
+      banner, plain text on phones); the status rack is the replay status
+- [x] Item icons from the atlas on the shop, charm chips, stash, HUD actives and the rap sheet
+- [x] Backglass: print as the base, shot-level ladders drawn live on its lower strip
+- [x] Playfield illustration composited under the labels and sockets, retiring the overlapping
+      procedural devil, chains, keys and bars; colliders and lamp positions untouched
+- [x] Cabinet side print on both flanks, sRGB texture, native 3:1 ratio
+- [x] Fonts from the installed @fontsource packages (Inter, Oswald, VT323)
+- [x] Service worker v2: shell, hashed assets and fonts precached; art kept through a
+      `warm-art` message and cached as fetched
+- [ ] Offline play checked with the service worker in control (not yet run)
+- [ ] `npm run e2e` (smoke plus `e2e/screens.spec.ts`) on the final build
+
+Visual direction, as the pack describes it: dark ink on light paper (letters, tickets,
+receipts, the rap sheet and the neighbor's letter), bone type on dark metal (title, pause,
+settings, phone, red call), green phosphor on the CRT (the ATM and the ledger). Red is kept
+for threats and devil bargains. Frames keep their PNG aspect ratio; scrolling content windows
+hold the controls, with the action row pinned on long screens. Buttons use the plate in every
+state, and focus is a gold ring (on tickets, a glow along the paper's edge, since the PNG's
+transparent margin would hide a box).
+
+Known limits: the menus fall back to the plain panels on small or very short viewports (see
+`SKIN_FIT`), so a phone in landscape sees the plain style on the densest screens; the
+backglass ladders are drawn on the print's own strip, so they are small on phones; the
+cabinet side is seen from the cell cameras only at an angle.
+
 ## Decisions log
 
 - 2026-10-12 — Payout pass for Hard Time 0: base table payout x0.875 (SCORE.scale 0.2 to
@@ -318,6 +356,28 @@ weakest focused builds but both can win.
   Riot's Feeding Bowl was the dominant Riot charm (3x Hole); 2x keeps it useful.
 
 Format: date — decision — why.
+
+- 2026-10-13 — Art pack integrated as the visual direction; the procedural art stays as the
+  loading fallback. — The pack is the brief's art, generated and checked; keeping the
+  procedural look as a fallback means a slow network or a missing file never blocks play.
+- 2026-10-13 — Skinned panels keep their DOM and handlers; the frame only moves children into
+  a content window once the art has decoded and the viewport leaves room. — The pack asks
+  for live text and controls, and the existing focus, flipper and touch navigation depend on
+  the DOM staying as it is.
+- 2026-10-13 — Frames keep their PNG's aspect ratio and fall back to the plain panel below
+  `SKIN_FIT`. — The pack says never stretch the frames; the thresholds were set against the
+  densest screens (buy, cell, shop, phone, settings) at phone sizes.
+- 2026-10-13 — Art loads in two stages: the title and machine art first, the rest while idle,
+  and the service worker keeps it for offline play. — 63 MB of PNGs must not hold up the first
+  frame, but the game is meant to play offline once installed.
+- 2026-10-13 — The playfield illustration retires the crude devil, chains, keys and bars it
+  overlaps, but not the labels, sockets or apron copy. — The pack says text and sockets stay
+  live, and the sockets must sit where the physical lamps are.
+- 2026-10-13 — The backglass print is the base and its shot-level ladders are redrawn live on
+  its quiet strip. — The ladders are game state; the print can't carry them.
+- 2026-10-13 — Item icons are drawn from the atlas with the measured source rectangles and
+  contain behaviour; anything without an atlas picture keeps its text. — The pack's atlas
+  covers twelve items; the rest of the roster has no art yet, so they're not faked.
 
 - 2026-10-11 — Units: 1 unit = ball diameter, radius 0.5, table 20x40. — Brief asks for
   radius ~0.5; real table is ~19x39 ball diameters.

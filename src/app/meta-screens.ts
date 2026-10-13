@@ -3,6 +3,7 @@
  * the Rap Sheet (lifetime stats, endings, milestones, the collection).
  */
 import { h } from './ui';
+import { itemIcon } from './icons';
 import { paintMugshot } from '../present/mugshot';
 import { INMATES, inmateDef } from '../content/inmates';
 import { HARD_TIME } from '../content/hard-time';
@@ -60,7 +61,7 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
   );
   return h(
     'div',
-    { class: 'panel lineup' },
+    { class: 'panel lineup', 'data-skin': 'lineup' },
     h('h2', null, 'Booking'),
     h('div', { class: 'mugs' }, ...cards),
     h(
@@ -134,6 +135,7 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
         style: found.has(c.id) ? { borderColor: RARITY_COLORS[c.rarity] } : undefined,
         title: found.has(c.id) ? c.text : locked.has(c.id) ? 'Locked' : 'Not found yet',
       },
+      found.has(c.id) ? itemIcon(c.id) : null,
       found.has(c.id) ? c.name : locked.has(c.id) ? 'locked' : '???',
     ),
   );
@@ -142,12 +144,13 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
       h(
         'span',
         { class: `chip${seen.includes(x.id) ? '' : ' unknown'}` },
+        seen.includes(x.id) ? itemIcon(x.id) : null,
         seen.includes(x.id) ? x.name : '???',
       ),
     );
   return h(
     'div',
-    { class: 'panel rapsheet' },
+    { class: 'panel rapsheet', 'data-skin': 'meta' },
     h('h1', null, 'Rap sheet'),
     h(
       'div',

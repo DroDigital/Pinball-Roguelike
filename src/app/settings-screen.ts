@@ -72,8 +72,8 @@ export function settingsPanel(
   );
   return h(
     'div',
-    { class: 'panel settings' },
-    h('h2', null, 'Settings'),
+    { class: 'panel settings', 'data-skin': 'settings' },
+    h('h2', { 'data-slot': 'head' }, 'Settings'),
     h('h3', null, 'Sound'),
     stepper(
       'master',
@@ -192,8 +192,8 @@ export interface PauseHandlers {
 export function pausePanel(on: PauseHandlers, quitNote: string): HTMLElement {
   return h(
     'div',
-    { class: 'panel' },
-    h('h2', null, 'Paused'),
+    { class: 'panel', 'data-skin': 'pause' },
+    h('h2', { 'data-slot': 'head' }, 'Paused'),
     h(
       'div',
       { class: 'col' },

@@ -9,6 +9,7 @@ import type { PinballSim } from '../sim/sim';
 import { Lamp } from '../rules/types';
 import { wx, wz, TW, TH, CX, CY } from './coords';
 import { paintPlayfield, shapePath, ART_PX } from './playfield-art';
+import { readyArt } from './art';
 
 const LAMP_COLORS: Record<LampColor, number> = {
   red: 0xff3a2a,
@@ -59,6 +60,8 @@ export class TableView {
   private readonly ballGeo = new THREE.SphereGeometry(0.5, 24, 16);
   private readonly haloGeo = new THREE.SphereGeometry(0.62, 16, 12);
   private readonly ballMat: THREE.MeshStandardMaterial;
+  private pfCanvas!: HTMLCanvasElement;
+  private pfTex!: THREE.CanvasTexture;
   private readonly haloMat = new THREE.MeshBasicMaterial({
     color: 0xffe8c0,
     transparent: true,
@@ -108,10 +111,12 @@ export class TableView {
 
     // Playfield.
     const canvas = document.createElement('canvas');
-    paintPlayfield(canvas);
+    paintPlayfield(canvas, readyArt('machine/playfield-illustration'));
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
+    this.pfCanvas = canvas;
+    this.pfTex = tex;
     const pfW = canvas.width / ART_PX;
     const pfH = canvas.height / ART_PX;
     const pf = new THREE.Mesh(
@@ -415,6 +420,12 @@ export class TableView {
     m.position.set(wx((a[0] + b[0]) / 2 + nx * offset), h / 2, wz((a[1] + b[1]) / 2 + ny * offset));
     m.rotation.y = Math.atan2(dy, dx);
     return m;
+  }
+
+  /** Print the art pack's illustration on the playfield (it arrives after the table is built). */
+  setIllustration(img: HTMLImageElement): void {
+    paintPlayfield(this.pfCanvas, img);
+    this.pfTex.needsUpdate = true;
   }
 
   // ------------------------------------------------------------------ per-frame sync

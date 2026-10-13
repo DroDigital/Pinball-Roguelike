@@ -12,6 +12,9 @@ import { audio } from '../present/audio';
 import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
+import { hudLayout, refitTree, skinTree, titleLogo } from './skin';
+import { loadArt } from '../present/art';
+import { itemIcon, itemIconHtml, keysIcon, keysIconHtml } from './icons';
 import { LampShowPlayer } from '../present/lampshow';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
@@ -192,6 +195,8 @@ export class GameApp {
     session: BallSession;
     play: (step: number) => SimInput;
     end: number;
+    /** What is being replayed (shown on the status rack). */
+    label: string;
     back: () => void;
   } | null = null;
   readonly subs: Subtitles;
@@ -203,7 +208,11 @@ export class GameApp {
   private outcome: BallOutcome | null = null;
   private hud: HTMLElement;
   private hudStats: HTMLElement;
+  private hudScore: HTMLElement;
   private hudRight: HTMLElement;
+  private hudLedger: HTMLElement;
+  private hudStatus: HTMLElement;
+  private hudStatusHead: HTMLElement;
   private hudPlunger: HTMLElement;
   private readonly tmpV = new THREE.Vector3();
   private fallT = 0;
@@ -232,7 +241,9 @@ export class GameApp {
     this.subs.voice = this.save.settings.voice;
     this.hud = hud;
     this.hudStats = h('div', { class: 'stats' });
+    this.hudScore = h('div', { class: 'score' });
     this.hudRight = h('div', { class: 'right' });
+    this.hudStatusHead = h('h3', { class: 'hud-head', 'data-slot': 'head' }, 'Status');
     this.hudPlunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
     const dmdCanvas = this.dmd.canvas;
     dmdCanvas.className = 'dmd';
@@ -245,9 +256,28 @@ export class GameApp {
       onpointerup: () => this.input.release(a, performance.now()),
       onpointerleave: () => this.input.release(a, performance.now()),
     });
-    hud.append(
-      h('div', { class: 'left' }, dmdCanvas, this.hudStats),
+    // Score and DMD, the ledger of coins and the status rack: each sits on its art-pack frame
+    // when the screen has room (see skin.ts), and is plain text otherwise.
+    const score = h(
+      'div',
+      { class: 'hud-frame hud-score', 'data-skin': 'hudScore' },
+      dmdCanvas,
+      this.hudScore,
+    );
+    this.hudLedger = h(
+      'div',
+      { class: 'hud-frame hud-ledger', 'data-skin': 'hudLedger' },
+      this.hudStats,
+    );
+    this.hudStatus = h(
+      'div',
+      { class: 'hud-frame hud-status', 'data-skin': 'hudStatus' },
+      this.hudStatusHead,
       this.hudRight,
+    );
+    hud.append(
+      h('div', { class: 'left' }, score, this.hudLedger),
+      h('div', { class: 'hud-rightcol' }, this.hudStatus),
       this.hudPlunger,
       h(
         'div',
@@ -256,6 +286,13 @@ export class GameApp {
         h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
       ),
     );
+    const layoutHud = (): void => {
+      hud.dataset.layout = hudLayout();
+      refitTree(hud);
+    };
+    skinTree(hud);
+    layoutHud();
+    window.addEventListener('resize', layoutHud);
     // DMD on the backbox too.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
     this.dmdTex.colorSpace = THREE.SRGBColorSpace;
@@ -273,14 +310,21 @@ export class GameApp {
       paintBackglass(this.glassCanvas, null);
       this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
       this.glassTex.colorSpace = THREE.SRGBColorSpace;
-      this.glassTex.magFilter = THREE.NearestFilter;
+      this.glassTex.anisotropy = 4;
       const glass = new THREE.Mesh(
         new THREE.PlaneGeometry(20.5, 10.25),
         new THREE.MeshBasicMaterial({ map: this.glassTex }),
       );
       glass.position.set(0, 2.6, 2.05);
       backbox.add(glass);
+      // The printed backglass arrives after the stand-in art: repaint with the current levels.
+      void loadArt('machine/backglass').then(() => this.paintGlass(this.glassLevels));
     }
+    // The machine's printed art replaces the procedural decoration as it arrives.
+    void loadArt('machine/playfield-illustration').then(
+      (img) => img && this.world.table.setIllustration(img),
+    );
+    void loadArt('machine/cabinet-side-art').then((img) => img && this.world.setCabinetArt(img));
     this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
     this.hints.enabled = this.save.settings.hints;
     this.endings = new EndingDirector(this.world, document.body, this.glassTex);
@@ -826,8 +870,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
-        h('h1', null, 'Ball & Chain'),
+        { class: 'panel title', 'data-skin': 'title' },
+        titleLogo(),
         h('p', null, 'You owe the Warden. The machine is the only way out.'),
         h('p', { class: 'dim' }, `Runs on the wall: ${this.save.tallies}`),
         h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
@@ -1211,10 +1255,10 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'deadline' },
         h(
           'h2',
-          null,
+          { 'data-slot': 'head' },
           last
             ? `Deadline ${r.deadline + 1}: Last Call`
             : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
@@ -1281,8 +1325,8 @@ export class GameApp {
       this.ui.show(
         h(
           'div',
-          { class: 'panel' },
-          h('h2', null, 'The phone rings'),
+          { class: 'panel', 'data-skin': 'phone' },
+          h('h2', { 'data-slot': 'head' }, 'The phone rings'),
           h('p', { class: 'warden' }, `“${line} Pick one. It is yours for the rest of your stay.”`),
           h('div', { class: 'col' }, ...cards),
         ),
@@ -1317,8 +1361,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel red' },
-        h('h2', null, 'The red phone rings'),
+        { class: 'panel red', 'data-skin': 'redCall' },
+        h('h2', { 'data-slot': 'head' }, 'The red phone rings'),
         h('p', { class: 'warden' }, `“${line}”`),
         h('div', { class: 'col' }, ...cards),
         h(
@@ -1379,6 +1423,7 @@ export class GameApp {
         'button',
         {
           class: `job${def.key ? ' key' : ''}${i === 0 ? ' primary' : ''}`,
+          'data-skin': 'jobs',
           onclick: () => this.takeJob(i),
         },
         h('b', null, jobText(def, o.target)),
@@ -1388,8 +1433,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
-        h('h2', null, `Round ${r.round + 1}: jobs`),
+        { class: 'panel atm jobs' },
+        h('div', { class: 'plaque' }, h('h2', null, `Round ${r.round + 1}: jobs`)),
         sentenceActive(r)
           ? h(
               'p',
@@ -1459,7 +1504,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel knock' },
+        { class: 'panel knock', 'data-skin': 'knock' },
         h('h2', null, 'Knocking'),
         h('p', { class: 'neighbor' }, `“${ask}”`),
         h('p', { class: 'neighbor' }, `“${offer}”`),
@@ -1520,7 +1565,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'buy' },
         h(
           'h2',
           null,
@@ -1556,7 +1601,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'cell' },
         h('h2', null, 'The cell'),
         h(
           'div',
@@ -1623,7 +1668,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
+        { class: 'panel atm', 'data-skin': 'atm' },
         h('h2', null, 'Automated Teller'),
         h(
           'p',
@@ -1724,6 +1769,7 @@ export class GameApp {
       return h(
         'span',
         { class: 'charm', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
+        itemIcon(id),
         `${c.name}${charges}`,
       );
     });
@@ -1733,7 +1779,9 @@ export class GameApp {
       h(
         'small',
         { class: 'dim' },
-        `Charms ${r.charms.length}/${r.mods.charmSlots} · Tickets ${r.tickets} · Keys ${r.keys}`,
+        `Charms ${r.charms.length}/${r.mods.charmSlots} · Tickets ${r.tickets} · `,
+        keysIcon(),
+        `Keys ${r.keys}`,
       ),
       h(
         'div',
@@ -1760,7 +1808,7 @@ export class GameApp {
         return h(
           'div',
           { class: 'row' },
-          h('small', null, `${d.name}:`),
+          h('small', null, itemIcon(id), `${d.name}:`),
           ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
             h('button', { onclick: () => use(i, { shot }) }, shot),
           ),
@@ -1769,7 +1817,7 @@ export class GameApp {
         return h(
           'div',
           { class: 'row' },
-          h('small', null, `${d.name}:`),
+          h('small', null, itemIcon(id), `${d.name}:`),
           ...r.charms.map((cid, slot) =>
             h('button', { onclick: () => use(i, { charmSlot: slot }) }, charmDef(cid).name),
           ),
@@ -1777,6 +1825,7 @@ export class GameApp {
       return h(
         'button',
         { disabled: !canUse(r, id), title: d.text, onclick: () => use(i) },
+        itemIcon(id),
         `Use ${d.name}`,
       );
     });
@@ -1797,10 +1846,11 @@ export class GameApp {
     const charmCards = r.shop.charms.map((id, i) => {
       const c = charmDef(id);
       const glow = c.tags.some((t) => tags.has(t));
+      const icon = itemIcon(id);
       return h(
         'button',
         {
-          class: `job charmcard${glow ? ' glow' : ''}`,
+          class: `job charmcard${glow ? ' glow' : ''}${icon ? ' has-icon' : ''}`,
           style: { borderColor: RARITY_COLORS[c.rarity] },
           disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
           onclick: () => {
@@ -1808,6 +1858,7 @@ export class GameApp {
             this.enterShop();
           },
         },
+        icon,
         h('b', null, `${c.name} — ${c.cost} ticket${c.cost === 1 ? '' : 's'}`),
         h('small', null, c.text),
         h('small', { class: 'tags' }, `${c.rarity} · ${c.tags.join(', ')}`),
@@ -1816,16 +1867,18 @@ export class GameApp {
     const cbCards = r.shop.contraband.map((id, i) => {
       const d = contrabandDef(id);
       const price = contrabandPrice(r, id);
+      const icon = itemIcon(id);
       return h(
         'button',
         {
-          class: 'job',
+          class: `job${icon ? ' has-icon' : ''}`,
           disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
           onclick: () => {
             if (buyContraband(r, i)) audio.coin(3);
             this.enterShop();
           },
         },
+        icon,
         h('b', null, `${d.name} — ${price}c`),
         h('small', null, d.text),
       );
@@ -1841,6 +1894,7 @@ export class GameApp {
             this.enterShop();
           },
         },
+        itemIcon(id),
         c.cursed ? `${c.name} (cursed)` : `Sell ${c.name} +${sellValue(r, id)}t`,
       );
     });
@@ -1848,8 +1902,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel shop' },
-        h('h2', null, 'Vending cabinet'),
+        { class: 'panel shop', 'data-skin': 'shop' },
+        h('h2', { 'data-slot': 'head' }, 'Vending cabinet'),
         h(
           'div',
           { class: 'grid' },
@@ -2041,7 +2095,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'tally' },
         h('h2', null, o.tilted ? 'Tilt' : 'Ball over'),
         ...lines.map((l) => h('p', null, l)),
         grid,
@@ -2104,7 +2158,7 @@ export class GameApp {
     const play = rec.player();
     while (s.steps < from && !s.over) s.step(play(s.steps));
     live = true;
-    this.replay = { session: s, play, end: to, back };
+    this.replay = { session: s, play, end: to, label, back };
     this.mode = 'replay';
     this.ui.hide();
     this.simCursor = s.sim.events.head;
@@ -2177,7 +2231,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
+        { class: 'panel atm', 'data-skin': 'atm' },
         h('h2', null, `Deadline ${r.deadline + 1}`),
         h('p', null, 'THE ATM CHIRPS. THE WARDEN IS WAITING.'),
         h(
@@ -2317,7 +2371,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': fell ? 'rapsheet' : 'endingResult' },
         h('h1', null, 'Rap sheet'),
         h(
           'p',
@@ -2488,7 +2542,16 @@ export class GameApp {
   private glassCanvas: HTMLCanvasElement | null = null;
   private glassTex: THREE.CanvasTexture | null = null;
   private glassKey = '';
+  private glassLevels: Record<string, number> | null = null;
   private atmKey = '';
+
+  /** Repaint the backglass (print + live ladders) and re-upload it. */
+  private paintGlass(levels: Record<string, number> | null): void {
+    this.glassLevels = levels;
+    if (!this.glassCanvas || !this.glassTex) return;
+    paintBackglass(this.glassCanvas, levels);
+    this.glassTex.needsUpdate = true;
+  }
 
   /** Set innerHTML only when it changed (the HUD updates every frame). */
   private setHtml(el: HTMLElement, html: string): void {
@@ -2503,17 +2566,33 @@ export class GameApp {
     const m = this.mode;
     this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
     this.hud.classList.toggle('playing', m === 'play');
-    // Endings keep the DMD (it shows the title) but drop the run's numbers.
-    const quiet = m === 'ending' || m === 'replay' || (m === 'rapsheet' && this.ending !== null);
-    this.hudStats.style.display = this.hudRight.style.display = quiet ? 'none' : '';
-    if (r) {
+    // Endings keep the DMD (it shows the title) but drop the run's numbers; a replay keeps
+    // only the status rack, which says what is being replayed.
+    const replaying = m === 'replay';
+    const ending = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
+    const quiet = ending || replaying;
+    this.hudLedger.style.display = this.hudScore.style.display = quiet ? 'none' : '';
+    this.hudStatus.style.display = ending ? 'none' : '';
+    this.hudStatusHead.textContent = replaying ? 'Replay' : 'Status';
+    if (replaying) {
+      this.setHtml(
+        this.hudRight,
+        `INSTANT REPLAY<br><b>${this.replay?.label ?? ''}</b><div class="job"><small>Plunger or Enter skips</small></div>`,
+      );
+    } else if (r) {
       const g = shown && playing ? shown.game : null;
-      let left = `Pocket <b>${r.pocket}c</b>${g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : ''}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`;
-      if (g) {
-        left += `<br>Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}`;
-        if (g.luck > 0) left += `<br>Luck <b>${g.luck}</b>`;
-      }
-      this.setHtml(this.hudStats, left);
+      const earn = g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : '';
+      this.setHtml(
+        this.hudStats,
+        `Pocket <b>${r.pocket}c</b>${earn}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`,
+      );
+      // This ball's live numbers sit under the DMD.
+      this.setHtml(
+        this.hudScore,
+        g
+          ? `This ball <b class="earn">+${formatCoins(g.earned)}c</b> · Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}${g.luck > 0 ? ` · Luck <b>${g.luck}</b>` : ''}`
+          : '',
+      );
       let right = `Deadline ${r.deadline + 1}${r.endless ? '' : `/${r.deadlines}`}<br>Round ${r.round + 1}/${roundsIn(r)}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
       if (g?.jailbreak)
         right += `<div class="job jb">JAILBREAK<br><b>${g.jbShots}/${JAILBREAK.shotsToEscape}</b></div>`;
@@ -2527,7 +2606,7 @@ export class GameApp {
       if (r.keys) this.hints.show('keys');
       if (g && g.stats.seconds > 25) this.hints.show('nudge');
       if (r.tickets || r.keys)
-        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · Keys <b>${r.keys}</b>` : ''}`;
+        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · ${keysIconHtml()}Keys <b>${r.keys}</b>` : ''}`;
       if (r.neighbor.tip && !g?.jailbreak)
         right += `<br><small>Tunnel: Cell Block top to bottom</small>`;
       const actives = g ? g.ctx.actives : [];
@@ -2535,16 +2614,15 @@ export class GameApp {
         right += `<div class="actives">${actives
           .map(
             (a) =>
-              `[${a.slot}] ${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
+              `[${a.slot}] ${itemIconHtml(a.id)}${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
           )
           .join('<br>')}<br><small>B fires the first charged</small></div>`;
       this.setHtml(this.hudRight, right);
       // Backglass ladders and the ATM's LCD follow the run.
       const lv = JSON.stringify(r.shotLevels);
-      if (lv !== this.glassKey && this.glassCanvas && this.glassTex) {
+      if (lv !== this.glassKey) {
         this.glassKey = lv;
-        paintBackglass(this.glassCanvas, r.shotLevels);
-        this.glassTex.needsUpdate = true;
+        this.paintGlass(r.shotLevels);
       }
       const atm = `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`;
       if (atm !== this.atmKey) {
