@@ -5,8 +5,11 @@ cell in front of **DEBTOR'S PRISON**, a battered late-70s pinball machine. An AT
 you owe the Warden. Bank enough coins before each deadline, or the trapdoor under the stool
 opens.
 
-Built with Vite, TypeScript (strict), Three.js and Planck.js. No assets: the art, sound and
-music are all generated in code. [DESIGN.md](DESIGN.md) holds the design, the milestone
+Built with Vite, TypeScript (strict), Three.js and Planck.js. The sound and music are
+generated in code and the 3D room is procedural; the menu frames, HUD, item icons, backglass,
+playfield illustration and cabinet print come from the art pack in
+`public/assets/ball-and-chain/images` (see [The art pack](#the-art-pack)), with the original
+procedural art as the fallback while it loads. [DESIGN.md](DESIGN.md) holds the design, the milestone
 checklist, calibration numbers and the decisions log; [CLAUDE.md](CLAUDE.md) holds the
 architecture rules and conventions.
 
@@ -137,6 +140,32 @@ it up. Each new charm and contraband item needs a test in `tests/rules/charms.te
   `tools/out/table.svg` and `.png`.
 - **Checks:** after a change, run `npm test`, `npm run feel` and `npm run soak`. If shots
   moved, run `npx tsx tools/calibrate-shots.ts` to re-measure the bot's cradle shots.
+
+### The art pack
+
+25 PNGs live in `public/assets/ball-and-chain/images` (63 MB, kept exactly as supplied).
+`src/content/art.ts` is their data: pixel sizes, each frame's content rectangle, the
+screen-to-art mapping, the icon atlas rectangles and the placement of the machine art;
+`tests/content/art.test.ts` checks it against the files.
+
+- **Menu screens:** mark a panel `data-skin="<screen>"` (a key of `SCREEN_ART`) and
+  `UI.mount` puts its children inside the frame's content window (`src/app/skin.ts`,
+  `src/app/skin.css`). The DOM, handlers and focus order are the same with or without the
+  art, which only appears once it has decoded and the viewport leaves its content window
+  enough room (`SKIN_FIT`); otherwise the plain panel stays. Put the heading on the frame's
+  label plate with `data-slot="head"` (rect in `HEAD_RECT`).
+- **HUD:** `hudLayout()` picks frames in the gutters (landscape), a banner (tablet portrait)
+  or the plain text HUD (phones).
+- **Icons:** `itemIcon(id)` / `itemIconHtml(id)` (`src/app/icons.ts`) return the atlas
+  picture for the twelve items it covers and nothing for the rest.
+- **Machine:** `src/present/backglass.ts` (print plus the live ladders on its lower strip),
+  `src/present/playfield-art.ts` (illustration under labels and sockets, placed by
+  `PLAYFIELD_ART`), `World.setCabinetArt` in `src/present/scene.ts`.
+- **Loading and offline:** `src/present/art.ts` decodes the critical art first and the rest
+  while idle; `public/sw.js` keeps it for offline play. Replacing an image under the same
+  name needs a cache version bump in `sw.js`.
+- **Screenshots:** `SHOT_DIR=screenshots/screens npx playwright test e2e/screens.spec.ts`
+  captures every screen at desktop and phone sizes.
 
 ### Dev panel (`?dev`)
 
