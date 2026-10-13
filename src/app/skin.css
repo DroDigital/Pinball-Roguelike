@@ -23,27 +23,30 @@
   display: contents;
 }
 
-/* ---- the frame */
-.panel.bc-skin {
+/* ---- the frame (menus, tickets and HUD all share it) */
+.bc-skin {
   position: relative;
   isolation: isolate;
   container-type: inline-size;
-  width: min(calc(100cqw - 16px), calc((100cqh - 16px) * var(--bc-ratio-n)));
-  max-width: none;
-  max-height: none;
   aspect-ratio: var(--bc-ratio);
-  padding: 0;
-  overflow: visible;
-  border: 0;
-  box-shadow: none;
   background: transparent var(--bc-image) center / 100% 100% no-repeat;
   color: var(--bc-ink);
   font-family: var(--bc-sans);
   text-transform: none;
   letter-spacing: normal;
+}
+/* A menu screen is as large as fits the overlay at the art's own aspect ratio. */
+.panel.bc-skin {
+  width: min(calc(100cqw - 16px), calc((100cqh - 16px) * var(--bc-ratio-n)));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  box-shadow: none;
   filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.7));
 }
-.panel.bc-skin > .bc-skin__content {
+.bc-skin > .bc-skin__content {
   display: block;
   position: absolute;
   left: calc(var(--bc-x) * 100%);
@@ -58,7 +61,7 @@
   font-size: clamp(0.8rem, calc(1.55cqw * var(--text-scale)), 1.5rem);
   line-height: 1.4;
 }
-.panel.bc-skin > .bc-skin__head {
+.bc-skin > .bc-skin__head {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,8 +73,9 @@
   overflow: hidden;
   text-align: center;
 }
-.panel.bc-skin > .bc-skin__head > h1,
-.panel.bc-skin > .bc-skin__head > h2 {
+.bc-skin > .bc-skin__head > h1,
+.bc-skin > .bc-skin__head > h2,
+.bc-skin > .bc-skin__head > h3 {
   margin: 0;
   max-width: 100%;
   font-family: var(--bc-head);
@@ -454,4 +458,207 @@ button.bc-skin.bc-s-jobs.key b {
   button.bc-skin.bc-s-jobs:focus-visible {
     transform: none;
   }
+}
+
+/* ---- item icons (the 12-icon atlas); the image arrives through --bc-atlas */
+.icon {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.3em;
+  vertical-align: -0.2em;
+  background-image: var(--bc-atlas, none);
+  background-repeat: no-repeat;
+}
+.panel button.has-icon {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.7em;
+  align-items: start;
+  align-content: center;
+}
+.panel button.has-icon > .icon {
+  grid-row: 1 / span 3;
+  align-self: center;
+  margin: 0;
+  font-size: 2.6em;
+}
+.panel .chips .charm .icon {
+  font-size: 1.4em;
+  vertical-align: -0.3em;
+}
+.panel .chip .icon {
+  font-size: 1.3em;
+  vertical-align: -0.3em;
+}
+
+/* ---- HUD: score and DMD, the ledger of coins, the status rack */
+#hud .hud-head {
+  display: none;
+}
+#hud .hud-rightcol,
+#hud .hud-frame:not(.bc-skin) {
+  display: contents; /* plain HUD: the pieces flow as they did before the frames */
+}
+#hud .score {
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 6px #000,
+    0 0 2px #000;
+}
+#hud .score b {
+  color: var(--amber);
+}
+#hud .score:empty {
+  display: none;
+}
+#hud .hud-frame.bc-skin {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7));
+  /* The PNGs are padded with transparent rows: pull them in so frames sit where they look. */
+  margin-top: calc(var(--fw) / var(--bc-ratio-n) * var(--bc-vt) * -1);
+  margin-bottom: calc(var(--fw) / var(--bc-ratio-n) * var(--bc-vb) * -1);
+}
+/* A full-size menu frame covers most of the HUD: don't let its frames peek out around it. */
+body:has(#ui .panel.bc-skin) #hud .hud-frame.bc-skin {
+  visibility: hidden;
+}
+#hud .hud-frame.bc-skin > .bc-skin__content {
+  overflow: hidden;
+  padding: 0;
+  text-shadow: none;
+}
+#hud .hud-frame.bc-skin .stats,
+#hud .hud-frame.bc-skin .right {
+  position: static;
+  text-align: left;
+  text-shadow: none;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Score: the DMD at its own 4:1 ratio, the ball's live numbers under it. */
+#hud .hud-score.bc-skin > .bc-skin__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3.5cqw;
+}
+#hud .hud-score.bc-skin .dmd {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 0;
+  border-radius: 2px;
+  box-shadow: none;
+}
+#hud .hud-score.bc-skin .score {
+  font-size: clamp(0.55rem, calc(2.5cqw * var(--text-scale)), 1.05rem);
+  text-align: center;
+  text-shadow: none;
+  color: var(--bc-bone);
+  white-space: nowrap;
+}
+/* Ledger: green phosphor, one coin line each. */
+#hud .hud-ledger.bc-skin > .bc-skin__content {
+  display: flex;
+  align-items: center;
+}
+#hud .hud-ledger.bc-skin .stats {
+  width: 100%;
+  font-family: var(--bc-mono);
+  font-size: clamp(0.8rem, calc(11cqw * var(--text-scale)), 1.7rem);
+  line-height: 1.15;
+  color: var(--bc-ink);
+  text-shadow: 0 0 5px rgba(120, 255, 170, 0.4);
+}
+#hud .hud-ledger.bc-skin .stats b {
+  color: #e6ffea;
+}
+#hud .hud-ledger.bc-skin .stats .debt b {
+  color: #ff8a6a;
+}
+#hud .hud-ledger.bc-skin .stats .earn {
+  color: #ffd27a;
+}
+/* Status: the rack of what the round asks. */
+#hud .hud-status.bc-skin > .bc-skin__head > h3 {
+  display: block;
+  font-size: clamp(0.6rem, calc(4.4cqw * var(--text-scale)), 1.1rem);
+  letter-spacing: 0.14em;
+}
+#hud .hud-status.bc-skin .right {
+  font-size: clamp(0.6rem, calc(4.7cqw * var(--text-scale)), 1.05rem);
+  line-height: 1.3;
+  color: var(--bc-bone);
+}
+#hud .hud-status.bc-skin .right .job {
+  max-width: none;
+  margin-left: 0;
+}
+#hud .hud-status.bc-skin .right .actives {
+  margin-top: 0.4em;
+}
+#hud .hud-status.bc-skin .icon {
+  font-size: 1.35em;
+  vertical-align: -0.3em;
+}
+
+/* Landscape: frames in the side gutters, out of the ball's way. */
+#hud[data-layout='landscape'] {
+  --u: min(20vw, 44vh);
+}
+#hud[data-layout='landscape'] .left {
+  left: 10px;
+  top: 10px;
+  width: calc(var(--u) * 1.5);
+  gap: 8px;
+}
+#hud[data-layout='landscape'] .hud-rightcol {
+  display: block;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: var(--u);
+}
+#hud[data-layout='landscape'] .hud-score.bc-skin {
+  --fw: calc(var(--u) * 1.5);
+  width: var(--fw);
+}
+#hud[data-layout='landscape'] .hud-status.bc-skin {
+  --fw: var(--u);
+  width: var(--fw);
+}
+#hud[data-layout='landscape'] .hud-ledger.bc-skin {
+  --fw: calc(var(--u) * 0.75);
+  width: var(--fw);
+}
+
+/* Portrait on a tablet: the three frames form one banner across the top. */
+#hud[data-layout='portrait'] {
+  --banner: min(100vw, 640px);
+}
+#hud[data-layout='portrait'] .left,
+#hud[data-layout='portrait'] .hud-rightcol {
+  display: contents;
+}
+#hud[data-layout='portrait'] .hud-frame.bc-skin {
+  position: absolute;
+  top: 4px;
+}
+#hud[data-layout='portrait'] .hud-score.bc-skin {
+  --fw: calc(var(--banner) / 2);
+  left: calc(50% - var(--banner) / 4);
+  width: var(--fw);
+}
+#hud[data-layout='portrait'] .hud-ledger.bc-skin {
+  --fw: calc(var(--banner) / 4);
+  left: calc(50% - var(--banner) / 2);
+  width: var(--fw);
+}
+#hud[data-layout='portrait'] .hud-status.bc-skin {
+  --fw: calc(var(--banner) / 4);
+  left: calc(50% + var(--banner) / 4);
+  width: var(--fw);
 }

@@ -1,7 +1,7 @@
 /**
  * Ball & Chain art pack: the PNGs under public/assets/ball-and-chain/images, their geometry,
  * and which screen sits on which one. Node-safe data; the app builds URLs and loads the
- * images (src/app/art.ts) and tests check this file against the files on disk.
+ * images (src/present/art.ts) and tests check this file against the files on disk.
  *
  * Content rects are [x, y, w, h] normalised to the whole PNG canvas (transparent margins
  * included), top-left origin. Atlas rects are integer source pixels.
@@ -18,6 +18,8 @@ export interface ArtDef {
   width: number;
   height: number;
   transparent: boolean;
+  /** Pixels that are not transparent: [left, top, right, bottom] edges in canvas pixels. */
+  visible: readonly [left: number, top: number, right: number, bottom: number];
   /** Where live text and controls go, or null for pure artwork. */
   content: Rect | null;
   /** The text colour that reads on this art: dark ink on paper, bone on metal, green on the CRT. */
@@ -31,6 +33,7 @@ export const ART = {
     height: 887,
     transparent: false,
     content: null,
+    visible: [0, 0, 1774, 887],
     ink: '#f2dfb2',
   },
   'branding/title-logo': {
@@ -39,6 +42,7 @@ export const ART = {
     height: 724,
     transparent: true,
     content: null,
+    visible: [84, 60, 2106, 676],
     ink: '#f2dfb2',
   },
   'menus/title-panel': {
@@ -47,6 +51,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.115, 0.3, 0.77, 0.46],
+    visible: [36, 67, 1414, 1011],
     ink: '#f2dfb2',
   },
   'menus/atm-terminal': {
@@ -55,6 +60,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.15, 0.16, 0.7, 0.57],
+    visible: [32, 20, 1417, 1064],
     ink: '#a8f6b5',
   },
   'menus/booking-dossier': {
@@ -63,6 +69,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.105, 0.19, 0.79, 0.64],
+    visible: [8, 7, 1440, 1075],
     ink: '#291c12',
   },
   'menus/deadline-notice': {
@@ -71,6 +78,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.12, 0.24, 0.76, 0.55],
+    visible: [25, 3, 1423, 1050],
     ink: '#291c12',
   },
   'menus/job-ticket': {
@@ -79,6 +87,7 @@ export const ART = {
     height: 972,
     transparent: true,
     content: [0.12, 0.34, 0.76, 0.32],
+    visible: [37, 101, 1585, 875],
     ink: '#291c12',
   },
   'menus/buy-balls-panel': {
@@ -87,6 +96,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.115, 0.265, 0.77, 0.45],
+    visible: [33, 67, 1415, 997],
     ink: '#291c12',
   },
   'menus/cell-hub-panel': {
@@ -95,6 +105,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.13, 0.26, 0.74, 0.55],
+    visible: [5, 5, 1433, 1043],
     ink: '#f2dfb2',
   },
   'menus/shop-cabinet': {
@@ -103,6 +114,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.145, 0.27, 0.71, 0.47],
+    visible: [52, 56, 1396, 1030],
     ink: '#f2dfb2',
   },
   'menus/phone-panel': {
@@ -111,6 +123,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.155, 0.29, 0.69, 0.5],
+    visible: [12, 2, 1441, 1053],
     ink: '#f2dfb2',
   },
   'menus/red-call-panel': {
@@ -119,6 +132,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.145, 0.29, 0.71, 0.51],
+    visible: [28, 13, 1421, 1042],
     ink: '#f2dfb2',
   },
   'menus/ball-receipt': {
@@ -127,6 +141,7 @@ export const ART = {
     height: 1448,
     transparent: true,
     content: [0.26, 0.17, 0.48, 0.71],
+    visible: [224, 36, 866, 1415],
     ink: '#291c12',
   },
   'menus/pause-service-panel': {
@@ -135,6 +150,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.15, 0.275, 0.7, 0.49],
+    visible: [70, 93, 1378, 991],
     ink: '#f2dfb2',
   },
   'menus/settings-service-panel': {
@@ -143,6 +159,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.12, 0.19, 0.76, 0.61],
+    visible: [30, 56, 1420, 1029],
     ink: '#f2dfb2',
   },
   'menus/rap-sheet': {
@@ -151,6 +168,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.13, 0.19, 0.74, 0.6],
+    visible: [33, 13, 1415, 1066],
     ink: '#291c12',
   },
   'menus/neighbor-letter': {
@@ -159,6 +177,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.13, 0.19, 0.74, 0.62],
+    visible: [20, 35, 1428, 1048],
     ink: '#291c12',
   },
   'menus/ending-panel': {
@@ -167,6 +186,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: [0.155, 0.18, 0.69, 0.62],
+    visible: [34, 9, 1434, 1073],
     ink: '#291c12',
   },
   'machine/playfield-illustration': {
@@ -175,6 +195,7 @@ export const ART = {
     height: 1774,
     transparent: true,
     content: null,
+    visible: [10, 210, 878, 1568],
     ink: '#f2dfb2',
   },
   'machine/cabinet-side-art': {
@@ -183,6 +204,7 @@ export const ART = {
     height: 724,
     transparent: false,
     content: null,
+    visible: [0, 0, 2172, 724],
     ink: '#f2dfb2',
   },
   'hud/score-panel': {
@@ -191,6 +213,7 @@ export const ART = {
     height: 1024,
     transparent: true,
     content: [0.11, 0.245, 0.78, 0.49],
+    visible: [54, 121, 1483, 882],
     ink: '#f2dfb2',
   },
   'hud/ledger-panel': {
@@ -199,6 +222,7 @@ export const ART = {
     height: 1448,
     transparent: true,
     content: [0.165, 0.245, 0.67, 0.5],
+    visible: [42, 185, 1045, 1253],
     ink: '#a8f6b5',
   },
   'hud/status-panel': {
@@ -207,6 +231,7 @@ export const ART = {
     height: 1448,
     transparent: true,
     content: [0.125, 0.255, 0.75, 0.56],
+    visible: [16, 116, 1069, 1323],
     ink: '#f2dfb2',
   },
   'ui/button-plate': {
@@ -215,6 +240,7 @@ export const ART = {
     height: 724,
     transparent: true,
     content: [0.1, 0.25, 0.8, 0.47],
+    visible: [31, 128, 2141, 596],
     ink: '#f2dfb2',
   },
   'ui/charm-icon-atlas': {
@@ -223,6 +249,7 @@ export const ART = {
     height: 1086,
     transparent: true,
     content: null,
+    visible: [40, 53, 1420, 1035],
     ink: '#f2dfb2',
   },
 } as const satisfies Record<string, ArtDef>;
@@ -251,6 +278,10 @@ export const SCREEN_ART = {
   knock: 'menus/neighbor-letter',
   endingResult: 'menus/ending-panel',
   replayHud: 'hud/status-panel',
+  // The live HUD: score and DMD, the ledger of coins, and the status rack.
+  hudScore: 'hud/score-panel',
+  hudLedger: 'hud/ledger-panel',
+  hudStatus: 'hud/status-panel',
 } as const satisfies Record<string, ArtId>;
 
 export type ScreenKey = keyof typeof SCREEN_ART;
@@ -302,6 +333,7 @@ export const HEAD_RECT: Partial<Record<ScreenKey, Rect>> = {
   pause: [0.31, 0.115, 0.38, 0.075],
   settings: [0.27, 0.065, 0.46, 0.068],
   replayHud: [0.1, 0.125, 0.8, 0.07],
+  hudStatus: [0.1, 0.125, 0.8, 0.07],
 };
 
 /**
@@ -313,6 +345,38 @@ export const SKIN_FIT = {
   normal: { width: 340, height: 150 },
   dense: { width: 480, height: 300 },
 } as const;
+
+/**
+ * The cabinet side print is a 3:1 panel on each flank, `height` tall, on the
+ * body's face, set `fromFront` back from the player's end (where the cell's
+ * cameras can see it), with `glow` of its own colour added to the lighting. Table-root units.
+ */
+export const CABINET_ART = { height: 5.4, fromFront: 1.5, glow: 0.4 } as const;
+
+/**
+ * Where the playfield illustration prints on the table, in table units (y up), and how
+ * strongly. Presentation only: colliders and lamp positions don't move for it. The PNG is 1:2
+ * like the table, so `width` alone fixes its size (10 of the table's 20 units is the pack's
+ * suggested start).
+ */
+export const PLAYFIELD_ART = { centerX: 9.2, centerY: 21, width: 10, alpha: 0.62 } as const;
+
+/**
+ * The HUD frames go in the side gutters in landscape and across the top in portrait, and
+ * only where they stay readable; phones keep the plain text HUD (CSS px).
+ */
+export const HUD_FIT = {
+  landscape: { width: 900, height: 521 },
+  portraitMinWidth: 600,
+} as const;
+
+/** The three live HUD frames (they switch on and off together). */
+export const HUD_SCREENS: ReadonlySet<ScreenKey> = new Set<ScreenKey>([
+  'hudScore',
+  'hudLedger',
+  'hudStatus',
+  'replayHud',
+]);
 
 /** Frames whose shape differs from the 4:3 norm need their own floor (the receipt is a tall slip). */
 export const SKIN_FIT_FOR: Partial<Record<ScreenKey, { width: number; height: number }>> = {

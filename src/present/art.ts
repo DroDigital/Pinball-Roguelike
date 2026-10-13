@@ -60,10 +60,15 @@ const idle: (cb: () => void) => void = (cb) =>
  * while the browser is idle, and ask the service worker to keep all of it for offline play.
  */
 export function startArtLoad(): void {
-  // Buttons everywhere wear the plate; stylesheets pick it up from this variable.
-  void loadArt('ui/button-plate').then((img) => {
-    if (img) document.documentElement.style.setProperty('--bc-button-image', `url("${img.src}")`);
-  });
+  // Buttons everywhere wear the plate and items use the icon atlas; stylesheets pick both up
+  // from these variables as soon as the images have decoded.
+  for (const [id, prop] of [
+    ['ui/button-plate', '--bc-button-image'],
+    ['ui/charm-icon-atlas', '--bc-atlas'],
+  ] as const)
+    void loadArt(id).then((img) => {
+      if (img) document.documentElement.style.setProperty(prop, `url("${img.src}")`);
+    });
   void Promise.all(ART_CRITICAL.map(loadArt)).then(() => {
     const rest = (Object.keys(ART) as ArtId[]).filter((id) => !ART_CRITICAL.includes(id));
     const next = (): void => {

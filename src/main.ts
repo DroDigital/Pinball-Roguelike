@@ -3,7 +3,7 @@ import '@fontsource/inter/latin-600.css';
 import '@fontsource/oswald/latin-600.css';
 import '@fontsource/vt323/latin-400.css';
 import { GameApp } from './app/game-app';
-import { startArtLoad } from './app/art';
+import { startArtLoad } from './present/art';
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const hud = document.getElementById('hud') as HTMLElement;

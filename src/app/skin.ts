@@ -8,13 +8,15 @@ import {
   ART,
   DENSE_SCREENS,
   HEAD_RECT,
+  HUD_FIT,
+  HUD_SCREENS,
   SCREEN_ART,
   SKIN_FIT,
   SKIN_FIT_FOR,
   type Rect,
   type ScreenKey,
 } from '../content/art';
-import { artUrl, loadArt, readyArt } from './art';
+import { artUrl, loadArt, readyArt } from '../present/art';
 
 /** Dark ink on light paper; the stylesheet switches palette on this. */
 const PAPER_INK = '#291c12';
@@ -76,6 +78,9 @@ function skinOne(el: HTMLElement): void {
   setRect(el, 'bc-', art.content!);
   el.style.setProperty('--bc-ratio', `${art.width} / ${art.height}`);
   el.style.setProperty('--bc-ratio-n', String(art.width / art.height));
+  // How much of the canvas is empty above and below the print (frames laid out in a stack trim it).
+  el.style.setProperty('--bc-vt', String(art.visible[1] / art.height));
+  el.style.setProperty('--bc-vb', String((art.height - art.visible[3]) / art.height));
   el.style.setProperty('--bc-ink', art.ink);
   el.style.setProperty('--bc-image', `url("${artUrl(art.file)}")`);
   el.classList.add(`bc-s-${key}`);
@@ -92,10 +97,22 @@ function refit(el: HTMLElement): void {
   el.classList.toggle('bc-skin', readyArt(SCREEN_ART[key]) !== null && fits(key));
 }
 
+export type HudLayout = 'landscape' | 'portrait' | 'plain';
+
+/** How the HUD is laid out at this viewport size: frames in the gutters, a banner, or text. */
+export function hudLayout(): HudLayout {
+  if (innerWidth / innerHeight > 1.2)
+    return innerWidth >= HUD_FIT.landscape.width && innerHeight >= HUD_FIT.landscape.height
+      ? 'landscape'
+      : 'plain';
+  return innerWidth >= HUD_FIT.portraitMinWidth ? 'portrait' : 'plain';
+}
+
 /** Does the frame leave its content window enough room at this viewport size? */
 function fits(key: ScreenKey): boolean {
   // A ticket's size comes from its grid cell, not the viewport.
   if (key === 'jobs') return true;
+  if (HUD_SCREENS.has(key)) return hudLayout() !== 'plain';
   const art = ART[SCREEN_ART[key]];
   const [, , cw, ch] = art.content!;
   const ratio = art.width / art.height;

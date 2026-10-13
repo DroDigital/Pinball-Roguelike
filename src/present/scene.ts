@@ -8,6 +8,7 @@ import { TW, TH } from './coords';
 import { CellRoom, PROPS } from './cell';
 import { ROOM_UNIFORMS } from './retro-material';
 import { CoinTray } from './coins';
+import { ART, CABINET_ART } from '../content/art';
 
 export type CamMode =
   | 'top'
@@ -24,6 +25,9 @@ export type CamMode =
   | 'tray';
 
 const TILT = 6.5 * (Math.PI / 180);
+/** The cabinet body's footprint around the table (width, depth). */
+const BODY_W = TW + 3.4;
+const BODY_D = TH + 5;
 export const FOG_DENSITY = 0.018;
 
 export class World {
@@ -64,6 +68,8 @@ export class World {
   /** The bare bulb's brightness (dims as the cell decays). */
   bulbPower = 1800;
   aspect = 16 / 9;
+  /** The cabinet body (its flanks carry the side print once it has loaded). */
+  private readonly body: THREE.Mesh;
 
   constructor(tags: ReadonlySet<string>) {
     const envMap = makeEnvMap();
@@ -75,8 +81,9 @@ export class World {
     this.table.root.rotation.x = TILT;
     this.cabinet.add(this.table.root);
     const wood = new THREE.MeshStandardMaterial({ color: 0x1d120c, roughness: 0.8 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(TW + 3.4, 6, TH + 5), wood);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(BODY_W, 6, BODY_D), wood);
     body.position.set(0, -3.2, -0.5);
+    this.body = body;
     // The body tilts with the playfield so its top never cuts through the lower table.
     this.table.root.add(body);
     const lockbar = new THREE.Mesh(
@@ -254,6 +261,43 @@ export class World {
       const dir = l.clone().sub(eye);
       dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.lookYaw);
       l.copy(eye.add(dir));
+    }
+  }
+
+  /**
+   * The painted side print, on a plane just proud of each flank so it takes the cabinet's
+   * lighting. It keeps its own 3:1 shape (the flank is longer) and sits toward the player's
+   * end. Each plane faces outward, so the print reads correctly from outside on both flanks.
+   */
+  setCabinetArt(img: HTMLImageElement): void {
+    const tex = new THREE.Texture(img);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    const { width, height } = ART['machine/cabinet-side-art'];
+    const h = CABINET_ART.height;
+    const w = (h * width) / height;
+    // Lit by the cabinet's own lights, plus a little of the print's own colour so the decal
+    // doesn't sink into the cell's gloom (the flank is far from the machine's lamps).
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.65,
+      metalness: 0,
+      emissive: 0xffffff,
+      emissiveMap: tex,
+      emissiveIntensity: CABINET_ART.glow,
+    });
+    const front = this.body.position.z + BODY_D / 2 - CABINET_ART.fromFront;
+    for (const side of [1, -1]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      m.rotation.y = (side * Math.PI) / 2;
+      m.position.set(
+        this.body.position.x + (side * BODY_W) / 2 + side * 0.02,
+        this.body.position.y,
+        front - w / 2,
+      );
+      m.name = 'cabinet-side-art';
+      this.table.root.add(m);
     }
   }
 
