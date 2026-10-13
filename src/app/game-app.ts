@@ -12,6 +12,7 @@ import { audio } from '../present/audio';
 import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
+import { titleLogo } from './skin';
 import { LampShowPlayer } from '../present/lampshow';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
@@ -826,8 +827,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
-        h('h1', null, 'Ball & Chain'),
+        { class: 'panel title', 'data-skin': 'title' },
+        titleLogo(),
         h('p', null, 'You owe the Warden. The machine is the only way out.'),
         h('p', { class: 'dim' }, `Runs on the wall: ${this.save.tallies}`),
         h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
@@ -1211,10 +1212,10 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'deadline' },
         h(
           'h2',
-          null,
+          { 'data-slot': 'head' },
           last
             ? `Deadline ${r.deadline + 1}: Last Call`
             : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
@@ -1281,8 +1282,8 @@ export class GameApp {
       this.ui.show(
         h(
           'div',
-          { class: 'panel' },
-          h('h2', null, 'The phone rings'),
+          { class: 'panel', 'data-skin': 'phone' },
+          h('h2', { 'data-slot': 'head' }, 'The phone rings'),
           h('p', { class: 'warden' }, `“${line} Pick one. It is yours for the rest of your stay.”`),
           h('div', { class: 'col' }, ...cards),
         ),
@@ -1317,8 +1318,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel red' },
-        h('h2', null, 'The red phone rings'),
+        { class: 'panel red', 'data-skin': 'redCall' },
+        h('h2', { 'data-slot': 'head' }, 'The red phone rings'),
         h('p', { class: 'warden' }, `“${line}”`),
         h('div', { class: 'col' }, ...cards),
         h(
@@ -1379,6 +1380,7 @@ export class GameApp {
         'button',
         {
           class: `job${def.key ? ' key' : ''}${i === 0 ? ' primary' : ''}`,
+          'data-skin': 'jobs',
           onclick: () => this.takeJob(i),
         },
         h('b', null, jobText(def, o.target)),
@@ -1388,8 +1390,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
-        h('h2', null, `Round ${r.round + 1}: jobs`),
+        { class: 'panel atm jobs' },
+        h('div', { class: 'plaque' }, h('h2', null, `Round ${r.round + 1}: jobs`)),
         sentenceActive(r)
           ? h(
               'p',
@@ -1459,7 +1461,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel knock' },
+        { class: 'panel knock', 'data-skin': 'knock' },
         h('h2', null, 'Knocking'),
         h('p', { class: 'neighbor' }, `“${ask}”`),
         h('p', { class: 'neighbor' }, `“${offer}”`),
@@ -1520,7 +1522,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'buy' },
         h(
           'h2',
           null,
@@ -1556,7 +1558,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'cell' },
         h('h2', null, 'The cell'),
         h(
           'div',
@@ -1623,7 +1625,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
+        { class: 'panel atm', 'data-skin': 'atm' },
         h('h2', null, 'Automated Teller'),
         h(
           'p',
@@ -1848,8 +1850,8 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel shop' },
-        h('h2', null, 'Vending cabinet'),
+        { class: 'panel shop', 'data-skin': 'shop' },
+        h('h2', { 'data-slot': 'head' }, 'Vending cabinet'),
         h(
           'div',
           { class: 'grid' },
@@ -2041,7 +2043,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': 'tally' },
         h('h2', null, o.tilted ? 'Tilt' : 'Ball over'),
         ...lines.map((l) => h('p', null, l)),
         grid,
@@ -2177,7 +2179,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel atm' },
+        { class: 'panel atm', 'data-skin': 'atm' },
         h('h2', null, `Deadline ${r.deadline + 1}`),
         h('p', null, 'THE ATM CHIRPS. THE WARDEN IS WAITING.'),
         h(
@@ -2317,7 +2319,7 @@ export class GameApp {
     this.ui.show(
       h(
         'div',
-        { class: 'panel' },
+        { class: 'panel', 'data-skin': fell ? 'rapsheet' : 'endingResult' },
         h('h1', null, 'Rap sheet'),
         h(
           'p',

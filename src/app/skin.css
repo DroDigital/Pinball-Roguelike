@@ -1,0 +1,457 @@
+/*
+ * Art pack skin: printed frames for the menu screens, the button plate, job tickets.
+ * Everything here is an upgrade over the plain panels in styles.css: until a frame's art has
+ * decoded (or when the viewport is too small for it) the plain look stays, with the same DOM.
+ */
+:root {
+  --bc-bone: #f2dfb2;
+  --bc-amber: #ffb24a;
+  --bc-green: #a8f6b5;
+  --bc-red: #e2533e;
+  --bc-sans: 'Inter', system-ui, 'Segoe UI', Arial, sans-serif;
+  --bc-head: 'Oswald', Impact, 'Arial Narrow', sans-serif;
+  --bc-mono: 'VT323', 'Courier New', monospace;
+}
+
+/* Frames size themselves against the overlay, not the page. */
+#ui {
+  container-type: size;
+}
+
+.bc-skin__content,
+.bc-skin__head {
+  display: contents;
+}
+
+/* ---- the frame */
+.panel.bc-skin {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  width: min(calc(100cqw - 16px), calc((100cqh - 16px) * var(--bc-ratio-n)));
+  max-width: none;
+  max-height: none;
+  aspect-ratio: var(--bc-ratio);
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  box-shadow: none;
+  background: transparent var(--bc-image) center / 100% 100% no-repeat;
+  color: var(--bc-ink);
+  font-family: var(--bc-sans);
+  text-transform: none;
+  letter-spacing: normal;
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.7));
+}
+.panel.bc-skin > .bc-skin__content {
+  display: block;
+  position: absolute;
+  left: calc(var(--bc-x) * 100%);
+  top: calc(var(--bc-y) * 100%);
+  width: calc(var(--bc-w) * 100%);
+  height: calc(var(--bc-h) * 100%);
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 6px 2px 2px;
+  font-size: clamp(0.8rem, calc(1.55cqw * var(--text-scale)), 1.5rem);
+  line-height: 1.4;
+}
+.panel.bc-skin > .bc-skin__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  left: calc(var(--bc-hx) * 100%);
+  top: calc(var(--bc-hy) * 100%);
+  width: calc(var(--bc-hw) * 100%);
+  height: calc(var(--bc-hh) * 100%);
+  overflow: hidden;
+  text-align: center;
+}
+.panel.bc-skin > .bc-skin__head > h1,
+.panel.bc-skin > .bc-skin__head > h2 {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--bc-head);
+  font-weight: 600;
+  font-size: clamp(0.9rem, calc(2.5cqw * var(--text-scale)), 2.1rem);
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--bc-head-ink, var(--bc-bone));
+  text-shadow: var(--bc-head-shadow, 0 1px 3px rgba(0, 0, 0, 0.8));
+}
+/* The cream label plates take dark ink; the red banner and dark bands take bone. */
+.panel.bc-skin.bc-s-shop,
+.panel.bc-skin.bc-s-phone,
+.panel.bc-skin.bc-s-redCall,
+.panel.bc-skin.bc-s-pause {
+  --bc-head-ink: #2a1c10;
+  --bc-head-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.panel.bc-skin > .bc-skin__head > h1.has-art {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+.panel.bc-skin > .bc-skin__head > h1 img {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.7));
+}
+
+.panel.bc-skin > .bc-skin__content h1,
+.panel.bc-skin > .bc-skin__content h2 {
+  font-family: var(--bc-head);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 0.45em;
+}
+.panel.bc-skin > .bc-skin__content h1 {
+  font-size: 1.7em;
+}
+.panel.bc-skin > .bc-skin__content h2 {
+  font-size: 1.3em;
+}
+.panel.bc-skin > .bc-skin__content h3 {
+  font-family: var(--bc-head);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.panel.bc-skin > .bc-skin__content p {
+  margin: 0.3em 0 0.6em;
+}
+.panel.bc-skin > .bc-skin__content .dim {
+  font-size: 0.85em;
+}
+.panel.bc-skin > .bc-skin__content .grid {
+  font-variant-numeric: tabular-nums;
+  gap: 0.3em 1.2em;
+}
+
+/* Long screens keep their action buttons in reach: the last row sticks to the window's foot. */
+.panel.bc-skin.bc-dense > .bc-skin__content {
+  --bc-fade: 17, 17, 17;
+  scroll-padding-bottom: 4.6em;
+}
+.panel.bc-skin.bc-dense.bc-light > .bc-skin__content {
+  --bc-fade: 229, 212, 171;
+}
+.panel.bc-skin.bc-dense.atm > .bc-skin__content {
+  --bc-fade: 7, 20, 11;
+}
+.panel.bc-skin.bc-dense > .bc-skin__content > .row:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 1.2em 0 2px;
+  background: linear-gradient(to top, rgba(var(--bc-fade), 0.92) 40%, rgba(var(--bc-fade), 0));
+}
+
+/* ---- palettes: the stylesheet's colour variables follow the art underneath */
+.panel.bc-skin.bc-light {
+  --ink: #291c12;
+  --dim: #6a5640;
+  --amber: #8f3a12;
+  --red: #84261a;
+  --green: #1d5a2c;
+  --edge: #6b5a3c;
+}
+.panel.bc-light .grid b,
+.panel.bc-light .setting b {
+  color: var(--ink);
+}
+.panel.bc-light .warden {
+  color: #5b3410;
+}
+.panel.bc-light .cost,
+.panel.bc-light small.cost {
+  color: #84261a;
+}
+.panel.bc-light .tally {
+  color: #6a5640;
+}
+.panel.bc-light .neighbor {
+  color: var(--ink);
+}
+.panel.bc-light .sentence {
+  background: rgba(132, 38, 26, 0.1);
+  border-color: #84261a;
+}
+.panel.bc-light .sentence b {
+  color: #84261a;
+}
+.panel.bc-light .chip {
+  background: rgba(41, 28, 18, 0.06);
+}
+.panel.bc-light .chip.unknown {
+  color: #8a7658;
+}
+.panel.bc-light .unlocks {
+  border-color: #8f3a12;
+}
+
+/* The logo without its frame (small screens): scaled to the panel, not to the PNG. */
+.panel h1.logo.has-art {
+  margin: 0 0 10px;
+  font-size: 0;
+}
+.panel h1.logo img {
+  display: block;
+  width: min(100%, 420px);
+  height: auto;
+  margin: 0 auto;
+}
+
+/* The title screen: centred, with the logo on the printed band. */
+.panel.bc-skin.bc-s-title > .bc-skin__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-size: clamp(0.9rem, calc(1.8cqw * var(--text-scale)), 1.7rem);
+}
+.panel.bc-skin.bc-s-title > .bc-skin__content .row {
+  justify-content: center;
+}
+
+/* Paper screens: light inputs, readable card captions. */
+.panel.bc-light input[type='text'] {
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--ink);
+  border-color: var(--edge);
+}
+.panel.bc-light input[type='text']::placeholder {
+  color: #8a7658;
+}
+.panel button.mugcard small {
+  color: #c9b890;
+}
+
+/* The shop is the densest screen: four stats on one line, tighter cards. */
+.panel.bc-skin.bc-s-shop > .bc-skin__content .grid {
+  grid-template-columns: repeat(4, auto auto);
+  justify-content: space-between;
+}
+.panel.bc-skin.bc-s-shop > .bc-skin__content .grid b {
+  text-align: left;
+}
+.panel.bc-skin.bc-s-shop > .bc-skin__content .col {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 6px;
+  margin: 6px 0;
+}
+
+/* The CRT: green phosphor type, VT323 numerals. */
+.panel.atm.bc-skin > .bc-skin__content {
+  font-family: var(--bc-mono);
+  font-size: clamp(1rem, calc(2.1cqw * var(--text-scale)), 1.9rem);
+  line-height: 1.2;
+  text-shadow: 0 0 6px rgba(120, 255, 170, 0.45);
+}
+.panel.atm.bc-skin > .bc-skin__content h2 {
+  font-family: var(--bc-mono);
+  font-weight: 400;
+  font-size: 1.5em;
+  letter-spacing: 0.1em;
+}
+.panel.bc-skin.red > .bc-skin__content h2 {
+  color: #ff7a5a;
+}
+
+/* ---- buttons: the plate, with state treatments in CSS */
+.panel button {
+  color: var(--bc-bone);
+  background-color: #172119;
+  background-image: var(--bc-button-image, none);
+  background-size: 100% 150%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  padding-left: 20px;
+  padding-right: 20px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px #000;
+  transition:
+    filter 0.12s,
+    transform 0.12s;
+}
+.panel button:hover {
+  background-color: #172119;
+  filter: brightness(1.2);
+}
+.panel button:focus-visible {
+  background-color: #172119;
+  filter: brightness(1.2);
+  outline: 3px solid var(--bc-amber);
+  outline-offset: 3px;
+}
+.panel button:active:not(:disabled) {
+  filter: brightness(0.85);
+  transform: translateY(1px);
+}
+.panel button:disabled {
+  opacity: 0.5;
+  filter: saturate(0.4);
+}
+.panel button.primary {
+  background-color: #172119;
+  border-color: var(--bc-amber);
+  color: #fff3d6;
+  box-shadow:
+    inset 0 0 0 2px var(--bc-amber),
+    0 0 14px rgba(255, 178, 74, 0.3);
+}
+.panel button[aria-pressed='true'],
+.panel button[aria-current],
+.panel button.sel {
+  box-shadow: inset 0 0 0 2px var(--bc-amber);
+}
+/* Square and card buttons would only stretch the plate: flat, in its colours. */
+.panel .setting button:not(.wide),
+.panel button.mugcard,
+.panel button.charmcard {
+  background-image: none;
+  background-color: #1c2418;
+  border: 2px solid #8c7952;
+}
+.panel button.mugcard.sel {
+  background-color: #2c3a22;
+}
+.panel button.charmcard.glow {
+  box-shadow: 0 0 12px rgba(255, 200, 80, 0.55);
+}
+
+/* ---- the jobs board: a plaque over three tickets */
+.plaque {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 12px;
+  padding: 0.5em 2.2em;
+  background-color: #172119;
+  background-image: var(--bc-button-image, none);
+  background-size: 100% 150%;
+  background-position: center;
+  background-repeat: no-repeat;
+  text-align: center;
+}
+.plaque h2 {
+  margin: 0;
+  color: var(--bc-bone);
+}
+.panel.jobs .col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  margin: 12px 0;
+}
+.panel.jobs:has(button.bc-skin) {
+  width: min(1180px, 96vw);
+  max-width: none;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 4px;
+}
+.panel.jobs:has(button.bc-skin) > p {
+  text-align: center;
+  color: var(--bc-bone);
+  text-shadow:
+    0 0 6px #000,
+    0 0 2px #000;
+}
+.panel.jobs:has(button.bc-skin) > p.cost {
+  color: #ff7a5a;
+}
+.panel.jobs:has(button.bc-skin) .row {
+  justify-content: center;
+}
+button.bc-skin.bc-s-jobs {
+  display: block;
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: var(--bc-ratio);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent var(--bc-image) center / 100% 100% no-repeat;
+  color: var(--bc-ink);
+  text-shadow: none;
+  text-align: left;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.65));
+}
+button.bc-skin.bc-s-jobs:hover,
+button.bc-skin.bc-s-jobs:focus-visible {
+  background-color: transparent;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.7)) brightness(1.06);
+  transform: translateY(-3px) rotate(-0.5deg);
+}
+button.bc-skin.bc-s-jobs:focus-visible {
+  /* The PNG has transparent margins: glow along the paper's edge, not a box around them. */
+  outline: none;
+  filter: drop-shadow(0 0 2px var(--bc-amber)) drop-shadow(0 0 6px var(--bc-amber))
+    drop-shadow(0 10px 14px rgba(0, 0, 0, 0.7));
+}
+button.bc-skin.bc-s-jobs:active:not(:disabled) {
+  transform: translateY(0);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6)) brightness(0.95);
+}
+button.bc-skin.bc-s-jobs.primary {
+  box-shadow: none;
+}
+button.bc-skin.bc-s-jobs.key {
+  filter: drop-shadow(0 0 10px rgba(230, 193, 74, 0.75)) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.6));
+}
+button.bc-skin.bc-s-jobs > .bc-skin__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2em;
+  position: absolute;
+  left: calc(var(--bc-x) * 100%);
+  top: calc(var(--bc-y) * 100%);
+  width: calc(var(--bc-w) * 100%);
+  height: calc(var(--bc-h) * 100%);
+  overflow: hidden;
+  font-size: clamp(0.72rem, calc(4.4cqw * var(--text-scale)), 1.2rem);
+  line-height: 1.25;
+  text-shadow: none;
+}
+button.bc-skin.bc-s-jobs b {
+  font-weight: 700;
+  color: var(--bc-ink);
+}
+button.bc-skin.bc-s-jobs small {
+  opacity: 1;
+  font-size: 0.82em;
+  color: #5a4630;
+}
+button.bc-skin.bc-s-jobs.key b {
+  color: #84261a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel button,
+  button.bc-skin.bc-s-jobs {
+    transition: none;
+  }
+  button.bc-skin.bc-s-jobs:hover,
+  button.bc-skin.bc-s-jobs:focus-visible {
+    transform: none;
+  }
+}

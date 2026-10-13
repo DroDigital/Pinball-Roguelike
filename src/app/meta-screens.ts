@@ -60,7 +60,7 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
   );
   return h(
     'div',
-    { class: 'panel lineup' },
+    { class: 'panel lineup', 'data-skin': 'lineup' },
     h('h2', null, 'Booking'),
     h('div', { class: 'mugs' }, ...cards),
     h(
@@ -147,7 +147,7 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
     );
   return h(
     'div',
-    { class: 'panel rapsheet' },
+    { class: 'panel rapsheet', 'data-skin': 'meta' },
     h('h1', null, 'Rap sheet'),
     h(
       'div',

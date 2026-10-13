@@ -4,6 +4,8 @@
  * service menu, as well as mouse, touch and gamepad.
  */
 
+import { refitTree, skinTree } from './skin';
+
 type Child = Node | string | null | undefined | false;
 
 export function h<K extends keyof HTMLElementTagNameMap>(
@@ -40,7 +42,12 @@ export class UI {
   constructor(
     readonly root: HTMLElement,
     readonly toastEl: HTMLElement,
-  ) {}
+  ) {
+    // A framed screen keeps its art's aspect ratio, so turning the device can change what fits.
+    window.addEventListener('resize', () => {
+      if (this.panel) refitTree(this.panel);
+    });
+  }
 
   get open(): boolean {
     return this.panel !== null;
@@ -96,6 +103,9 @@ export class UI {
 
   private mount(el: HTMLElement, fresh = true): void {
     if (fresh) el.classList.add('fade');
+    // Screens marked data-skin sit on the art pack's frames once the art is ready.
+    skinTree(el);
+    refitTree(el);
     this.root.append(el);
     this.panel = el;
     if (fresh && !el.dataset.wired) {
@@ -107,6 +117,8 @@ export class UI {
       el.querySelector<HTMLButtonElement>('button.primary:not([disabled])') ??
       el.querySelector<HTMLButtonElement>('button:not([disabled])');
     first?.focus({ preventScroll: true });
+    // A framed screen opens at its top, even when the first button is further down.
+    for (const c of Array.from(el.querySelectorAll('.bc-skin__content'))) c.scrollTop = 0;
   }
 
   hide(): void {
