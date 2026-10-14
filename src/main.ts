@@ -1,6 +1,9 @@
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-600.css';
 import '@fontsource/oswald/latin-600.css';
+import '@fontsource/bebas-neue/latin-400.css';
+import '@fontsource/special-elite/latin-400.css';
+import '@fontsource/saira-stencil-one/latin-400.css';
 import '@fontsource/vt323/latin-400.css';
 import { GameApp } from './app/game-app';
 import { startArtLoad } from './present/art';

@@ -872,28 +872,28 @@ export class GameApp {
         'div',
         { class: 'panel title', 'data-skin': 'title' },
         titleLogo(),
-        h('p', null, 'You owe the Warden. The machine is the only way out.'),
-        h('p', { class: 'dim' }, `Runs on the wall: ${this.save.tallies}`),
-        h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
+        h('p', { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '1.05em', color: '#ffb24a', margin: '4px 0', textShadow: '0 0 8px rgba(255, 178, 74, 0.4)' } }, '“You owe the Warden. The machine is the only way out.”'),
+        h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.1em', letterSpacing: '0.1em', color: '#a49477', margin: '4px 0' } }, `RUNS ON THE CELL WALL: ${this.save.tallies}`),
+        h('p', { class: 'tally', style: { letterSpacing: '0.15em', fontSize: '1.3em', color: '#ffb24a' } }, tallyMarks(this.save.tallies)),
         h(
           'div',
-          { class: 'row' },
+          { class: 'cell-dock', style: { flexWrap: 'wrap', gap: '10px' } },
           saved
             ? h('button', { class: 'primary', onclick: () => this.continueRun() }, 'Continue')
             : null,
           h(
             'button',
             { class: saved ? '' : 'primary', onclick: () => this.enterLineup() },
-            saved ? 'New run' : 'Wake up',
+            saved ? 'New Run' : 'Wake Up',
           ),
           h('button', { onclick: () => this.newRunFlow(undefined, true) }, this.dailyLabel()),
-          h('button', { onclick: () => this.enterMeta() }, 'Rap sheet'),
+          h('button', { onclick: () => this.enterMeta() }, 'Rap Sheet'),
           h('button', { onclick: () => this.openSettings() }, 'Settings'),
         ),
         h(
-          'p',
-          { class: 'dim' },
-          'Flippers: Z / slash (or shift, arrows). Plunger: hold space. Nudge: X.',
+          'div',
+          { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.05em', color: '#a49477', marginTop: '10px', letterSpacing: '0.06em' } },
+          'CONTROLS: [Z / /] FLIPPERS · [SPACE] PLUNGER · [X] NUDGE TABLE',
         ),
       ),
     );
@@ -1263,34 +1263,50 @@ export class GameApp {
             ? `Deadline ${r.deadline + 1}: Last Call`
             : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
         ),
-        h('p', { class: 'warden' }, `“${line}”`),
-        r.deadline > 0
-          ? h(
-              'p',
-              { class: 'good' },
-              `A heavier coin mech: the machine now pays x${formatCoins(payScale(r))}.`,
-            )
-          : null,
         h(
           'div',
-          { class: 'grid' },
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-        ),
-        h(
-          'p',
-          null,
-          `${r.sentences.length > 1 ? 'Sentences' : 'Sentence'} for round ${ECONOMY.roundsPerDeadline}:`,
-        ),
-        ...cards,
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'To the ATM'),
+          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line}”`),
+          r.deadline > 0
+            ? h(
+                'div',
+                { class: 'receipt-alert-box' },
+                `★ HEAVIER COIN MECH: TABLE PAYOUTS MULTIPLIED AT x${formatCoins(payScale(r))}`,
+              )
+            : null,
+          h(
+            'div',
+            { class: 'cell-gauges-grid' },
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
+              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
+              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Pocket Cash'),
+              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
+            ),
+          ),
+          h(
+            'div',
+            { class: 'cell-rack-hdr', style: { marginTop: '4px' } },
+            `MANDATORY SENTENCE (ROUND ${ECONOMY.roundsPerDeadline}):`,
+          ),
+          ...cards,
+          h(
+            'div',
+            { class: 'cell-dock' },
+            h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'Proceed To The ATM'),
+          ),
         ),
       ),
     );
@@ -1317,6 +1333,7 @@ export class GameApp {
           'button',
           {
             class: `job${i === 0 ? ' primary' : ''}`,
+            style: { minHeight: '52px', fontSize: '1.2em' },
             onclick: () => this.answerPhone(() => choosePerk(r, i)),
           },
           h('b', null, perkDef(o.id).text.replace('{shot}', o.shot ?? '')),
@@ -1327,8 +1344,10 @@ export class GameApp {
           'div',
           { class: 'panel', 'data-skin': 'phone' },
           h('h2', { 'data-slot': 'head' }, 'The phone rings'),
-          h('p', { class: 'warden' }, `“${line} Pick one. It is yours for the rest of your stay.”`),
-          h('div', { class: 'col' }, ...cards),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+            h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line} Pick one. It is yours for the rest of your stay.”`),
+            h('div', { class: 'col' }, ...cards),
+          ),
         ),
       );
       return;
@@ -1343,19 +1362,19 @@ export class GameApp {
         const c = charmDef(id.slice(6));
         return h(
           'button',
-          { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-          h('b', null, `${c.name} (devil charm)`),
-          h('small', null, c.text),
-          h('small', { class: 'cost' }, 'Takes a charm slot. It cannot be sold.'),
+          { class: 'red-bargain-box', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
+          h('div', { class: 'red-bargain-name' }, `⛧ ${c.name} (DEVIL CHARM)`),
+          h('div', { class: 'red-bargain-gain' }, `Gain: ${c.text}`),
+          h('div', { class: 'red-bargain-cost' }, 'Blood Price: Permanently binds to charm slot. Cannot be sold.'),
         );
       }
       const b = bargainDef(id);
       return h(
         'button',
-        { class: 'job bargain', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-        h('b', null, b.name),
-        h('small', null, b.gain),
-        h('small', { class: 'cost' }, b.cost),
+        { class: 'red-bargain-box', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
+        h('div', { class: 'red-bargain-name' }, `⛧ ${b.name}`),
+        h('div', { class: 'red-bargain-gain' }, `The Boon: ${b.gain}`),
+        h('div', { class: 'red-bargain-cost' }, `Blood Sacrifice: ${b.cost}`),
       );
     });
     this.ui.show(
@@ -1363,22 +1382,24 @@ export class GameApp {
         'div',
         { class: 'panel red', 'data-skin': 'redCall' },
         h('h2', { 'data-slot': 'head' }, 'The red phone rings'),
-        h('p', { class: 'warden' }, `“${line}”`),
-        h('div', { class: 'col' }, ...cards),
-        h(
-          'div',
-          { class: 'row' },
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', color: '#ff9a88', margin: '4px 0' } }, `“${line}”`),
+          h('div', { class: 'col' }, ...cards),
           h(
-            'button',
-            {
-              class: 'primary',
-              onclick: () =>
-                this.answerPhone(() => {
-                  this.subs.say('THE WARDEN', this.warden('hangUp'));
-                  return hangUp(r);
-                }),
-            },
-            'Hang up',
+            'div',
+            { class: 'cell-dock' },
+            h(
+              'button',
+              {
+                class: 'primary',
+                onclick: () =>
+                  this.answerPhone(() => {
+                    this.subs.say('THE WARDEN', this.warden('hangUp'));
+                    return hangUp(r);
+                  }),
+              },
+              'Slam The Receiver (Hang Up)',
+            ),
           ),
         ),
       ),
@@ -1419,6 +1440,7 @@ export class GameApp {
     audio.atmBeep();
     const cards = r.jobOffers.map((o, i) => {
       const def = jobDef(o.id);
+      const serial = `PRISON LABOR DEPT // WORK ORDER #${String(Math.abs(o.id.charCodeAt(0) * 17 + o.target * 3 + r.round * 7) % 900 + 100).padStart(3, '0')}`;
       return h(
         'button',
         {
@@ -1426,32 +1448,33 @@ export class GameApp {
           'data-skin': 'jobs',
           onclick: () => this.takeJob(i),
         },
-        h('b', null, jobText(def, o.target)),
-        h('small', null, rewardText(def, r.deadline)),
+        h('div', { class: 'ticket-head' }, serial),
+        h('div', { class: 'ticket-task' }, jobText(def, o.target)),
+        h('div', { class: 'ticket-seal' }, `★ ${rewardText(def, r.deadline).toUpperCase()} ★`),
       );
     });
     this.ui.show(
       h(
         'div',
         { class: 'panel atm jobs' },
-        h('div', { class: 'plaque' }, h('h2', null, `Round ${r.round + 1}: jobs`)),
+        h('div', { class: 'plaque' }, h('h2', null, `Round ${r.round + 1}: Work Orders`)),
         sentenceActive(r)
           ? h(
-              'p',
-              { class: 'cost' },
-              `SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
+              'div',
+              { class: 'cell-warning-strip', style: { textAlign: 'center', margin: '4px auto', maxWidth: '600px' } },
+              `⚠️ SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
             )
           : null,
-        h('p', null, 'THE ATM POSTS THREE JOBS. TAKE ONE.'),
+        h('p', { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.2em', letterSpacing: '0.08em', color: 'var(--bc-crt-green)' } }, 'SELECT ONE WORK ORDER FROM THE TERMINAL DISPENSER:'),
         h('div', { class: 'col' }, ...cards),
         canPayEarly(r)
           ? h(
               'div',
-              { class: 'row' },
+              { class: 'cell-dock', style: { marginTop: '12px' } },
               h(
                 'button',
-                { onclick: () => this.payEarlyFlow() },
-                `Pay the debt now (+${payEarlyReward(r)} tickets)`,
+                { class: 'primary', onclick: () => this.payEarlyFlow() },
+                `★ Expedited Debt Settlement (+${payEarlyReward(r)} Bonus Tickets)`,
               ),
             )
           : null,
@@ -1505,31 +1528,35 @@ export class GameApp {
       h(
         'div',
         { class: 'panel knock', 'data-skin': 'knock' },
-        h('h2', null, 'Knocking'),
-        h('p', { class: 'neighbor' }, `“${ask}”`),
-        h('p', { class: 'neighbor' }, `“${offer}”`),
         h(
           'div',
-          { class: 'row' },
+          { style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px 10px', fontFamily: 'var(--bc-typewriter)' } },
+          h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.4em', letterSpacing: '0.1em', color: '#84261a', borderBottom: '1px dashed rgba(132, 38, 26, 0.4)', paddingBottom: '2px' } }, 'SMUGGLED NOTE THROUGH THE BRICKS'),
+          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#291c12', margin: '4px 0' } }, `“${ask}”`),
+          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#84261a', fontWeight: 'bold', margin: '4px 0' } }, `“${offer}”`),
           h(
-            'button',
-            {
-              class: canHelp(r) ? 'primary' : '',
-              disabled: !canHelp(r),
-              onclick: () => answer(true),
-            },
-            `Slide over ${give}`,
+            'div',
+            { class: 'cell-dock', style: { marginTop: '10px' } },
+            h(
+              'button',
+              {
+                class: canHelp(r) ? 'primary' : '',
+                disabled: !canHelp(r),
+                onclick: () => answer(true),
+              },
+              `Slide Over ${give}`,
+            ),
+            h(
+              'button',
+              { class: canHelp(r) ? '' : 'primary', onclick: () => answer(false) },
+              'Ignore The Tapping',
+            ),
           ),
           h(
-            'button',
-            { class: canHelp(r) ? '' : 'primary', onclick: () => answer(false) },
-            'Ignore it',
+            'div',
+            { style: { fontSize: '0.8em', color: '#6a5640', textAlign: 'center', marginTop: '4px' } },
+            `The neighbor has knocked ${r.neighbor.asked} time(s) · You assisted ${r.neighbor.helped} time(s)`,
           ),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `The neighbor has asked ${r.neighbor.asked} time(s). You helped ${r.neighbor.helped}.`,
         ),
       ),
     );
@@ -1567,22 +1594,65 @@ export class GameApp {
         'div',
         { class: 'panel', 'data-skin': 'buy' },
         h(
-          'h2',
-          null,
-          `Deadline ${r.deadline + 1} · Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-        ),
-        h(
           'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
+          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          h(
+            'div',
+            { class: 'cell-cockpit-bar' },
+            h('h2', { class: 'cell-cockpit-title' }, 'Procure Pinballs'),
+            h(
+              'span',
+              { class: 'cell-cockpit-prog' },
+              `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
+            ),
+          ),
+          h(
+            'div',
+            { class: 'cell-gauges-grid' },
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Pocket Cash'),
+              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
+              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
+              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
+            ),
+          ),
+          h(
+            'p',
+            { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.92em', margin: '4px 0' } },
+            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c coins from pocket.`,
+          ),
+          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
+          h(
+            'div',
+            {
+              style: {
+                background: 'rgba(41, 28, 18, 0.08)',
+                border: '1px dashed #6a5640',
+                borderRadius: '3px',
+                padding: '6px 10px',
+                marginTop: '8px',
+                fontFamily: 'var(--bc-typewriter)',
+                color: '#291c12',
+                fontSize: '0.86em',
+                lineHeight: '1.35',
+              },
+            },
+            h('b', { style: { color: '#84261a', textTransform: 'uppercase', display: 'block', marginBottom: '2px' } }, 'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY'),
+            'Extra balls give you more attempts to shoot bank targets and complete your Work Order. Unspent coins stay in your pocket to deposit at the ATM for 10% round compound interest.',
+          ),
         ),
-        h('p', null, `Buy balls for this round. The first is free; each extra costs ${price}c.`),
-        h('div', { class: 'row' }, ...opts),
       ),
     );
   }
@@ -1598,57 +1668,98 @@ export class GameApp {
     this.world.setMode('seated');
     this.session = null;
     const left = ballsLeft(r);
+    const pips = '● '.repeat(Math.min(5, left)) + '○ '.repeat(Math.max(0, 5 - left));
     this.ui.show(
       h(
         'div',
         { class: 'panel', 'data-skin': 'cell' },
-        h('h2', null, 'The cell'),
         h(
           'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Balls left',
-          h('b', null, String(left)),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `Deadline ${r.deadline + 1}/${r.deadlines} · Round ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-        ),
-        r.job
-          ? h(
-              'p',
-              { class: r.job.done ? 'good' : 'dim' },
-              `Job: ${jobText(jobDef(r.job.id), r.job.target)} — ${r.job.done ? 'done' : `${formatCoins(r.job.progress)}/${r.job.target}`}`,
-            )
-          : null,
-        h('p', { class: 'dim' }, `Shot levels: ${levelsText(r)}`),
-        this.charmBar(r),
-        this.stash(r, () => this.enterCell()),
-        h(
-          'p',
-          { class: sentenceActive(r) ? 'cost' : 'dim' },
-          `${sentenceActive(r) ? 'Sentence in force' : `Sentence (round ${ECONOMY.roundsPerDeadline})`}: ${r.sentences.map((id) => sentenceDef(id).name).join(', ')}`,
-        ),
-        h(
-          'div',
-          { class: 'row' },
+          { class: 'cell-cockpit' },
           h(
-            'button',
-            {
-              class: left > 0 ? 'primary' : '',
-              disabled: left <= 0,
-              onclick: () => this.startBall(),
-            },
-            'Play ball',
+            'div',
+            { class: 'cell-cockpit-bar' },
+            h('h2', { class: 'cell-cockpit-title' }, 'Cell Block 9'),
+            h(
+              'span',
+              { class: 'cell-cockpit-prog' },
+              `DEADLINE ${r.deadline + 1}/${r.deadlines} · ROUND ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
+            ),
           ),
-          h('button', { onclick: () => this.enterAtm('cell') }, 'ATM'),
-          h('button', { onclick: () => this.enterShop() }, 'Vending cabinet'),
+          h(
+            'div',
+            { class: 'cell-gauges-grid' },
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Pocket Coins'),
+              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
+              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
+              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
+            ),
+            h(
+              'div',
+              { class: 'cell-gauge-box' },
+              h('div', { class: 'cell-gauge-label' }, 'Balls Ready'),
+              h('div', { class: 'cell-gauge-val balls' }, String(left)),
+              h('div', { class: 'cell-gauge-pips' }, pips.trim()),
+            ),
+          ),
+          r.job
+            ? h(
+                'div',
+                { class: 'cell-order-banner' },
+                h(
+                  'span',
+                  { class: 'cell-order-title' },
+                  `WORK ORDER: ${jobText(jobDef(r.job.id), r.job.target)}`,
+                ),
+                h(
+                  'span',
+                  { class: `cell-order-status${r.job.done ? ' done' : ''}` },
+                  r.job.done ? '✓ COMPLETED' : `${formatCoins(r.job.progress)}/${r.job.target}`,
+                ),
+              )
+            : null,
+          this.charmBar(r),
+          h(
+            'div',
+            { style: { fontFamily: 'var(--bc-crt)', fontSize: '0.95em', color: '#a49477', margin: '2px 0' } },
+            `SHOT UPGRADES: ${levelsText(r)}`,
+          ),
+          this.stash(r, () => this.enterCell()),
+          sentenceActive(r)
+            ? h(
+                'div',
+                { class: 'cell-warning-strip' },
+                `⚠️ SENTENCE IN FORCE: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
+              )
+            : null,
+          h(
+            'div',
+            { class: 'cell-dock' },
+            h(
+              'button',
+              {
+                class: `play-ball-btn${left > 0 ? ' primary' : ''}`,
+                disabled: left <= 0,
+                onclick: () => this.startBall(),
+              },
+              'Play Ball',
+            ),
+            h('button', { onclick: () => this.enterAtm('cell') }, 'ATM Terminal'),
+            h('button', { onclick: () => this.enterShop() }, 'Vending Cabinet'),
+          ),
         ),
       ),
     );
@@ -1665,52 +1776,87 @@ export class GameApp {
       this.enterAtm(back);
     };
     const need = Math.max(0, r.debt - r.bank);
+    const solvent = r.bank >= r.debt;
     this.ui.show(
       h(
         'div',
         { class: 'panel atm', 'data-skin': 'atm' },
-        h('h2', null, 'Automated Teller'),
-        h(
-          'p',
-          null,
-          back === 'deadline' ? 'FINAL DEPOSIT BEFORE THE DEADLINE.' : 'DEPOSITS ARE FINAL.',
-        ),
         h(
           'div',
-          { class: 'grid' },
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-          'Still owed',
-          h('b', null, `${need}c`),
-        ),
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { disabled: r.pocket < 1, onclick: () => dep(1) }, '+1'),
-          h('button', { disabled: r.pocket < 5, onclick: () => dep(5) }, '+5'),
-          h('button', { disabled: r.pocket < 10, onclick: () => dep(10) }, '+10'),
+          { class: 'atm-terminal-screen' },
           h(
-            'button',
-            { disabled: need < 1 || r.pocket < 1, onclick: () => dep(Math.min(need, r.pocket)) },
-            'Owed',
+            'div',
+            { class: 'atm-header-banner' },
+            h('h2', null, 'AUTOMATED TELLER // FIRMWARE v4.19'),
+            h(
+              'div',
+              { class: 'atm-header-sub' },
+              back === 'deadline'
+                ? '★ DEADLINE RECONCILIATION PROTOCOL ACTIVE ★'
+                : 'DEPOSITS ARE NON-REFUNDABLE · SAVINGS ACCRUE +10% ROUND INTEREST',
+            ),
           ),
-          h('button', { disabled: r.pocket < 1, onclick: () => dep(r.pocket) }, 'All'),
-        ),
-        this.loanRow(r, back),
-        h(
-          'div',
-          { class: 'row' },
           h(
-            'button',
-            {
-              class: 'primary',
-              onclick: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
-            },
-            'Done',
+            'div',
+            { class: 'atm-readouts' },
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Pocket Cash'),
+              h('span', { class: 'atm-readout-val amber' }, `${r.pocket}c`),
+            ),
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Bank Vault (+10%)'),
+              h('span', { class: 'atm-readout-val green' }, `${r.bank}c`),
+            ),
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Debt Target'),
+              h('span', { class: 'atm-readout-val red' }, `${r.debt}c`),
+            ),
+            h(
+              'div',
+              { class: `atm-readout-box ${solvent ? 'status-solvent' : 'status-shortfall'}` },
+              h('span', { class: 'atm-readout-label' }, 'Payment Status'),
+              h(
+                'span',
+                { class: `atm-readout-val ${solvent ? 'green' : 'red'}` },
+                solvent ? 'SOLVENT [PAID]' : `SHORTFALL: -${need}c`,
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { class: 'atm-keypad-panel' },
+            h('button', { disabled: r.pocket < 1, onclick: () => dep(1) }, '+1c'),
+            h('button', { disabled: r.pocket < 5, onclick: () => dep(5) }, '+5c'),
+            h('button', { disabled: r.pocket < 10, onclick: () => dep(10) }, '+10c'),
+            h(
+              'button',
+              {
+                class: need > 0 && r.pocket >= need ? 'primary' : '',
+                disabled: need < 1 || r.pocket < 1,
+                onclick: () => dep(Math.min(need, r.pocket)),
+              },
+              `Pay Owed (${Math.min(need, r.pocket)}c)`,
+            ),
+            h('button', { disabled: r.pocket < 1, onclick: () => dep(r.pocket) }, 'Deposit All'),
+          ),
+          this.loanRow(r, back),
+          h(
+            'div',
+            { class: 'cell-dock' },
+            h(
+              'button',
+              {
+                class: 'primary',
+                onclick: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
+              },
+              back === 'deadline' ? 'Return to Deadline' : 'Return to Cell',
+            ),
           ),
         ),
       ),
@@ -1719,14 +1865,20 @@ export class GameApp {
 
   private loanRow(r: RunState, back: 'cell' | 'deadline'): HTMLElement | null {
     const avail = loanAvailable(r);
-    const owed = r.loanDue ? h('p', { class: 'dim' }, `Added to next debt: ${r.loanDue}c`) : null;
+    const owed = r.loanDue
+      ? h('div', { class: 'atm-credit-hdr', style: { color: 'var(--bc-red)' } }, `LOAN SURCHARGE ADDED TO NEXT DEBT: ${r.loanDue}c`)
+      : null;
     if (avail <= 0)
       return (
         owed ??
         h(
-          'p',
-          { class: 'dim' },
-          r.deadline >= r.deadlines - 1 ? 'NO LOANS ON LAST CALL.' : 'LOAN LIMIT REACHED.',
+          'div',
+          { class: 'atm-credit-facility' },
+          h(
+            'div',
+            { class: 'atm-credit-hdr' },
+            r.deadline >= r.deadlines - 1 ? 'CREDIT LINE: NO LOANS ON LAST CALL' : 'CREDIT LINE: LIMIT REACHED',
+          ),
         )
       );
     const take = (n: number) => {
@@ -1739,23 +1891,18 @@ export class GameApp {
     const half = Math.max(1, Math.floor(avail / 2));
     return h(
       'div',
-      null,
+      { class: 'atm-credit-facility' },
       h(
-        'p',
-        null,
-        `LOAN: borrow up to ${avail}c, repaid at ${Math.round(r.mods.loanRate * 100)}% with the next debt.`,
+        'div',
+        { class: 'atm-credit-hdr' },
+        `EMERGENCY CREDIT (WARDEN CAPITAL): BORROW UP TO ${avail}c (REPAY AT ${Math.round(r.mods.loanRate * 100)}%)`,
       ),
       h(
         'div',
-        { class: 'row' },
-        h('button', { onclick: () => take(half) }, `Borrow ${half}c (owe ${loanCost(r, half)}c)`),
-        h(
-          'button',
-          { onclick: () => take(avail) },
-          `Borrow ${avail}c (owe ${loanCost(r, avail)}c)`,
-        ),
+        { class: 'atm-credit-btns' },
+        h('button', { onclick: () => take(half) }, `Borrow ${half}c (Owe ${loanCost(r, half)}c)`),
+        h('button', { onclick: () => take(avail) }, `Borrow ${avail}c (Owe ${loanCost(r, avail)}c)`),
       ),
-      owed,
     );
   }
 
@@ -1768,25 +1915,26 @@ export class GameApp {
         : '';
       return h(
         'span',
-        { class: 'charm', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
+        { class: 'cell-token', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
         itemIcon(id),
-        `${c.name}${charges}`,
+        h('span', null, c.name),
+        charges ? h('span', { class: 'cell-gauge-pips' }, charges) : null,
       );
     });
     return h(
       'div',
-      { class: 'charms' },
+      { class: 'cell-equipment-rack' },
       h(
-        'small',
-        { class: 'dim' },
-        `Charms ${r.charms.length}/${r.mods.charmSlots} · Tickets ${r.tickets} · `,
+        'div',
+        { class: 'cell-rack-hdr' },
+        `EQUIPMENT RACK · SLOTS ${r.charms.length}/${r.mods.charmSlots} · TICKETS: ${r.tickets} 🎟️ · KEYS: `,
         keysIcon(),
-        `Keys ${r.keys}`,
+        ` ${r.keys}`,
       ),
       h(
         'div',
-        { class: 'chips' },
-        ...(items.length ? items : [h('span', { class: 'dim' }, 'none')]),
+        { class: 'cell-rack-shelf' },
+        ...(items.length ? items : [h('span', { class: 'dim' }, 'Empty rack')]),
       ),
     );
   }
@@ -1807,8 +1955,8 @@ export class GameApp {
       if (d.target === 'shot')
         return h(
           'div',
-          { class: 'row' },
-          h('small', null, itemIcon(id), `${d.name}:`),
+          { class: 'cell-contraband-row' },
+          h('span', { class: 'dim' }, itemIcon(id), `${d.name}:`),
           ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
             h('button', { onclick: () => use(i, { shot }) }, shot),
           ),
@@ -1816,8 +1964,8 @@ export class GameApp {
       if (d.target === 'charm')
         return h(
           'div',
-          { class: 'row' },
-          h('small', null, itemIcon(id), `${d.name}:`),
+          { class: 'cell-contraband-row' },
+          h('span', { class: 'dim' }, itemIcon(id), `${d.name}:`),
           ...r.charms.map((cid, slot) =>
             h('button', { onclick: () => use(i, { charmSlot: slot }) }, charmDef(cid).name),
           ),
@@ -1831,9 +1979,9 @@ export class GameApp {
     });
     return h(
       'div',
-      { class: 'stash' },
-      h('small', { class: 'dim' }, 'Contraband'),
-      h('div', { class: 'row' }, ...rows),
+      { class: 'cell-contraband-shelf' },
+      h('div', { class: 'cell-rack-hdr' }, 'CONTRABAND STASH'),
+      h('div', { class: 'cell-contraband-row' }, ...rows),
     );
   }
 
@@ -1845,12 +1993,12 @@ export class GameApp {
     const tags = ownedTags(r);
     const charmCards = r.shop.charms.map((id, i) => {
       const c = charmDef(id);
-      const glow = c.tags.some((t) => tags.has(t));
+      const synergy = c.tags.some((t) => tags.has(t));
       const icon = itemIcon(id);
       return h(
         'button',
         {
-          class: `job charmcard${glow ? ' glow' : ''}${icon ? ' has-icon' : ''}`,
+          class: `shop-card-tile${synergy ? ' synergy-glow' : ''}`,
           style: { borderColor: RARITY_COLORS[c.rarity] },
           disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
           onclick: () => {
@@ -1858,10 +2006,28 @@ export class GameApp {
             this.enterShop();
           },
         },
-        icon,
-        h('b', null, `${c.name} — ${c.cost} ticket${c.cost === 1 ? '' : 's'}`),
-        h('small', null, c.text),
-        h('small', { class: 'tags' }, `${c.rarity} · ${c.tags.join(', ')}`),
+        h(
+          'div',
+          { class: 'shop-card-meta' },
+          h('span', { class: 'shop-card-tier', style: { color: RARITY_COLORS[c.rarity] } }, c.rarity),
+          h('span', { class: 'shop-card-price' }, `🎟️ ${c.cost} ${c.cost === 1 ? 'ticket' : 'tickets'}`),
+        ),
+        h(
+          'div',
+          { class: 'shop-card-body' },
+          icon,
+          h(
+            'div',
+            null,
+            h(
+              'div',
+              { class: 'shop-card-heading' },
+              c.name,
+              synergy ? h('span', { class: 'shop-synergy-tag' }, '✨ SYNERGY') : null,
+            ),
+            h('p', { class: 'shop-card-lore' }, c.text),
+          ),
+        ),
       );
     });
     const cbCards = r.shop.contraband.map((id, i) => {
@@ -1871,16 +2037,30 @@ export class GameApp {
       return h(
         'button',
         {
-          class: `job${icon ? ' has-icon' : ''}`,
+          class: 'shop-card-tile',
           disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
           onclick: () => {
             if (buyContraband(r, i)) audio.coin(3);
             this.enterShop();
           },
         },
-        icon,
-        h('b', null, `${d.name} — ${price}c`),
-        h('small', null, d.text),
+        h(
+          'div',
+          { class: 'shop-card-meta' },
+          h('span', { class: 'shop-card-tier' }, 'CONTRABAND'),
+          h('span', { class: 'shop-card-price' }, `🪙 ${price}c`),
+        ),
+        h(
+          'div',
+          { class: 'shop-card-body' },
+          icon,
+          h(
+            'div',
+            null,
+            h('div', { class: 'shop-card-heading' }, d.name),
+            h('p', { class: 'shop-card-lore' }, d.text),
+          ),
+        ),
       );
     });
     const sells = r.charms.map((id, slot) => {
@@ -1895,7 +2075,7 @@ export class GameApp {
           },
         },
         itemIcon(id),
-        c.cursed ? `${c.name} (cursed)` : `Sell ${c.name} +${sellValue(r, id)}t`,
+        c.cursed ? `${c.name} (CURSED)` : `Pawn ${c.name} (+${sellValue(r, id)}🎟️)`,
       );
     });
     const cost = rerollCost(r);
@@ -1906,34 +2086,43 @@ export class GameApp {
         h('h2', { 'data-slot': 'head' }, 'Vending cabinet'),
         h(
           'div',
-          { class: 'grid' },
-          'Tickets',
-          h('b', null, String(r.tickets)),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Charm slots',
-          h('b', null, `${r.charms.length}/${r.mods.charmSlots}`),
-          'Contraband',
-          h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`),
-        ),
-        h('div', { class: 'col' }, ...charmCards),
-        h('div', { class: 'col' }, ...cbCards),
-        sells.length ? h('div', { class: 'row' }, ...sells) : null,
-        h(
-          'div',
-          { class: 'row' },
+          { class: 'shop-cockpit' },
           h(
-            'button',
-            {
-              disabled: r.pocket < cost,
-              onclick: () => {
-                if (reroll(r)) audio.atmBeep();
-                this.enterShop();
-              },
-            },
-            `Reroll ${cost}c`,
+            'div',
+            { class: 'shop-counters-bar' },
+            h('div', null, 'TICKETS: ', h('b', { class: 'amber-badge' }, `${r.tickets} 🎟️`)),
+            h('div', null, 'POCKET: ', h('b', { class: 'amber-badge' }, `${r.pocket}c 🪙`)),
+            h('div', null, 'SLOTS: ', h('b', null, `${r.charms.length}/${r.mods.charmSlots}`)),
+            h('div', null, 'CONTRABAND: ', h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`)),
           ),
-          h('button', { class: 'primary', onclick: () => this.enterCell() }, 'Done'),
+          h('div', { class: 'shop-section-label' }, 'LUCKY CHARMS (TICKETS)'),
+          h('div', { class: 'shop-charms-grid' }, ...charmCards),
+          cbCards.length ? h('div', { class: 'shop-section-label' }, 'CONTRABAND CACHE (COINS)') : null,
+          cbCards.length ? h('div', { class: 'shop-charms-grid' }, ...cbCards) : null,
+          sells.length
+            ? h(
+                'div',
+                { class: 'shop-pawn-drawer' },
+                h('div', { class: 'shop-section-label' }, 'PAWN & RESALE (REFUND TICKETS)'),
+                h('div', { class: 'shop-pawn-cards' }, ...sells),
+              )
+            : null,
+          h(
+            'div',
+            { class: 'cell-dock' },
+            h(
+              'button',
+              {
+                disabled: r.pocket < cost,
+                onclick: () => {
+                  if (reroll(r)) audio.atmBeep();
+                  this.enterShop();
+                },
+              },
+              `Reroll Shelf (${cost}c)`,
+            ),
+            h('button', { class: 'primary', onclick: () => this.enterCell() }, 'Leave Cabinet'),
+          ),
         ),
       ),
     );
@@ -2053,42 +2242,77 @@ export class GameApp {
       anim: 'count',
       duration: 1.6,
     });
-    const lines: (string | HTMLElement)[] = [];
-    if (o.tilted) lines.push('The machine keeps everything that ball earned.');
-    const grid = h(
-      'div',
-      { class: 'grid' },
-      'Table',
-      h('b', null, `${formatCoins(o.earned)}c`),
-      'Bonus',
-      h('b', null, o.bonus > 0 ? `${formatCoins(o.bonus)}c` : '—'),
-      'Into Pocket',
-      h('b', null, `${res.gained}c`),
-      'Pocket',
-      h('b', null, `${r.pocket}c`),
-      'Balls left',
-      h('b', null, String(ballsLeft(r))),
-    );
-    const notes: HTMLElement[] = [];
-    if (o.extraBalls)
-      notes.push(h('p', { class: 'good' }, `Extra ball: +${o.extraBalls} this round.`));
-    for (const l of o.levelUps)
-      notes.push(h('p', { class: 'good' }, `${l.toUpperCase()} is now level ${r.shotLevels[l]}.`));
-    if (res.jobDone)
-      notes.push(
+    const lines: HTMLElement[] = [
+      h(
+        'div',
+        { class: 'receipt-header' },
+        h('h2', { class: 'receipt-title' }, 'PENITENTIARY LABOR LOG'),
+        h('div', { class: 'receipt-sub' }, `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1} · BALL RECONCILIATION`),
+      ),
+      h(
+        'div',
+        { class: 'receipt-stamp-box' },
         h(
-          'p',
-          { class: 'good' },
-          `Job done: ${jobText(res.jobDone, r.job!.target)}. ${rewardText(res.jobDone, r.deadline)}.`,
+          'span',
+          { class: `receipt-stamp ${o.tilted ? 'tilted' : 'settled'}` },
+          o.tilted ? 'FORFEIT / TILTED' : 'BALL SETTLED',
+        ),
+      ),
+      h(
+        'div',
+        { class: 'receipt-row' },
+        h('span', { class: 'receipt-row-label' }, 'Table Earnings'),
+        h('span', { class: 'receipt-row-dots' }),
+        h('span', { class: 'receipt-row-val' }, `${formatCoins(o.earned)}c`),
+      ),
+      h(
+        'div',
+        { class: 'receipt-row' },
+        h('span', { class: 'receipt-row-label' }, 'Bonus Multiplier'),
+        h('span', { class: 'receipt-row-dots' }),
+        h('span', { class: 'receipt-row-val' }, o.bonus > 0 ? `x${formatCoins(o.bonus)}` : '—'),
+      ),
+      h(
+        'div',
+        { class: 'receipt-row' },
+        h('span', { class: 'receipt-row-label' }, 'Net Credited To Pocket'),
+        h('span', { class: 'receipt-row-dots' }),
+        h('span', { class: 'receipt-row-val highlight' }, `+${res.gained}c`),
+      ),
+      h(
+        'div',
+        { class: 'receipt-row' },
+        h('span', { class: 'receipt-row-label' }, 'Total Inmate Pocket'),
+        h('span', { class: 'receipt-row-dots' }),
+        h('span', { class: 'receipt-row-val' }, `${r.pocket}c`),
+      ),
+      h(
+        'div',
+        { class: 'receipt-row' },
+        h('span', { class: 'receipt-row-label' }, 'Balls Remaining In Rack'),
+        h('span', { class: 'receipt-row-dots' }),
+        h('span', { class: 'receipt-row-val' }, String(ballsLeft(r))),
+      ),
+    ];
+    if (o.extraBalls)
+      lines.push(h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`));
+    for (const l of o.levelUps)
+      lines.push(h('div', { class: 'receipt-alert-box' }, `▲ SHOT UPGRADE: ${l.toUpperCase()} NOW LVL ${r.shotLevels[l]}`));
+    if (res.jobDone)
+      lines.push(
+        h(
+          'div',
+          { class: 'receipt-alert-box' },
+          `★ WORK ORDER COMPLETE: ${jobText(res.jobDone, r.job!.target)} (${rewardText(res.jobDone, r.deadline)})`,
         ),
       );
     else if (r.job && !r.job.done) {
       const def = jobDef(r.job.id);
-      notes.push(
+      lines.push(
         h(
-          'p',
-          { class: 'dim' },
-          `Job: ${jobText(def, r.job.target)} (${formatCoins(r.job.progress)}/${r.job.target})`,
+          'div',
+          { class: 'receipt-sub', style: { textAlign: 'center', marginTop: '6px' } },
+          `Active Job: ${jobText(def, r.job.target)} (${formatCoins(r.job.progress)}/${r.job.target})`,
         ),
       );
     }
@@ -2096,13 +2320,10 @@ export class GameApp {
       h(
         'div',
         { class: 'panel', 'data-skin': 'tally' },
-        h('h2', null, o.tilted ? 'Tilt' : 'Ball over'),
-        ...lines.map((l) => h('p', null, l)),
-        grid,
-        ...notes,
+        ...lines,
         h(
           'div',
-          { class: 'row' },
+          { class: 'cell-dock', style: { marginTop: '8px' } },
           h('button', { class: 'primary', onclick: () => this.afterBall() }, 'Continue'),
           this.replayButton(() => this.finishBallPanelAgain()),
         ),
@@ -2228,37 +2449,74 @@ export class GameApp {
     this.world.setMode('seated');
     const canPay = r.bank >= r.debt;
     const couldPay = r.bank + r.pocket >= r.debt;
+    const shortfall = Math.max(0, r.debt - r.bank);
     this.ui.show(
       h(
         'div',
         { class: 'panel atm', 'data-skin': 'atm' },
-        h('h2', null, `Deadline ${r.deadline + 1}`),
-        h('p', null, 'THE ATM CHIRPS. THE WARDEN IS WAITING.'),
         h(
           'div',
-          { class: 'grid' },
-          'Bank',
-          h('b', null, `${r.bank}c`),
-          'Pocket',
-          h('b', null, `${r.pocket}c`),
-          'Debt',
-          h('b', null, `${r.debt}c`),
-        ),
-        h(
-          'div',
-          { class: 'row' },
+          { class: 'atm-terminal-screen' },
           h(
-            'button',
-            { disabled: r.pocket < 1, onclick: () => this.enterAtm('deadline') },
-            'Deposit',
+            'div',
+            { class: 'atm-header-banner' },
+            h('h2', null, `DEADLINE ${r.deadline + 1} RECONCILIATION`),
+            h(
+              'div',
+              { class: 'atm-header-sub' },
+              canPay
+                ? '★ ACCOUNT SOLVENT: PROCEED WITH REPAYMENT ★'
+                : '⚠️ CRITICAL DEBT SHORTFALL: TRAPDOOR ARMED ⚠️',
+            ),
           ),
-          canPay
-            ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay the debt')
-            : h(
-                'button',
-                { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
-                'Face it',
+          h(
+            'div',
+            { class: 'atm-readouts' },
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Bank Vault Balance'),
+              h('span', { class: 'atm-readout-val green' }, `${r.bank}c`),
+            ),
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Debt Target'),
+              h('span', { class: 'atm-readout-val red' }, `${r.debt}c`),
+            ),
+            h(
+              'div',
+              { class: 'atm-readout-box' },
+              h('span', { class: 'atm-readout-label' }, 'Pocket Cash'),
+              h('span', { class: 'atm-readout-val amber' }, `${r.pocket}c`),
+            ),
+            h(
+              'div',
+              { class: `atm-readout-box ${canPay ? 'status-solvent' : 'status-shortfall'}` },
+              h('span', { class: 'atm-readout-label' }, 'Settlement Status'),
+              h(
+                'span',
+                { class: `atm-readout-val ${canPay ? 'green' : 'red'}` },
+                canPay ? 'READY TO SETTLE' : `SHORTFALL: -${shortfall}c`,
               ),
+            ),
+          ),
+          h(
+            'div',
+            { class: 'cell-dock', style: { marginTop: '10px' } },
+            h(
+              'button',
+              { disabled: r.pocket < 1, onclick: () => this.enterAtm('deadline') },
+              'Make Final Deposit',
+            ),
+            canPay
+              ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay Debt & Settle')
+              : h(
+                  'button',
+                  { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
+                  'Face The Warden',
+                ),
+          ),
         ),
       ),
     );

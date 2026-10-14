@@ -66,17 +66,17 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
     h('div', { class: 'mugs' }, ...cards),
     h(
       'div',
-      { class: 'inmate' },
-      h('b', null, `${d.name}, No. ${d.number}`),
-      h('p', { class: 'dim' }, `Charge: ${d.charge}`),
-      h('p', { class: 'up' }, `+ ${d.upside}`),
-      h('p', { class: 'down' }, `− ${d.downside}`),
+      { class: 'inmate', style: { fontFamily: 'var(--bc-typewriter)', padding: '4px 10px', background: 'rgba(0, 0, 0, 0.04)', border: '1px dashed #84261a', borderRadius: '3px', margin: '4px 0' } },
+      h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.25em', letterSpacing: '0.08em', color: '#291c12' } }, `${d.name.toUpperCase()} · INMATE #${d.number}`),
+      h('p', { class: 'dim', style: { margin: '1px 0 3px', color: '#5a4630', fontSize: '0.9em' } }, `OFFICIAL RECORD: ${d.charge}`),
+      h('p', { class: 'up', style: { color: '#1d5a2c', fontWeight: 'bold', margin: '1px 0', fontSize: '0.92em' } }, `[+] ADVANTAGE: ${d.upside}`),
+      h('p', { class: 'down', style: { color: '#84261a', fontWeight: 'bold', margin: '1px 0', fontSize: '0.92em' } }, `[−] DISADVANTAGE: ${d.downside}`),
     ),
     h(
       'div',
-      { class: 'row' },
+      { class: 'row', style: { justifyContent: 'center', alignItems: 'center', margin: '3px 0' } },
       h('button', { disabled: ht <= 0, onclick: () => on.change({ ...c, hardTime: ht - 1 }) }, '−'),
-      h('span', { class: 'ht' }, `Hard Time ${ht}${maxHt ? ` / ${maxHt}` : ''}`),
+      h('span', { class: 'ht', style: { fontFamily: 'var(--bc-head)', fontSize: '1.15em', letterSpacing: '0.08em', margin: '0 8px' } }, `Hard Time ${ht}${maxHt ? ` / ${maxHt}` : ''}`),
       h(
         'button',
         { disabled: ht >= maxHt, onclick: () => on.change({ ...c, hardTime: ht + 1 }) },
@@ -86,20 +86,21 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
         ? h(
             'button',
             { onclick: () => on.change({ ...c, endless: !c.endless }) },
-            c.endless ? 'Endless: on' : 'Endless: off',
+            c.endless ? 'Endless: ON' : 'Endless: OFF',
           )
         : null,
     ),
     h(
       'div',
-      { class: 'row seed' },
-      h('span', null, 'Seed'),
+      { class: 'row seed', style: { justifyContent: 'center', margin: '3px 0' } },
+      h('span', { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.9em' } }, 'PRISON RUN SEED:'),
       h('input', {
         type: 'text',
         value: c.seed,
         maxlength: 24,
-        placeholder: 'random',
+        placeholder: 'RANDOM',
         spellcheck: 'false',
+        style: { fontFamily: 'var(--bc-typewriter)', textTransform: 'uppercase', padding: '2px 6px' },
         // Typing doesn't re-render (it would steal focus); the choice is read on start.
         oninput: (e: Event) => {
           c.seed = (e.target as HTMLInputElement).value.trim().toUpperCase();
@@ -110,14 +111,14 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
       ? h('ul', { class: 'htlist' }, ...htRows)
       : h(
           'p',
-          { class: 'dim' },
+          { class: 'dim', style: { fontFamily: 'var(--bc-typewriter)', textAlign: 'center', margin: '3px 0', fontSize: '0.85em' } },
           maxHt ? 'No Hard Time.' : 'Win with this inmate to unlock Hard Time.',
         ),
     h(
       'div',
-      { class: 'row' },
+      { class: 'cell-dock', style: { marginTop: '6px' } },
       h('button', { onclick: () => on.back() }, 'Back'),
-      h('button', { class: 'primary', onclick: () => on.start() }, 'Wake up'),
+      h('button', { class: 'primary', onclick: () => on.start() }, 'Wake Up (Enter Cell)'),
     ),
   );
 }

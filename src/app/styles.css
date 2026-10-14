@@ -190,7 +190,7 @@ body {
   color: var(--amber);
   text-align: right;
 }
-.panel.atm {
+.panel.atm:not(.bc-skin) {
   background: #031208;
   border-color: #1f6a35;
   color: var(--atm);
@@ -198,11 +198,11 @@ body {
     0 0 0 4px #000,
     0 0 40px rgba(60, 255, 120, 0.15) inset;
 }
-.panel.atm h2,
-.panel.atm b {
+.panel.atm:not(.bc-skin) h2,
+.panel.atm:not(.bc-skin) b {
   color: var(--atm);
 }
-.panel.atm p {
+.panel.atm:not(.bc-skin) p {
   color: #bfffcf;
 }
 .panel button {
@@ -232,12 +232,12 @@ body {
   border-color: var(--amber);
   color: #fff3d6;
 }
-.panel.atm button {
+.panel.atm:not(.bc-skin) button {
   background: #062a12;
   border-color: #1f6a35;
   color: var(--atm);
 }
-.panel.atm button:hover {
+.panel.atm:not(.bc-skin) button:hover {
   background: #0b4a20;
   outline-color: var(--atm);
 }

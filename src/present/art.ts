@@ -50,11 +50,6 @@ export function releaseArt(id: ArtId): void {
   pending.delete(id);
 }
 
-const idle: (cb: () => void) => void = (cb) =>
-  typeof requestIdleCallback === 'function'
-    ? requestIdleCallback(() => cb(), { timeout: 2000 })
-    : void setTimeout(cb, 50);
-
 /**
  * Load what the title screen and the machine need now, then the rest one file at a time
  * while the browser is idle, and ask the service worker to keep all of it for offline play.
@@ -71,15 +66,10 @@ export function startArtLoad(): void {
     });
   void Promise.all(ART_CRITICAL.map(loadArt)).then(() => {
     const rest = (Object.keys(ART) as ArtId[]).filter((id) => !ART_CRITICAL.includes(id));
-    const next = (): void => {
-      const id = rest.shift();
-      if (!id) {
-        keepOffline();
-        return;
-      }
-      idle(() => void loadArt(id).then(next));
-    };
-    next();
+    for (const id of rest) {
+      void loadArt(id);
+    }
+    keepOffline();
   });
 }
 

@@ -4,13 +4,20 @@
  * decoded (or when the viewport is too small for it) the plain look stays, with the same DOM.
  */
 :root {
-  --bc-bone: #f2dfb2;
+  --bc-bone: #f4e8cc;
+  --bc-paper: #e5d4ab;
   --bc-amber: #ffb24a;
+  --bc-gold: #ffd27a;
   --bc-green: #a8f6b5;
+  --bc-crt-green: #72ff99;
   --bc-red: #e2533e;
+  --bc-blood: #84261a;
   --bc-sans: 'Inter', system-ui, 'Segoe UI', Arial, sans-serif;
-  --bc-head: 'Oswald', Impact, 'Arial Narrow', sans-serif;
+  --bc-head: 'Bebas Neue', 'Oswald', Impact, sans-serif;
   --bc-mono: 'VT323', 'Courier New', monospace;
+  --bc-crt: 'VT323', 'Courier New', monospace;
+  --bc-typewriter: 'Special Elite', 'Courier New', monospace;
+  --bc-stencil: 'Saira Stencil One', Impact, sans-serif;
 }
 
 /* Frames size themselves against the overlay, not the page. */
@@ -29,7 +36,7 @@
   isolation: isolate;
   container-type: inline-size;
   aspect-ratio: var(--bc-ratio);
-  background: transparent var(--bc-image) center / 100% 100% no-repeat;
+  background: transparent var(--bc-image) center / 100% 100% no-repeat !important;
   color: var(--bc-ink);
   font-family: var(--bc-sans);
   text-transform: none;
@@ -42,8 +49,9 @@
   max-height: none;
   padding: 0;
   overflow: visible;
-  border: 0;
-  box-shadow: none;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent var(--bc-image) center / 100% 100% no-repeat !important;
   filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.7));
 }
 .bc-skin > .bc-skin__content {
@@ -148,7 +156,7 @@
   scroll-padding-bottom: 4.6em;
 }
 .panel.bc-skin.bc-dense.bc-light > .bc-skin__content {
-  --bc-fade: 229, 212, 171;
+  --bc-fade: 236, 224, 198;
 }
 .panel.bc-skin.bc-dense.atm > .bc-skin__content {
   --bc-fade: 7, 20, 11;
@@ -158,8 +166,8 @@
   bottom: 0;
   z-index: 1;
   margin: 0;
-  padding: 1.2em 0 2px;
-  background: linear-gradient(to top, rgba(var(--bc-fade), 0.92) 40%, rgba(var(--bc-fade), 0));
+  padding: 0.5em 0 2px;
+  background: linear-gradient(to top, rgba(var(--bc-fade), 0.88) 15%, transparent);
 }
 
 /* ---- palettes: the stylesheet's colour variables follow the art underneath */
@@ -257,66 +265,100 @@
   margin: 6px 0;
 }
 
-/* The CRT: green phosphor type, VT323 numerals. */
+/* The CRT: green phosphor type, VT323 numerals, scanlines & bloom */
 .panel.atm.bc-skin > .bc-skin__content {
-  font-family: var(--bc-mono);
-  font-size: clamp(1rem, calc(2.1cqw * var(--text-scale)), 1.9rem);
-  line-height: 1.2;
-  text-shadow: 0 0 6px rgba(120, 255, 170, 0.45);
+  font-family: var(--bc-crt);
+  font-size: clamp(1.05rem, calc(2.2cqw * var(--text-scale)), 1.95rem);
+  line-height: 1.25;
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 6px rgba(114, 255, 153, 0.55), 0 0 1px #a8f6b5;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(18, 48, 25, 0.22) 0%, rgba(2, 14, 6, 0.78) 100%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.22) 0px,
+      rgba(0, 0, 0, 0.22) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+  padding: 10px 16px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.85);
+  box-sizing: border-box;
 }
 .panel.atm.bc-skin > .bc-skin__content h2 {
-  font-family: var(--bc-mono);
+  font-family: var(--bc-crt);
   font-weight: 400;
   font-size: 1.5em;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 8px rgba(114, 255, 153, 0.7);
+  margin-bottom: 0.2em;
 }
 .panel.bc-skin.red > .bc-skin__content h2 {
   color: #ff7a5a;
+  text-shadow: 0 0 8px rgba(255, 122, 90, 0.7);
 }
 
 /* ---- buttons: the plate, with state treatments in CSS */
 .panel button {
+  font-family: var(--bc-head);
+  font-size: clamp(0.95rem, calc(1.7cqw * var(--text-scale)), 1.35rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--bc-bone);
   background-color: #172119;
   background-image: var(--bc-button-image, none);
-  background-size: 100% 150%;
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
-  border: 1px solid rgba(0, 0, 0, 0.55);
-  border-radius: 6px;
-  padding-left: 20px;
-  padding-right: 20px;
-  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  padding: 8px 18px;
+  min-height: 40px;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.7),
+    0 3px 6px rgba(0, 0, 0, 0.5);
   text-shadow: 0 1px 2px #000;
   transition:
-    filter 0.12s,
-    transform 0.12s;
+    filter 0.1s ease,
+    transform 0.08s ease,
+    box-shadow 0.1s ease;
 }
 .panel button:hover {
-  background-color: #172119;
-  filter: brightness(1.2);
+  filter: brightness(1.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 12px rgba(255, 178, 74, 0.4);
 }
 .panel button:focus-visible {
-  background-color: #172119;
-  filter: brightness(1.2);
-  outline: 3px solid var(--bc-amber);
-  outline-offset: 3px;
+  filter: brightness(1.25);
+  outline: 2px solid var(--bc-amber);
+  outline-offset: 2px;
 }
 .panel button:active:not(:disabled) {
   filter: brightness(0.85);
-  transform: translateY(1px);
+  transform: translateY(2px) scale(0.98);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.4);
 }
 .panel button:disabled {
-  opacity: 0.5;
-  filter: saturate(0.4);
+  opacity: 0.45;
+  filter: saturate(0.3) brightness(0.8);
+  cursor: not-allowed;
 }
 .panel button.primary {
   background-color: #172119;
   border-color: var(--bc-amber);
-  color: #fff3d6;
+  color: #fff6e2;
   box-shadow:
-    inset 0 0 0 2px var(--bc-amber),
-    0 0 14px rgba(255, 178, 74, 0.3);
+    inset 0 0 0 1px var(--bc-amber),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 16px rgba(255, 178, 74, 0.45);
 }
 .panel button[aria-pressed='true'],
 .panel button[aria-current],
@@ -335,7 +377,7 @@
   background-color: #2c3a22;
 }
 .panel button.charmcard.glow {
-  box-shadow: 0 0 12px rgba(255, 200, 80, 0.55);
+  box-shadow: 0 0 14px rgba(255, 200, 80, 0.65);
 }
 
 /* ---- the jobs board: a plaque over three tickets */
@@ -365,10 +407,11 @@
 .panel.jobs:has(button.bc-skin) {
   width: min(1180px, 96vw);
   max-width: none;
-  background: none;
-  border: 0;
-  box-shadow: none;
-  padding: 4px;
+  background: radial-gradient(ellipse at center, rgba(14, 20, 15, 0.92) 20%, rgba(6, 10, 7, 0.97) 100%);
+  border: 1px solid rgba(85, 105, 88, 0.5);
+  border-radius: 6px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), inset 0 0 40px rgba(0, 0, 0, 0.6);
+  padding: 14px 18px 18px;
 }
 .panel.jobs:has(button.bc-skin) > p {
   text-align: center;
@@ -424,29 +467,663 @@ button.bc-skin.bc-s-jobs.key {
 button.bc-skin.bc-s-jobs > .bc-skin__content {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 0.2em;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: 3% 5%;
   position: absolute;
   left: calc(var(--bc-x) * 100%);
   top: calc(var(--bc-y) * 100%);
   width: calc(var(--bc-w) * 100%);
   height: calc(var(--bc-h) * 100%);
   overflow: hidden;
-  font-size: clamp(0.72rem, calc(4.4cqw * var(--text-scale)), 1.2rem);
+  font-size: clamp(0.75rem, calc(4.2cqw * var(--text-scale)), 1.25rem);
   line-height: 1.25;
   text-shadow: none;
 }
 button.bc-skin.bc-s-jobs b {
+  font-family: var(--bc-typewriter);
   font-weight: 700;
+  font-size: 1.15em;
   color: var(--bc-ink);
+  line-height: 1.2;
 }
 button.bc-skin.bc-s-jobs small {
+  font-family: var(--bc-typewriter);
   opacity: 1;
-  font-size: 0.82em;
-  color: #5a4630;
+  font-size: 0.88em;
+  color: #84261a;
+  font-weight: 600;
 }
 button.bc-skin.bc-s-jobs.key b {
   color: #84261a;
+}
+.ticket-head {
+  font-family: var(--bc-typewriter);
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  color: #84261a;
+  opacity: 0.85;
+  text-transform: uppercase;
+  border-bottom: 1px dashed rgba(132, 38, 26, 0.4);
+  padding-bottom: 2px;
+}
+.ticket-task {
+  font-family: var(--bc-typewriter);
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #291c12;
+  margin: auto 0;
+  line-height: 1.2;
+}
+.ticket-seal {
+  font-family: var(--bc-typewriter);
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #84261a;
+  background: rgba(132, 38, 26, 0.08);
+  border: 1px dashed #84261a;
+  border-radius: 2px;
+  padding: 2px 6px;
+  display: inline-block;
+  align-self: flex-start;
+  transform: rotate(-0.5deg);
+}
+
+/* ==========================================================================
+   CLOVERPIT DIEGETIC UI: THE CELL DASHBOARD
+   ========================================================================== */
+.cell-cockpit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+.cell-cockpit-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid rgba(255, 178, 74, 0.35);
+  padding-bottom: 4px;
+}
+.cell-cockpit-title {
+  font-family: var(--bc-head);
+  font-size: 1.45em;
+  letter-spacing: 0.1em;
+  color: var(--bc-amber);
+  margin: 0;
+  text-shadow: 0 0 6px rgba(255, 178, 74, 0.4);
+}
+.cell-cockpit-prog {
+  font-family: var(--bc-crt);
+  font-size: 1.15em;
+  letter-spacing: 0.08em;
+  color: var(--bc-bone);
+  opacity: 0.9;
+}
+.cell-gauges-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.cell-gauge-box {
+  background: rgba(10, 16, 12, 0.85);
+  border: 1px solid rgba(85, 105, 88, 0.6);
+  border-radius: 4px;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.85);
+  padding: 6px 8px;
+  text-align: center;
+}
+.cell-gauge-label {
+  font-size: 0.72em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a49477;
+  font-family: var(--bc-sans);
+}
+.cell-gauge-val {
+  font-family: var(--bc-head);
+  font-size: 1.65em;
+  line-height: 1.1;
+  font-weight: bold;
+}
+.cell-gauge-val.amber {
+  color: var(--bc-amber);
+  text-shadow: 0 0 8px rgba(255, 178, 74, 0.55);
+}
+.cell-gauge-val.green {
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 8px rgba(114, 255, 153, 0.55);
+}
+.cell-gauge-val.red {
+  color: var(--bc-red);
+  text-shadow: 0 0 8px rgba(226, 83, 62, 0.55);
+}
+.cell-gauge-val.balls {
+  color: #fff4d8;
+  letter-spacing: 0.08em;
+}
+.cell-gauge-pips {
+  font-size: 0.75em;
+  letter-spacing: 0.15em;
+  color: var(--bc-amber);
+}
+
+.cell-order-banner {
+  background: rgba(28, 22, 14, 0.88);
+  border: 1px solid rgba(143, 58, 18, 0.7);
+  border-radius: 4px;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.cell-order-title {
+  font-family: var(--bc-head);
+  font-size: 1.15em;
+  letter-spacing: 0.06em;
+  color: var(--bc-bone);
+}
+.cell-order-status {
+  font-family: var(--bc-crt);
+  font-size: 1.1em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 178, 74, 0.4);
+  color: var(--bc-amber);
+  flex-shrink: 0;
+}
+.cell-order-status.done {
+  border-color: var(--bc-crt-green);
+  color: var(--bc-crt-green);
+  background: rgba(14, 52, 22, 0.75);
+  text-shadow: 0 0 6px rgba(114, 255, 153, 0.6);
+}
+
+.cell-equipment-rack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cell-rack-hdr {
+  font-family: var(--bc-head);
+  font-size: 0.92em;
+  letter-spacing: 0.12em;
+  color: #a49477;
+  text-transform: uppercase;
+}
+.cell-rack-shelf {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 38px;
+}
+.cell-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(18, 24, 19, 0.92);
+  border: 2px solid;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: var(--bc-head);
+  font-size: 1.05em;
+  letter-spacing: 0.05em;
+  color: var(--bc-bone);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.cell-token .icon {
+  font-size: 1.35em;
+  margin: 0;
+}
+
+.cell-contraband-shelf {
+  background: rgba(14, 18, 15, 0.75);
+  border: 1px dashed rgba(100, 115, 95, 0.55);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.cell-contraband-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.cell-contraband-row button {
+  font-size: 0.9em;
+  padding: 4px 10px;
+  min-height: 32px;
+}
+
+.cell-warning-strip {
+  background: rgba(132, 38, 26, 0.22);
+  border: 1px solid #84261a;
+  border-left: 4px solid var(--bc-red);
+  padding: 4px 10px;
+  font-family: var(--bc-typewriter);
+  font-size: 0.88em;
+  color: #ff9a88;
+}
+
+.cell-dock {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid rgba(80, 95, 82, 0.35);
+}
+.cell-dock button.play-ball-btn {
+  font-size: 1.3em;
+  padding: 10px 28px;
+}
+
+/* ==========================================================================
+   CLOVERPIT DIEGETIC UI: THE ATM SCREEN
+   ========================================================================== */
+.atm-terminal-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 2px 4px;
+}
+.atm-header-banner {
+  text-align: center;
+  border-bottom: 1px dashed rgba(114, 255, 153, 0.4);
+  padding-bottom: 2px;
+}
+.atm-header-banner h2 {
+  font-family: var(--bc-crt);
+  font-size: 1.4em;
+  letter-spacing: 0.12em;
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 8px rgba(114, 255, 153, 0.7);
+  margin: 0;
+}
+.atm-header-sub {
+  font-size: 0.74em;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+.atm-readouts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.atm-readout-box {
+  background: rgba(3, 16, 7, 0.88);
+  border: 1px solid rgba(114, 255, 153, 0.35);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.85);
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.atm-readout-label {
+  font-size: 0.72em;
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+.atm-readout-val {
+  font-size: 1.35em;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+.atm-readout-val.amber {
+  color: var(--bc-amber);
+  text-shadow: 0 0 8px rgba(255, 178, 74, 0.6);
+}
+.atm-readout-val.green {
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 8px rgba(114, 255, 153, 0.7);
+}
+.atm-readout-val.red {
+  color: var(--bc-red);
+  text-shadow: 0 0 8px rgba(226, 83, 62, 0.7);
+}
+.atm-readout-box.status-solvent {
+  border-color: var(--bc-crt-green);
+  background: rgba(6, 30, 14, 0.9);
+}
+.atm-readout-box.status-shortfall {
+  border-color: var(--bc-red);
+  background: rgba(30, 6, 6, 0.9);
+}
+
+.atm-keypad-panel {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 2px 0;
+}
+.atm-keypad-panel button {
+  font-family: var(--bc-crt);
+  font-size: 1.15em;
+  letter-spacing: 0.08em;
+  background-color: #0b2210;
+  border-color: #1f6a35;
+  color: var(--bc-crt-green);
+  box-shadow: inset 0 0 5px rgba(114, 255, 153, 0.25), 0 2px 4px #000;
+  padding: 4px 12px;
+  min-width: 50px;
+}
+.atm-keypad-panel button:hover {
+  background-color: #143e1d;
+  box-shadow: 0 0 10px rgba(114, 255, 153, 0.5);
+}
+
+.atm-credit-facility {
+  background: rgba(4, 18, 9, 0.8);
+  border: 1px dashed rgba(114, 255, 153, 0.35);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.atm-credit-hdr {
+  font-size: 0.74em;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.atm-credit-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.atm-credit-btns button {
+  font-family: var(--bc-crt);
+  font-size: 1em;
+  background-color: #102a16;
+  border-color: #1f6a35;
+  color: var(--bc-crt-green);
+  padding: 3px 8px;
+}
+
+/* ==========================================================================
+   CLOVERPIT DIEGETIC UI: VENDING CABINET & CHARM SHELVES
+   ========================================================================== */
+.shop-cockpit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+}
+.shop-counters-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  background: rgba(8, 14, 10, 0.85);
+  border: 1px solid rgba(100, 115, 95, 0.45);
+  border-radius: 3px;
+  padding: 4px 8px;
+  text-align: center;
+  font-family: var(--bc-head);
+  letter-spacing: 0.08em;
+  font-size: 1.05em;
+}
+.shop-counters-bar .amber-badge {
+  color: var(--bc-amber);
+}
+.shop-section-label {
+  font-family: var(--bc-head);
+  font-size: 1.05em;
+  letter-spacing: 0.1em;
+  color: #a49477;
+  text-transform: uppercase;
+  margin: 4px 0 2px;
+}
+.shop-charms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+  gap: 8px;
+}
+.shop-card-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  background-color: #172219 !important;
+  background-image: none !important;
+  border: 2px solid #5a5440;
+  border-radius: 4px;
+  padding: 8px 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+  min-height: 85px;
+}
+.shop-card-tile:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.18);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.7);
+}
+.shop-card-tile.synergy-glow {
+  box-shadow: 0 0 14px rgba(255, 178, 74, 0.55);
+  border-color: var(--bc-amber) !important;
+}
+.shop-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.shop-card-tier {
+  font-family: var(--bc-head);
+  font-size: 0.75em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.shop-card-price {
+  font-family: var(--bc-head);
+  font-size: 0.92em;
+  letter-spacing: 0.06em;
+  color: var(--bc-amber);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 178, 74, 0.4);
+}
+.shop-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.shop-card-body .icon {
+  font-size: 2.2em;
+  flex-shrink: 0;
+  margin: 0;
+}
+.shop-card-heading {
+  font-family: var(--bc-head);
+  font-size: 1.15em;
+  letter-spacing: 0.05em;
+  color: var(--bc-bone);
+  line-height: 1.1;
+}
+.shop-card-lore {
+  font-size: 0.8em;
+  line-height: 1.25;
+  color: #b5aa93;
+  margin: 0;
+}
+.shop-synergy-tag {
+  display: inline-block;
+  font-family: var(--bc-head);
+  font-size: 0.7em;
+  letter-spacing: 0.08em;
+  color: #ffd27a;
+  background: rgba(143, 58, 18, 0.5);
+  border: 1px solid var(--bc-amber);
+  border-radius: 2px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+.shop-pawn-drawer {
+  background: rgba(12, 16, 13, 0.85);
+  border: 1px solid rgba(80, 70, 50, 0.6);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.shop-pawn-cards {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.shop-pawn-cards button {
+  font-size: 0.9em;
+  padding: 4px 10px;
+}
+
+.panel.shop > .bc-skin__content {
+  scroll-padding-bottom: 56px;
+}
+.shop-cockpit > .cell-dock {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to top, rgba(10, 16, 12, 0.98) 75%, rgba(10, 16, 12, 0.4) 90%, transparent);
+  z-index: 5;
+  margin-top: auto;
+  padding: 8px 0 2px;
+}
+
+/* ==========================================================================
+   CLOVERPIT DIEGETIC UI: BALL RECONCILIATION RECEIPT
+   ========================================================================== */
+.panel.bc-skin.bc-s-tally > .bc-skin__content {
+  font-family: var(--bc-typewriter);
+  color: #291c12;
+  padding: 8px 14px;
+}
+.receipt-header {
+  text-align: center;
+  border-bottom: 2px solid #84261a;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.receipt-title {
+  font-family: var(--bc-typewriter);
+  font-size: 1.2em;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  color: #84261a;
+  margin: 0;
+}
+.receipt-sub {
+  font-size: 0.78em;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+.receipt-stamp-box {
+  text-align: center;
+  margin: 6px 0;
+}
+.receipt-stamp {
+  display: inline-block;
+  border: 3px solid;
+  border-radius: 4px;
+  padding: 4px 14px;
+  font-family: var(--bc-head);
+  font-size: 1.5em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.receipt-stamp.settled {
+  border-color: #1d5a2c;
+  color: #1d5a2c;
+  background: rgba(29, 90, 44, 0.08);
+}
+.receipt-stamp.tilted {
+  border-color: #84261a;
+  color: #84261a;
+  background: rgba(132, 38, 26, 0.1);
+  transform: rotate(3deg);
+}
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.95em;
+  line-height: 1.45;
+  margin: 2px 0;
+}
+.receipt-row-label {
+  flex-shrink: 0;
+}
+.receipt-row-dots {
+  flex-grow: 1;
+  border-bottom: 1px dotted rgba(41, 28, 18, 0.4);
+  margin: 0 6px;
+  height: 0.9em;
+}
+.receipt-row-val {
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.receipt-row-val.highlight {
+  color: #84261a;
+  font-size: 1.1em;
+}
+.receipt-alert-box {
+  background: rgba(29, 90, 44, 0.08);
+  border: 1px dashed #1d5a2c;
+  color: #1d5a2c;
+  padding: 4px 8px;
+  font-size: 0.85em;
+  margin: 4px 0;
+  border-radius: 2px;
+}
+
+/* ==========================================================================
+   CLOVERPIT DIEGETIC UI: OCCULT RED PHONE BARGAINS
+   ========================================================================== */
+.panel.red.bc-skin > .bc-skin__content {
+  background: radial-gradient(circle at center, rgba(60, 10, 8, 0.35) 0%, rgba(14, 2, 2, 0.85) 100%);
+  text-shadow: 0 0 8px rgba(226, 83, 62, 0.5);
+  box-shadow: inset 0 0 35px rgba(226, 83, 62, 0.25);
+}
+.red-bargain-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(20, 4, 4, 0.88) !important;
+  border: 2px solid rgba(226, 83, 62, 0.6) !important;
+  border-radius: 4px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.red-bargain-box:hover {
+  transform: translateY(-2px);
+  border-color: #ff5238 !important;
+  box-shadow: 0 0 16px rgba(226, 83, 62, 0.6);
+}
+.red-bargain-name {
+  font-family: var(--bc-head);
+  font-size: 1.3em;
+  letter-spacing: 0.08em;
+  color: #ff8470;
+}
+.red-bargain-gain {
+  font-family: var(--bc-typewriter);
+  font-size: 0.95em;
+  color: #ffd27a;
+  text-shadow: 0 0 6px rgba(255, 210, 122, 0.4);
+}
+.red-bargain-cost {
+  font-family: var(--bc-typewriter);
+  font-size: 0.9em;
+  color: #ff5a4a;
+  border-top: 1px dashed rgba(226, 83, 62, 0.4);
+  padding-top: 3px;
+  margin-top: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
