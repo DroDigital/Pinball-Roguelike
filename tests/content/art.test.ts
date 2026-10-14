@@ -1,42 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   ART,
   ART_CRITICAL,
-  ART_DIR,
-  ART_FILES,
-  ATLAS,
-  ATLAS_ICONS,
   BACKGLASS_LEVEL_RECT,
   DENSE_SCREENS,
+  HEAD_RECT,
   SCREEN_ART,
   type ArtId,
 } from '../../src/content/art';
 import { CHARMS } from '../../src/content/charms';
 import { CONTRABAND } from '../../src/content/contraband';
+import { ICON_BODIES } from '../../src/app/icon-paths';
 
-const dir = join(__dirname, '../../public', ART_DIR);
-
-/** Width and height from a PNG's IHDR chunk, plus whether it has an alpha channel. */
-function pngInfo(file: string): { width: number; height: number; alpha: boolean } {
-  const b = readFileSync(join(dir, file));
-  expect(b.subarray(1, 4).toString('ascii'), `${file} is a PNG`).toBe('PNG');
-  const colorType = b[25];
-  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), alpha: colorType === 6 };
-}
-
-describe('art pack', () => {
+describe('artwork data', () => {
   const ids = Object.keys(ART) as ArtId[];
 
-  it('has all 25 files, at the sizes the data says', () => {
-    expect(ids).toHaveLength(25);
+  it('has positive dimensions for all artwork', () => {
     for (const id of ids) {
       const a = ART[id];
-      expect(existsSync(join(dir, a.file)), a.file).toBe(true);
-      const info = pngInfo(a.file);
-      expect([info.width, info.height], a.file).toEqual([a.width, a.height]);
-      expect(info.alpha, `${a.file} transparency`).toBe(a.transparent);
+      expect(a.width, `${id} width`).toBeGreaterThan(0);
+      expect(a.height, `${id} height`).toBeGreaterThan(0);
+      expect(Number.isInteger(a.width)).toBe(true);
+      expect(Number.isInteger(a.height)).toBe(true);
     }
   });
 
@@ -47,6 +32,8 @@ describe('art pack', () => {
       const [x, y, w, h] = c;
       expect(x, id).toBeGreaterThanOrEqual(0);
       expect(y, id).toBeGreaterThanOrEqual(0);
+      expect(w, id).toBeGreaterThan(0);
+      expect(h, id).toBeGreaterThan(0);
       expect(x + w, id).toBeLessThanOrEqual(1);
       expect(y + h, id).toBeLessThanOrEqual(1);
     }
@@ -59,7 +46,17 @@ describe('art pack', () => {
     }
     for (const s of DENSE_SCREENS) expect(SCREEN_ART[s], s).toBeDefined();
     for (const id of ART_CRITICAL) expect(ART[id], id).toBeDefined();
-    expect(new Set(ART_FILES).size).toBe(ART_FILES.length);
+  });
+
+  it('keeps all head rects inside the canvas', () => {
+    for (const [screen, rect] of Object.entries(HEAD_RECT)) {
+      if (!rect) continue;
+      const [x, y, w, h] = rect;
+      expect(x, `${screen} head x`).toBeGreaterThanOrEqual(0);
+      expect(y, `${screen} head y`).toBeGreaterThanOrEqual(0);
+      expect(x + w, `${screen} head x+w`).toBeLessThanOrEqual(1);
+      expect(y + h, `${screen} head y+h`).toBeLessThanOrEqual(1);
+    }
   });
 
   it('keeps the live level strip inside the backglass', () => {
@@ -69,32 +66,19 @@ describe('art pack', () => {
   });
 });
 
-describe('icon atlas', () => {
-  const info = pngInfo(ART['ui/charm-icon-atlas'].file);
-
-  it('is the grid the data says', () => {
-    expect(info.width).toBe(ATLAS.columns * ATLAS.cellWidth);
-    expect(info.height).toBe(ATLAS.rows * ATLAS.cellHeight);
+describe('svg item icons', () => {
+  it('has an svg icon for every charm and contraband item', () => {
+    for (const charm of CHARMS) {
+      expect(ICON_BODIES[charm.id], `icon for charm ${charm.id}`).toBeDefined();
+      expect(ICON_BODIES[charm.id].length).toBeGreaterThan(10);
+    }
+    for (const item of CONTRABAND) {
+      expect(ICON_BODIES[item.id], `icon for contraband ${item.id}`).toBeDefined();
+      expect(ICON_BODIES[item.id].length).toBeGreaterThan(10);
+    }
   });
 
-  it('names real content ids and keeps each source rect inside its own cell', () => {
-    const ids = Object.keys(ATLAS_ICONS);
-    expect(ids).toHaveLength(ATLAS.columns * ATLAS.rows);
-    const taken = new Set<string>();
-    for (const id of ids) {
-      const icon = ATLAS_ICONS[id];
-      const known =
-        icon.kind === 'charm'
-          ? CHARMS.some((c) => c.id === id)
-          : CONTRABAND.some((c) => c.id === id);
-      expect(known, `${id} is a ${icon.kind}`).toBe(true);
-      const [x, y, w, h] = icon.source;
-      const col = Math.floor(x / ATLAS.cellWidth);
-      const row = Math.floor(y / ATLAS.cellHeight);
-      expect(Math.floor((x + w - 1) / ATLAS.cellWidth), `${id} column`).toBe(col);
-      expect(Math.floor((y + h - 1) / ATLAS.cellHeight), `${id} row`).toBe(row);
-      taken.add(`${col},${row}`);
-    }
-    expect(taken.size, 'one icon per cell').toBe(ids.length);
+  it('includes wardensKeyring for the Keys resource', () => {
+    expect(ICON_BODIES['wardensKeyring']).toBeDefined();
   });
 });

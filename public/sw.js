@@ -1,11 +1,7 @@
 // Offline support: precache the app shell, its hashed assets and their fonts on install, serve
 // them cache-first, and fetch pages network-first so a new build is picked up when online.
-// The art pack (public/assets/ball-and-chain/images, ~63 MB) is too big to hold up install:
-// the page asks for it to be kept once it has loaded it (see 'warm-art'), and anything the
-// page fetches is cached as it goes.
-// Bump the version when the shell changes shape or a pack image is replaced under the same name.
-const CACHE = 'ball-and-chain-v2';
-const ART_PATH = '/assets/ball-and-chain/images/';
+// Bump the version when the shell changes shape.
+const CACHE = 'ball-and-chain-v3';
 const SHELL = [
   './',
   './index.html',
@@ -42,26 +38,6 @@ self.addEventListener('activate', (e) => {
     (async () => {
       for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
       await self.clients.claim();
-    })(),
-  );
-});
-
-// The page tells us which art files to hold for offline play, once it has loaded them.
-self.addEventListener('message', (e) => {
-  if (e.data?.type !== 'warm-art' || !Array.isArray(e.data.urls)) return;
-  e.waitUntil(
-    (async () => {
-      const cache = await caches.open(CACHE);
-      for (const u of e.data.urls) {
-        const url = new URL(String(u), location.href);
-        if (url.origin !== location.origin || !url.pathname.includes(ART_PATH)) continue;
-        if (await cache.match(url.href)) continue;
-        try {
-          await cache.add(url.href);
-        } catch {
-          // Offline or evicted: the next visit asks again.
-        }
-      }
     })(),
   );
 });

@@ -16,7 +16,7 @@ import {
   type Rect,
   type ScreenKey,
 } from '../content/art';
-import { artUrl, loadArt, readyArt } from '../present/art';
+import { loadArt, readyArt } from '../present/art';
 
 /** Dark ink on light paper; the stylesheet switches palette on this. */
 const PAPER_INK = '#291c12';
@@ -78,23 +78,30 @@ function skinOne(el: HTMLElement): void {
   setRect(el, 'bc-', art.content!);
   el.style.setProperty('--bc-ratio', `${art.width} / ${art.height}`);
   el.style.setProperty('--bc-ratio-n', String(art.width / art.height));
-  // How much of the canvas is empty above and below the print (frames laid out in a stack trim it).
-  el.style.setProperty('--bc-vt', String(art.visible[1] / art.height));
-  el.style.setProperty('--bc-vb', String((art.height - art.visible[3]) / art.height));
+  el.style.setProperty('--bc-vt', '0');
+  el.style.setProperty('--bc-vb', '0');
   el.style.setProperty('--bc-ink', art.ink);
-  el.style.setProperty('--bc-image', `url("${artUrl(art.file)}")`);
+  const img = readyArt(id);
+  if (img) el.style.setProperty('--bc-image', `url("${img.src}")`);
   el.classList.add(`bc-s-${key}`);
   if (art.ink === PAPER_INK) el.classList.add('bc-light');
   if (DENSE_SCREENS.has(key)) el.classList.add('bc-dense');
 
   refit(el);
-  if (!readyArt(id)) void loadArt(id).then(() => refit(el));
+  if (!img) {
+    void loadArt(id).then((loaded) => {
+      if (loaded) el.style.setProperty('--bc-image', `url("${loaded.src}")`);
+      refit(el);
+    });
+  }
 }
 
 function refit(el: HTMLElement): void {
   const key = keyOf(el);
   if (!key) return;
-  el.classList.toggle('bc-skin', readyArt(SCREEN_ART[key]) !== null && fits(key));
+  const img = readyArt(SCREEN_ART[key]);
+  if (img) el.style.setProperty('--bc-image', `url("${img.src}")`);
+  el.classList.toggle('bc-skin', img !== null && fits(key));
 }
 
 export type HudLayout = 'landscape' | 'portrait' | 'plain';

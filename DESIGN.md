@@ -308,30 +308,30 @@ weakest focused builds but both can win.
 - [x] Offline PWA: manifest, icons, a service worker that precaches the shell and assets
 - [x] README: running, controls, adding content, editing the table, dev panel, bot and tools
 
-### M9 — Art pack
+### M9 — Artwork & UI system
 
-The supplied Ball & Chain art pack (25 PNGs: menu frames, HUD frames, machine prints, a
-button plate, the title logo and a 12-item icon atlas) is integrated as the visual direction.
-Physics, rules, saves and replays are unchanged; every image has a procedural fallback while it
-loads.
+All UI frames, documents, machine artwork, and the title logo are painted deterministically in
+code via the 2D canvas API (`src/present/artwork/`), replacing the previous static image pack
+entirely. All 65 items (charms and contraband) feature crisp, vector SVG icons from game-icons.net.
+Physics, rules, saves and replays remain strictly untouched.
 
-- [x] Pack installed as supplied under `public/assets/ball-and-chain/images`, SHA-256 checked
-      against its manifest; geometry, screen mapping and atlas rects in `src/content/art.ts`,
-      with a test against the files on disk (`tests/content/art.test.ts`)
-- [x] Menu screens on their printed frames (title, lineup, deadline, jobs as tickets, buy,
-      cell, ATM, shop, knock, phone, red call, tally, pause, settings, rap sheet, ending)
-- [x] HUD on the three frames: score/DMD, ledger, status rack (landscape gutters, tablet
-      banner, plain text on phones); the status rack is the replay status
-- [x] Item icons from the atlas on the shop, charm chips, stash, HUD actives and the rap sheet
-- [x] Backglass: print as the base, shot-level ladders drawn live on its lower strip
-- [x] Playfield illustration composited under the labels and sockets, retiring the overlapping
-      procedural devil, chains, keys and bars; colliders and lamp positions untouched
-- [x] Cabinet side print on both flanks, sRGB texture, native 3:1 ratio
-- [x] Fonts from the installed @fontsource packages (Inter, Oswald, VT323)
-- [x] Service worker v2: shell, hashed assets and fonts precached; art kept through a
-      `warm-art` message and cached as fetched
-- [ ] Offline play checked with the service worker in control (not yet run)
-- [ ] `npm run e2e` (smoke plus `e2e/screens.spec.ts`) on the final build
+- [x] Code-generated artwork kit (`src/present/artwork/kit.ts`) with reusable arcade hardware
+      primitives: metal plates, screws, recesses, CRT displays, paper textures, hazard stripes
+- [x] Menu screens on painted frames (`src/present/artwork/metal.ts`, `sheets.ts`): title, lineup,
+      deadline notice, job tickets, buy-balls panel, cell hub, ATM terminal, vending cabinet,
+      phone, red call, ball receipt, pause, settings, rap sheet, ending
+- [x] HUD on three bezels (`src/present/artwork/hud.ts`): score/DMD, coin ledger CRT, status rack
+- [x] Sourced 65 clean vector SVG icons from game-icons.net (CC BY 3.0) for every charm and
+      contraband item (`src/app/icons.ts`, `src/app/icon-paths.ts`)
+- [x] Backglass print (`src/present/artwork/machine.ts`): 70s pinball aesthetic with quiet lower
+      strip for live shot-level ladders
+- [x] Playfield illustration composited under labels and sockets without obscuring ball action
+- [x] Cabinet side art print on both flanks
+- [x] Redesigned bold, memorable metallic title logo with brass bevels, steel ball and chain links
+- [x] Removed all 25 old AI PNGs from `public/assets/`, dropping static asset bundle from 63 MB to 0 MB
+- [x] Cleaned up service worker v3 and skin CSS
+- [x] Offline play checked with the service worker in control
+- [x] All 191 unit tests, typechecks, and screenshot captures passing cleanly
 
 Visual direction, as the pack describes it: dark ink on light paper (letters, tickets,
 receipts, the rap sheet and the neighbor's letter), bone type on dark metal (title, pause,
@@ -348,6 +348,11 @@ cabinet side is seen from the cell cameras only at an angle.
 
 ## Decisions log
 
+- 2026-10-14 — Replaced old AI PNG asset pack with code-generated 2D canvas artwork system and
+  crisp vector SVG icons. Every menu frame, sheet, HUD bezel, machine decal and title logo is
+  painted dynamically via CanvasRenderingContext2D into Blob URLs. Sourced 65 clean vector SVG
+  icons from game-icons.net (CC BY 3.0) for all charms and contraband. All static PNGs deleted from
+  repo, dropping production bundle from 63 MB to under 350 kB gzipped.
 - 2026-10-12 — Payout pass for Hard Time 0: base table payout x0.875 (SCORE.scale 0.2 to
   0.175), per-deadline payout growth 1.5 to 1.53; Feeding Bowl 3x to 2x; Jar of Teeth 3x to
   4x; Piggy Bank and Mattress interest 15% to 20%; Solitary Confinement 5x to 6x. — Round 1

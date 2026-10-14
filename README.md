@@ -6,12 +6,12 @@ you owe the Warden. Bank enough coins before each deadline, or the trapdoor unde
 opens.
 
 Built with Vite, TypeScript (strict), Three.js and Planck.js. The sound and music are
-generated in code and the 3D room is procedural; the menu frames, HUD, item icons, backglass,
-playfield illustration and cabinet print come from the art pack in
-`public/assets/ball-and-chain/images` (see [The art pack](#the-art-pack)), with the original
-procedural art as the fallback while it loads. [DESIGN.md](DESIGN.md) holds the design, the milestone
-checklist, calibration numbers and the decisions log; [CLAUDE.md](CLAUDE.md) holds the
-architecture rules and conventions.
+generated in code and the 3D room is procedural; the menu frames, HUD bezels, machine prints
+(backglass, playfield illustration, cabinet side art) and title logo are drawn in code on 2D
+canvases (`src/present/artwork/`), with clean vector item icons from
+[game-icons.net](https://game-icons.net) (CC BY 3.0, see [Artwork & UI system](#artwork--ui-system)).
+[DESIGN.md](DESIGN.md) holds the design, the milestone checklist, calibration numbers and the decisions log;
+[CLAUDE.md](CLAUDE.md) holds the architecture rules and conventions.
 
 ## Run it
 
@@ -141,29 +141,37 @@ it up. Each new charm and contraband item needs a test in `tests/rules/charms.te
 - **Checks:** after a change, run `npm test`, `npm run feel` and `npm run soak`. If shots
   moved, run `npx tsx tools/calibrate-shots.ts` to re-measure the bot's cradle shots.
 
-### The art pack
+### Artwork & UI system
+ 
+All UI frames, documents, machine artwork, and the title logo are painted dynamically in
+code using the HTML5 2D canvas API (`src/present/artwork/`). There are zero static PNG downloads
+needed at runtime, keeping the entire production build under 350 kB gzipped:
 
-25 PNGs live in `public/assets/ball-and-chain/images` (63 MB, kept exactly as supplied).
-`src/content/art.ts` is their data: pixel sizes, each frame's content rectangle, the
-screen-to-art mapping, the icon atlas rectangles and the placement of the machine art;
-`tests/content/art.test.ts` checks it against the files.
-
-- **Menu screens:** mark a panel `data-skin="<screen>"` (a key of `SCREEN_ART`) and
-  `UI.mount` puts its children inside the frame's content window (`src/app/skin.ts`,
-  `src/app/skin.css`). The DOM, handlers and focus order are the same with or without the
-  art, which only appears once it has decoded and the viewport leaves its content window
-  enough room (`SKIN_FIT`); otherwise the plain panel stays. Put the heading on the frame's
-  label plate with `data-slot="head"` (rect in `HEAD_RECT`).
-- **HUD:** `hudLayout()` picks frames in the gutters (landscape), a banner (tablet portrait)
-  or the plain text HUD (phones).
-- **Icons:** `itemIcon(id)` / `itemIconHtml(id)` (`src/app/icons.ts`) return the atlas
-  picture for the twelve items it covers and nothing for the rest.
-- **Machine:** `src/present/backglass.ts` (print plus the live ladders on its lower strip),
-  `src/present/playfield-art.ts` (illustration under labels and sockets, placed by
-  `PLAYFIELD_ART`), `World.setCabinetArt` in `src/present/scene.ts`.
-- **Loading and offline:** `src/present/art.ts` decodes the critical art first and the rest
-  while idle; `public/sw.js` keeps it for offline play. Replacing an image under the same
-  name needs a cache version bump in `sw.js`.
+- **Framework & Kit:** `src/present/artwork/kit.ts` provides reusable drawing primitives
+  (metal plates, hex screws, chamfers, recesses, CRT scanlines, paper grain, metallic gradients,
+  hazard stripes, and drop shadows).
+- **Metal Frames:** `src/present/artwork/metal.ts` (title panel, ATM terminal, cell hub, shop
+  cabinet, phone panel, red-call panel, pause panel, settings panel).
+- **Paper & Clipboard Sheets:** `src/present/artwork/sheets.ts` (booking dossier, deadline notice,
+  job ticket, buy-balls panel, ball receipt, rap sheet, neighbor letter, ending panel).
+- **HUD Bezels:** `src/present/artwork/hud.ts` (score/DMD panel, coin ledger, status rack).
+- **Machine Prints:** `src/present/artwork/machine.ts` (70s style backglass with quiet lower strip
+  for live shot ladders, playfield illustration under table inserts, cabinet flank decals).
+- **Title Logo:** `src/present/artwork/logo.ts` (metallic brass/bone bevels, chrome steel ball,
+  and chain links).
+- **Item Icons:** Crisp inline SVG icons for all 65 charms and contraband items (`src/app/icons.ts`,
+  `src/app/icon-paths.ts`), sourced from [game-icons.net](https://game-icons.net) (CC BY 3.0 by
+  Lorc, Delapouite and contributors) via `tools/make-icon-paths.mjs`.
+- **Menu Screens:** Mark a panel `data-skin="<screen>"` (a key of `SCREEN_ART`) and `UI.mount`
+  places controls inside the frame's content window (`src/app/skin.ts`, `src/app/skin.css`).
+  Put the heading on the frame's label plate with `data-slot="head"` (rect in `HEAD_RECT`).
+- **HUD Layout:** `hudLayout()` positions frames in gutters (landscape), a banner (tablet portrait),
+  or plain text (phones).
+- **Loading & Cache:** `src/present/art.ts` draws critical textures on demand and background textures
+  during idle frames as Blob URLs. The service worker (`public/sw.js`) precaches the application
+  shell and fonts for full offline play.
+- **Exporting Art Sheets:** `node tools/art-sheet.mjs` renders all canvas artwork to disk under
+  `tools/out/art/`.
 - **Screenshots:** `SHOT_DIR=screenshots/screens npx playwright test e2e/screens.spec.ts`
   captures every screen at desktop and phone sizes.
 

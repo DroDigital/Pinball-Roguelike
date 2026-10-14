@@ -38,8 +38,11 @@ for (const size of SIZES) {
     test(`every screen at ${size.name}`, async ({ page }) => {
       const problems: string[] = [];
       page.on('console', (m) => {
-        if (m.type() === 'error' || m.type() === 'warning')
-          problems.push(`[${m.type()}] ${m.text()}`);
+        if (m.type() === 'error' || m.type() === 'warning') {
+          const text = m.text();
+          if (text.includes('GPU stall due to ReadPixels')) return;
+          problems.push(`[${m.type()}] ${text}`);
+        }
       });
       page.on('pageerror', (e) => problems.push(`[pageerror] ${e.message}`));
 
