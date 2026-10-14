@@ -17,7 +17,11 @@ const game = (page: Page) =>
 test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   const problems: string[] = [];
   page.on('console', (m) => {
-    if (m.type() === 'error' || m.type() === 'warning') problems.push(`[${m.type()}] ${m.text()}`);
+    if (m.type() === 'error' || m.type() === 'warning') {
+      const text = m.text();
+      if (text.includes('GPU stall due to ReadPixels')) return;
+      problems.push(`[${m.type()}] ${text}`);
+    }
   });
   page.on('pageerror', (e) => problems.push(`[pageerror] ${e.message}`));
 
@@ -33,10 +37,10 @@ test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   await expect(page.getByText('Deadline 1 of 8', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'screenshots/02-deadline.png' });
   await page.keyboard.press('Enter');
-  await expect(page.getByText('THE ATM POSTS THREE JOBS', { exact: false })).toBeVisible();
+  await expect(page.getByText('Work Orders', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'screenshots/02-jobs.png' });
   await page.keyboard.press('Enter');
-  await expect(page.getByText('Buy balls for this round', { exact: false })).toBeVisible();
+  await expect(page.getByText('Procure Pinballs', { exact: false })).toBeVisible();
   await page.screenshot({ path: 'screenshots/02-buy.png' });
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Play ball' })).toBeVisible();

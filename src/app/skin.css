@@ -1137,7 +1137,7 @@ button.bc-skin.bc-s-jobs.key b {
   }
 }
 
-/* ---- item icons (the 12-icon atlas); the image arrives through --bc-atlas */
+/* ---- item icons: inline SVGs sized to 1em */
 .icon {
   display: inline-block;
   flex: none;
@@ -1145,8 +1145,11 @@ button.bc-skin.bc-s-jobs.key b {
   height: 1em;
   margin-right: 0.3em;
   vertical-align: -0.2em;
-  background-image: var(--bc-atlas, none);
-  background-repeat: no-repeat;
+}
+.icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .panel button.has-icon {
   display: grid;

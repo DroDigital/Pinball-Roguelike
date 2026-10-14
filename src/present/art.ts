@@ -1,82 +1,79 @@
 /**
- * Loads the art pack's images. Screens render their plain procedural look first and swap the
- * art in once it has decoded, so a slow network or a missing file never blocks play.
+ * Paints the app's artwork (src/present/artwork) once, on demand, and keeps the result as an
+ * image. Nothing is fetched: a frame is a few milliseconds of canvas drawing, turned into a PNG
+ * blob so CSS backgrounds, textures and canvases can all use it. Screens render their plain
+ * look first and swap the art in once it is ready.
  */
-import { ART, ART_CRITICAL, ART_DIR, ART_FILES, type ArtId } from '../content/art';
-
-/**
- * A pack file's URL. Resolved against the page (not the stylesheet) so it also works as a CSS
- * custom property value, under a subpath, and from the service worker's cache.
- */
-export function artUrl(file: string): string {
-  return new URL(`${import.meta.env.BASE_URL}${ART_DIR}/${file}`, document.baseURI).href;
-}
+import { ART, ART_CRITICAL, type ArtId } from '../content/art';
+import { ART_FONTS, PAINTERS } from './artwork';
 
 const images = new Map<ArtId, HTMLImageElement>();
 const pending = new Map<ArtId, Promise<HTMLImageElement | null>>();
 
-/** The decoded image, or null while it is still loading (or if it failed). */
+/** The painted image, or null while it is still being made (or if it failed). */
 export function readyArt(id: ArtId): HTMLImageElement | null {
   return images.get(id) ?? null;
 }
 
-/** Fetch and decode one image. Resolves null if it can't be loaded (offline, missing). */
+let fonts: Promise<unknown> | null = null;
+
+/** The painters write live type (plates, the logo): wait for the faces they use. */
+function fontsReady(): Promise<unknown> {
+  fonts ??= Promise.all(ART_FONTS.map((f) => document.fonts.load(f))).catch(() => undefined);
+  return fonts;
+}
+
+/** Paint one image. Resolves null if the browser can't make it. */
 export function loadArt(id: ArtId): Promise<HTMLImageElement | null> {
   const have = images.get(id);
   if (have) return Promise.resolve(have);
   let p = pending.get(id);
   if (!p) {
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = artUrl(ART[id].file);
-    p = img
-      .decode()
-      .then(() => {
-        images.set(id, img);
-        return img;
-      })
-      .catch(() => {
-        pending.delete(id);
-        return null;
-      });
+    p = paint(id).catch(() => {
+      pending.delete(id);
+      return null;
+    });
     pending.set(id, p);
   }
   return p;
 }
 
+async function paint(id: ArtId): Promise<HTMLImageElement> {
+  await fontsReady();
+  const { width, height } = ART[id];
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  PAINTERS[id](canvas.getContext('2d')!, width, height);
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
+  if (!blob) throw new Error(`could not encode ${id}`);
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = URL.createObjectURL(blob);
+  await img.decode();
+  images.set(id, img);
+  return img;
+}
+
 /** Let go of an image that has been copied into a canvas or texture. */
 export function releaseArt(id: ArtId): void {
+  const img = images.get(id);
+  if (img) URL.revokeObjectURL(img.src);
   images.delete(id);
   pending.delete(id);
 }
 
-/**
- * Load what the title screen and the machine need now, then the rest one file at a time
- * while the browser is idle, and ask the service worker to keep all of it for offline play.
- */
+/** Paint what the title screen and the machine need now, then the rest while the browser is idle. */
 export function startArtLoad(): void {
-  // Buttons everywhere wear the plate and items use the icon atlas; stylesheets pick both up
-  // from these variables as soon as the images have decoded.
-  for (const [id, prop] of [
-    ['ui/button-plate', '--bc-button-image'],
-    ['ui/charm-icon-atlas', '--bc-atlas'],
-  ] as const)
-    void loadArt(id).then((img) => {
-      if (img) document.documentElement.style.setProperty(prop, `url("${img.src}")`);
-    });
   void Promise.all(ART_CRITICAL.map(loadArt)).then(() => {
     const rest = (Object.keys(ART) as ArtId[]).filter((id) => !ART_CRITICAL.includes(id));
-    for (const id of rest) {
-      void loadArt(id);
-    }
-    keepOffline();
-  });
-}
-
-/** Offline play: the service worker fetches every art file it doesn't hold yet. */
-function keepOffline(): void {
-  if (!('serviceWorker' in navigator)) return;
-  void navigator.serviceWorker.ready.then((reg) => {
-    reg.active?.postMessage({ type: 'warm-art', urls: ART_FILES.map(artUrl) });
+    const idle = (cb: () => void): void =>
+      'requestIdleCallback' in window ? void requestIdleCallback(cb) : void setTimeout(cb, 50);
+    const next = (): void => {
+      const id = rest.shift();
+      if (!id) return;
+      void loadArt(id).then(() => idle(next));
+    };
+    idle(next);
   });
 }

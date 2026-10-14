@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ball &amp; Chain art sheet</title>
+    <style>
+      body { margin: 0; background: #555; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import '@fontsource/inter/latin-400.css';
+      import '@fontsource/inter/latin-600.css';
+      import '@fontsource/oswald/latin-600.css';
+      import '@fontsource/bebas-neue/latin-400.css';
+      import '@fontsource/special-elite/latin-400.css';
+      import '@fontsource/saira-stencil-one/latin-400.css';
+      import '@fontsource/vt323/latin-400.css';
+      import { ART } from '/src/content/art.ts';
+      import { loadArt } from '/src/present/art.ts';
+
+      // Paints every image and hands back PNG data URLs, for tools/art-sheet.mjs.
+      window.paintAll = async (only) => {
+        const out = {};
+        for (const id of Object.keys(ART)) {
+          if (only && !only.includes(id)) continue;
+          const t = performance.now();
+          const img = await loadArt(id);
+          if (!img) {
+            out[id] = null;
+            continue;
+          }
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          c.getContext('2d').drawImage(img, 0, 0);
+          out[id] = { url: c.toDataURL('image/png'), ms: Math.round(performance.now() - t) };
+        }
+        return out;
+      };
+      window.ready = true;
+    </script>
+  </body>
+</html>
