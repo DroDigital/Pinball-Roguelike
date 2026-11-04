@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process, URL, fetch */
 // Builds src/app/icon-paths.ts: the item icons, picked from game-icons.net (CC BY 3.0, see
 // README credits) through the @iconify-json/game-icons data. Run it again after editing ITEM_ICONS:
 //   node tools/make-icon-paths.mjs [path/to/icons.json]
@@ -22,6 +23,9 @@ const ITEM_ICONS = {
   greasedRail: ['rail-road', 'railway'],
   mothWings: ['butterfly', 'fairy-wings'],
   feedingBowl: ['dog-bowl', 'bowl-of-rice'],
+  brassMegaphone: ['megaphone', 'horn-internal'],
+  prisonClock: ['stopwatch', 'alarm-clock'],
+  boltCutters: ['bolt-cutter', 'pliers'],
   greaseMonkey: ['monkey-wrench', 'wrench'],
   crackedMirror: ['mirror-mirror', 'cracked-glass'],
   longFuse: ['time-dynamite', 'dynamite'],

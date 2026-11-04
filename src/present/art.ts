@@ -67,8 +67,11 @@ export function releaseArt(id: ArtId): void {
 export function startArtLoad(): void {
   void Promise.all(ART_CRITICAL.map(loadArt)).then(() => {
     const rest = (Object.keys(ART) as ArtId[]).filter((id) => !ART_CRITICAL.includes(id));
+    // A busy render loop can starve idle time for good: each piece waits at most 100 ms.
     const idle = (cb: () => void): void =>
-      'requestIdleCallback' in window ? void requestIdleCallback(cb) : void setTimeout(cb, 50);
+      'requestIdleCallback' in window
+        ? void requestIdleCallback(cb, { timeout: 100 })
+        : void setTimeout(cb, 50);
     const next = (): void => {
       const id = rest.shift();
       if (!id) return;

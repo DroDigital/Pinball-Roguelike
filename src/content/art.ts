@@ -66,7 +66,7 @@ export const ART = {
   'menus/buy-balls-panel': {
     width: 1200,
     height: 900,
-    content: [0.08, 0.20, 0.84, 0.58],
+    content: [0.08, 0.2, 0.84, 0.58],
     ink: '#291c12',
   },
   'menus/cell-hub-panel': {
@@ -84,7 +84,7 @@ export const ART = {
   'menus/phone-panel': {
     width: 1200,
     height: 900,
-    content: [0.13, 0.20, 0.74, 0.61],
+    content: [0.13, 0.2, 0.74, 0.61],
     ink: '#f2dfb2',
   },
   'menus/red-call-panel': {
@@ -128,18 +128,6 @@ export const ART = {
     height: 900,
     content: [0.155, 0.18, 0.69, 0.62],
     ink: '#291c12',
-  },
-  'machine/playfield-illustration': {
-    width: 640,
-    height: 1280,
-    content: null,
-    ink: '#f2dfb2',
-  },
-  'machine/cabinet-side-art': {
-    width: 1536,
-    height: 512,
-    content: null,
-    ink: '#f2dfb2',
   },
   'hud/score-panel': {
     width: 1200,
@@ -223,20 +211,6 @@ export const SKIN_FIT = {
 } as const;
 
 /**
- * The cabinet side print is a 3:1 panel on each flank, `height` tall, on the
- * body's face, set `fromFront` back from the player's end (where the cell's
- * cameras can see it), with `glow` of its own colour added to the lighting. Table-root units.
- */
-export const CABINET_ART = { height: 5.4, fromFront: 1.5, glow: 0.4 } as const;
-
-/**
- * Where the playfield illustration prints on the table, in table units (y up), and how
- * strongly. Presentation only: colliders and lamp positions don't move for it. The art is 1:2
- * like the table, so `width` alone fixes its size (half of the table's 20 units).
- */
-export const PLAYFIELD_ART = { centerX: 9.2, centerY: 21, width: 10, alpha: 0.62 } as const;
-
-/**
  * The HUD frames go in the side gutters in landscape and across the top in portrait, and
  * only where they stay readable; phones keep the plain text HUD (CSS px).
  */
@@ -281,6 +255,4 @@ export const ART_CRITICAL: readonly ArtId[] = [
   'menus/title-panel',
   'branding/title-logo',
   'machine/backglass',
-  'machine/playfield-illustration',
-  'machine/cabinet-side-art',
 ];

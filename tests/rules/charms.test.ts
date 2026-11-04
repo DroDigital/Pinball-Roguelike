@@ -38,7 +38,18 @@ import {
 import { CHARMS, charmDef } from '../../src/content/charms';
 import { jobDef } from '../../src/content/jobs';
 import { CONTRABAND } from '../../src/content/contraband';
-import { BALL, BONUS, COMBO, CONTRABAND_FX, ECONOMY, RIOT, SCORE } from '../../src/content/balance';
+import {
+  BALL,
+  BONUS,
+  COMBO,
+  CONTRABAND_FX,
+  ECONOMY,
+  RIOT,
+  SCORE,
+  FRENZY,
+  PLAYFIELD_X,
+  MYSTERY,
+} from '../../src/content/balance';
 import { RUN_HOOK } from '../../src/rules/charm-hooks';
 
 /** A run owning these charms, between balls with `balls` bought. */
@@ -224,6 +235,26 @@ describe('Riot charms', () => {
     h.game.riot = true;
     h.chute();
     expect(h.game.ctx.actives[0].charges).toBe(1);
+  });
+});
+
+describe('table-mode charms', () => {
+  t('brassMegaphone', () => {
+    expect(ctxOf(['brassMegaphone']).frenzyPops).toBe(FRENZY.popsToStart - 10);
+    const h = ballOf(['brassMegaphone']);
+    for (let i = 0; i < FRENZY.popsToStart - 10; i++) h.fire('pop', 'pop0');
+    expect(h.game.frenzyLeft).toBeGreaterThan(0);
+  });
+  t('prisonClock', () => {
+    const h = ballOf(['prisonClock']);
+    for (let n = 0; n < PLAYFIELD_X.laneSetsPer; n++)
+      for (const id of ['laneA', 'laneB', 'laneC']) h.fire('trigger', id, { dir: 1 });
+    expect(h.game.playfieldLeft).toBeCloseTo(PLAYFIELD_X.seconds + 15);
+  });
+  t('boltCutters', () => {
+    const h = ballOf(['boltCutters']);
+    h.fire('spin', 'spinner', { value: MYSTERY.spinsToLight - 15 });
+    expect(h.game.crateLit).toBe(true);
   });
 });
 

@@ -39,6 +39,12 @@ export interface CharmFx {
   sparkMult?: number;
   /** Seconds added to the Hole's hold (negative ejects sooner). */
   holeHoldAdd?: number;
+  /** YARD BRAWL starts this many pop hits sooner (negative) or later. */
+  frenzyPopsAdd?: number;
+  /** DOUBLE TIME lasts this many seconds longer. */
+  playfieldSecondsAdd?: number;
+  /** CONTRABAND CRATE needs this many spins fewer (negative) or more. */
+  crateSpinsAdd?: number;
   /** Table tag this hardware charm mounts. */
   mount?: string;
   // ---- run
@@ -205,6 +211,33 @@ export const CHARMS: CharmDef[] = [
     tags: ['Riot'],
     text: 'The Hole pays 2x and ejects 1 s sooner.',
     fx: { shotMult: { hole: 2 }, holeHoldAdd: -1 },
+  },
+  {
+    id: 'brassMegaphone',
+    name: 'Brass Megaphone',
+    rarity: 'uncommon',
+    cost: 3,
+    tags: ['Yard'],
+    text: 'Yard Brawl starts 10 pop hits sooner.',
+    fx: { frenzyPopsAdd: -10 },
+  },
+  {
+    id: 'prisonClock',
+    name: 'Prison Clock',
+    rarity: 'uncommon',
+    cost: 3,
+    tags: ['Bonus'],
+    text: 'Double Time lasts 15 s longer.',
+    fx: { playfieldSecondsAdd: 15 },
+  },
+  {
+    id: 'boltCutters',
+    name: 'Bolt Cutters',
+    rarity: 'common',
+    cost: 2,
+    tags: ['Luck'],
+    text: 'Contraband Crates light 15 spins sooner.',
+    fx: { crateSpinsAdd: -15 },
   },
   {
     id: 'greaseMonkey',

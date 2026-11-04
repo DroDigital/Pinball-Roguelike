@@ -12,10 +12,16 @@ import { audio } from '../present/audio';
 import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
-import { hudLayout, refitTree, skinTree, titleLogo } from './skin';
 import { loadArt } from '../present/art';
-import { itemIcon, itemIconHtml, keysIcon, keysIconHtml } from './icons';
+import { loadArtFonts } from '../present/art-kit';
 import { LampShowPlayer } from '../present/lampshow';
+import {
+  LOW_FPS,
+  LOW_FPS_SECS,
+  capAfterSettings,
+  effectivePixelHeight,
+  nextQualityStep,
+} from '../present/quality';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
 import { UI, h } from './ui';
@@ -23,6 +29,28 @@ import { loadSave, writeSave, type SaveData } from './save';
 import { lineupPanel, rapSheetPanel, type LineupChoice } from './meta-screens';
 import { pausePanel, settingsPanel } from './settings-screen';
 import { Hints } from './hints';
+import { Notices } from './notices';
+import { AUDIO_CUE } from './cues';
+import { Hud, type HudLayout } from './hud';
+import { setReducedMotion } from './counter';
+import { button } from './widgets';
+import {
+  atmPanel,
+  ballEndPanel,
+  buyPanel,
+  cellPanel,
+  deadlinePanel,
+  introPanel,
+  jobsPanel,
+  knockPanel,
+  phonePanel,
+  redPhonePanel,
+  runEndPanel,
+  shopPanel,
+  titlePanel,
+  unlockToast,
+  where,
+} from './screens';
 import type { Settings } from './settings';
 import { EndingDirector, type EndingKind } from '../present/endings';
 import { paintCracks } from '../present/cracks';
@@ -44,19 +72,16 @@ import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
 import { dailySeed, dayKey, recordDaily, shareLink } from '../rules/daily';
 import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
-import { Lamp, type GameEvent } from '../rules/types';
+import type { GameEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
 import { attachBot, defaultSnapshot } from '../bot/autoplay';
-import { jobDef, jobText, type JobDef } from '../content/jobs';
-import { AWARD_NAMES } from '../rules/table-game';
+import { AWARD_NAMES, MYSTERY_NAMES } from '../rules/table-game';
+import { comboName } from '../rules/combo';
 import {
   newRun,
   buyBalls,
-  costForBalls,
-  maxAffordableBalls,
-  ballPrice,
   ballsLeft,
   nextBall,
   finishBall,
@@ -64,13 +89,7 @@ import {
   endRound,
   settleDeadline,
   pickJob,
-  jobCoins,
-  canPayEarly,
   payEarly,
-  payEarlyReward,
-  payScale,
-  loanAvailable,
-  loanCost,
   borrow,
   sentenceActive,
   roundsIn,
@@ -78,34 +97,21 @@ import {
   acceptBargain,
   hangUp,
   answerKnock,
-  canHelp,
-  jailbreakLit,
   lastCall,
   type BallOutcome,
   type RunKind,
   type RunState,
 } from '../rules/run';
 import { sentenceDef } from '../content/sentences';
-import { charmDef, RARITY_COLORS } from '../content/charms';
+import { charmDef } from '../content/charms';
 import { contrabandDef } from '../content/contraband';
-import {
-  buyCharm,
-  buyContraband,
-  canUse,
-  contrabandPrice,
-  contrabandSlots,
-  ownedTags,
-  reroll,
-  rerollCost,
-  sellCharm,
-  sellValue,
-  useContraband,
-} from '../rules/shop';
-import { perkDef, bargainDef } from '../content/phone';
+import { buyCharm, buyContraband, reroll, sellCharm, useContraband } from '../rules/shop';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
+import { ParticleField } from '../present/particles';
+import { CoinFlight } from './coin-flight';
 import { SaveDetector } from '../present/save-detector';
-import { ASSIST, BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
+import { ASSIST, BONUS, ECONOMY, NEIGHBOR } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
@@ -115,9 +121,6 @@ const SAVE_COOLDOWN_MS = 4000;
 const REPLAY_LEAD = 6;
 const REPLAY_TAIL = 2.5;
 /** Below this FPS for this long, drop to the lowest internal resolution. */
-const LOW_FPS = 40;
-const LOW_FPS_SECS = 5;
-const MIN_PIXEL_HEIGHT = 180;
 /** The Warden remarks on a PAYDAY worth this share of the debt, and on some center drains. */
 const BIG_PAYDAY_SHARE = 0.1;
 const CENTER_DRAIN_CHANCE = 0.6;
@@ -148,11 +151,16 @@ export class GameApp {
   readonly world: World;
   readonly dmd = new Dmd(4);
   readonly pops = new NumberPops();
+  /** Sparks, coin flecks and embers over the table (the juice). */
+  readonly particles = new ParticleField();
+  private coinFlight!: CoinFlight;
+  /** YARD BRAWL: the next bumper flash in the running frenzy light show. */
+  private frenzyBlink = 0;
   readonly shows = new LampShowPlayer(TABLE.lamps);
   readonly input: Input;
   readonly ui: UI;
   save: SaveData;
-  mode: AppMode = 'title';
+  private screen: AppMode = 'title';
   run: RunState | null = null;
   session: BallSession | null = null;
   /** Attract-mode session played by the bot on the title screen. */
@@ -189,14 +197,22 @@ export class GameApp {
   private overlays = 0;
   private menuOpen = false;
   readonly hints: Hints;
+  readonly notices: Notices;
+  /** What the game is doing; a change also tells the hints which screen they are on. */
+  get mode(): AppMode {
+    return this.screen;
+  }
+  set mode(m: AppMode) {
+    if (m === this.screen) return;
+    this.screen = m;
+    this.hints.modeChanged(m);
+  }
   /** This ball's big moments (sim step), offered as an instant replay afterwards. */
   private moments: { step: number; label: string; value: number }[] = [];
   private replay: {
     session: BallSession;
     play: (step: number) => SimInput;
     end: number;
-    /** What is being replayed (shown on the status rack). */
-    label: string;
     back: () => void;
   } | null = null;
   readonly subs: Subtitles;
@@ -206,14 +222,9 @@ export class GameApp {
   private tally: { k: number; bonus: number; mult: number; total: number; ticks: number } | null =
     null;
   private outcome: BallOutcome | null = null;
-  private hud: HTMLElement;
-  private hudStats: HTMLElement;
-  private hudScore: HTMLElement;
-  private hudRight: HTMLElement;
-  private hudLedger: HTMLElement;
-  private hudStatus: HTMLElement;
-  private hudStatusHead: HTMLElement;
-  private hudPlunger: HTMLElement;
+  /** The play HUD: also the home of the juice hooks (banner, count-up, combo slot). */
+  readonly hud: Hud;
+  private readonly portraitQuery = matchMedia('(max-aspect-ratio: 6/5)');
   private readonly tmpV = new THREE.Vector3();
   private fallT = 0;
   private dmdTex: THREE.CanvasTexture;
@@ -226,107 +237,58 @@ export class GameApp {
     canvas: HTMLCanvasElement,
     hud: HTMLElement,
     uiRoot: HTMLElement,
-    toast: HTMLElement,
+    noticeRoot: HTMLElement,
   ) {
     this.save = loadSave();
     this.renderer = new RetroRenderer(canvas);
     this.renderer.settings.crt = this.save.settings.crt;
     this.renderer.settings.pixelHeight = this.save.settings.pixelHeight;
-    this.world = new World(new Set(['outlanePosts']));
+    this.world = new World(new Set(['outlanePosts']), this.renderer.env);
     this.world.scene.add(this.pops.group);
+    this.world.scene.add(this.particles.points);
+    this.coinFlight = new CoinFlight(document.body);
+    this.coinFlight.onLand = () => audio.coin(3);
     this.input = new Input(document.body);
-    this.ui = new UI(uiRoot, toast);
-    this.ui.onClick = () => audio.atmBeep();
-    this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
-    this.subs.voice = this.save.settings.voice;
-    this.hud = hud;
-    this.hudStats = h('div', { class: 'stats' });
-    this.hudScore = h('div', { class: 'score' });
-    this.hudRight = h('div', { class: 'right' });
-    this.hudStatusHead = h('h3', { class: 'hud-head', 'data-slot': 'head' }, 'Status');
-    this.hudPlunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
-    const dmdCanvas = this.dmd.canvas;
-    dmdCanvas.className = 'dmd';
-    // Touch: the lockbar button (active charms) and pause, under the table.
-    const hold = (a: Action) => ({
-      onpointerdown: (e: PointerEvent) => {
-        e.preventDefault();
-        this.input.press(a, performance.now());
-      },
-      onpointerup: () => this.input.release(a, performance.now()),
-      onpointerleave: () => this.input.release(a, performance.now()),
-    });
-    // Score and DMD, the ledger of coins and the status rack: each sits on its art-pack frame
-    // when the screen has room (see skin.ts), and is plain text otherwise.
-    const score = h(
-      'div',
-      { class: 'hud-frame hud-score', 'data-skin': 'hudScore' },
-      dmdCanvas,
-      this.hudScore,
-    );
-    this.hudLedger = h(
-      'div',
-      { class: 'hud-frame hud-ledger', 'data-skin': 'hudLedger' },
-      this.hudStats,
-    );
-    this.hudStatus = h(
-      'div',
-      { class: 'hud-frame hud-status', 'data-skin': 'hudStatus' },
-      this.hudStatusHead,
-      this.hudRight,
-    );
-    hud.append(
-      h('div', { class: 'left' }, score, this.hudLedger),
-      h('div', { class: 'hud-rightcol' }, this.hudStatus),
-      this.hudPlunger,
-      h(
-        'div',
-        { class: 'touch-lockbar' },
-        h('button', { class: 'touch-btn', ...hold('lockbar') }, 'LOCKBAR'),
-        h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
-      ),
-    );
-    const layoutHud = (): void => {
-      hud.dataset.layout = hudLayout();
-      refitTree(hud);
+    // Toasts, tips and captions share one notice slot per layout (see notices.ts).
+    this.notices = new Notices(noticeRoot, () => this.ui.open);
+    this.ui = new UI(uiRoot, this.notices);
+    this.ui.onCue = (c) => {
+      const cue = AUDIO_CUE[c];
+      if (cue) audio.ui(cue);
     };
-    skinTree(hud);
-    layoutHud();
-    window.addEventListener('resize', layoutHud);
-    // DMD on the backbox too.
+    this.hints = new Hints(this.notices, this.save.seenHints, () => this.persist());
+    this.hints.enabled = this.save.settings.hints;
+    // On a portrait phone the top of the table is where the ball is: tips wait for the plunger.
+    this.hints.gate = () =>
+      !(this.portraitQuery.matches && this.mode === 'play' && !this.ballInShooter());
+    this.subs = new Subtitles(this.notices);
+    this.subs.voice = this.save.settings.voice;
+    this.hud = new Hud(hud, this.dmd.canvas, {
+      press: (a) => this.input.press(a, performance.now()),
+      release: (a) => this.input.release(a, performance.now()),
+    });
+    // DMD and backglass live on the backbox: a glowing dot-matrix panel and a backlit glass.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
     this.dmdTex.colorSpace = THREE.SRGBColorSpace;
-    this.dmdTex.magFilter = THREE.NearestFilter;
-    const backbox = this.world.cabinet.getObjectByName('backbox');
-    if (backbox) {
-      const panel = new THREE.Mesh(
-        new THREE.PlaneGeometry(18, 4.5),
-        new THREE.MeshBasicMaterial({ map: this.dmdTex }),
-      );
-      panel.position.set(0, -4.5, 2.05);
-      backbox.add(panel);
-      // Backglass art and the shot-level ladders above the DMD.
-      this.glassCanvas = document.createElement('canvas');
-      paintBackglass(this.glassCanvas, null);
-      this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
-      this.glassTex.colorSpace = THREE.SRGBColorSpace;
-      this.glassTex.anisotropy = 4;
-      const glass = new THREE.Mesh(
-        new THREE.PlaneGeometry(20.5, 10.25),
-        new THREE.MeshBasicMaterial({ map: this.glassTex }),
-      );
-      glass.position.set(0, 2.6, 2.05);
-      backbox.add(glass);
-      // The printed backglass arrives after the stand-in art: repaint with the current levels.
-      void loadArt('machine/backglass').then(() => this.paintGlass(this.glassLevels));
-    }
-    // The machine's printed art replaces the procedural decoration as it arrives.
-    void loadArt('machine/playfield-illustration').then(
-      (img) => img && this.world.table.setIllustration(img),
-    );
-    void loadArt('machine/cabinet-side-art').then((img) => img && this.world.setCabinetArt(img));
-    this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
-    this.hints.enabled = this.save.settings.hints;
+    this.dmdTex.anisotropy = 4;
+    this.glassCanvas = document.createElement('canvas');
+    paintBackglass(this.glassCanvas, null);
+    this.glassTex = new THREE.CanvasTexture(this.glassCanvas);
+    this.glassTex.colorSpace = THREE.SRGBColorSpace;
+    this.glassTex.anisotropy = 4;
+    // The glass is painted before the web fonts can be drawn to a canvas: paint it again.
+    void loadArtFonts().then(() => {
+      if (!this.glassCanvas || !this.glassTex) return;
+      paintBackglass(this.glassCanvas, this.glassLevels);
+      this.glassTex.needsUpdate = true;
+    });
+    // The painted backglass print arrives after the stand-in: repaint with the current levels.
+    void loadArt('machine/backglass').then(() => {
+      if (!this.glassCanvas || !this.glassTex) return;
+      paintBackglass(this.glassCanvas, this.glassLevels);
+      this.glassTex.needsUpdate = true;
+    });
+    this.world.backbox.attach(this.dmdTex, this.glassTex);
     this.endings = new EndingDirector(this.world, document.body, this.glassTex);
     this.endings.onCue = (who, text) => this.endingCue(who, text);
     this.cracks = h('canvas', { class: 'cracks' });
@@ -353,8 +315,6 @@ export class GameApp {
     });
     this.input.onPress = (a) => this.onPress(a);
     window.addEventListener('resize', () => this.resize());
-    window.addEventListener('pointerdown', () => audio.unlock(), { once: false });
-    window.addEventListener('keydown', () => audio.unlock());
     const botParam = new URLSearchParams(location.search).get('bot');
     if (botParam)
       this.autoBot = new Bot(
@@ -373,7 +333,11 @@ export class GameApp {
     audio.volumes = { ...s.volume };
     audio.applyVolumes();
     this.renderer.settings.crt = s.crt;
-    this.renderer.settings.pixelHeight = s.pixelHeight;
+    this.renderer.settings.pixelHeight = effectivePixelHeight(s.pixelHeight, this.qualityCap);
+    this.renderer.reducedFlashing = s.reducedFlashing;
+    this.world.table.reducedFlashing = s.reducedFlashing;
+    this.shows.reducedFlashing = s.reducedFlashing;
+    this.particles.reduced = s.reducedFlashing;
     this.input.vibration = s.vibration;
     if (s.bindings) {
       this.input.bindings = {
@@ -383,13 +347,17 @@ export class GameApp {
       this.input.rebuildKeyMap();
     }
     document.documentElement.style.setProperty('--text-scale', String(s.textSize));
+    setReducedMotion(s.reducedFlashing);
     this.resize();
   }
 
   resize(): void {
     this.renderer.resize();
     this.world.aspect = this.renderer.aspect;
-    ROOM_UNIFORMS.uSnap.value.set(this.renderer.lowSize.w / 2, this.renderer.lowSize.h / 2);
+    // The cell keeps its wobbly low-res vertex snap even when the machine renders crisp.
+    const { w, h } = this.renderer.lowSize;
+    this.particles.setViewHeight(h);
+    ROOM_UNIFORMS.uSnap.value.set(Math.min(w / 2, 213), Math.min(h / 2, 120));
   }
 
   persist(): void {
@@ -412,18 +380,32 @@ export class GameApp {
   }
 
   private lowFpsFor = 0;
-  private qualityDropped = false;
+  /** Runtime cap from the watchdog (0 = none). Kept apart from the saved choice; see quality.ts. */
+  private qualityCap = 0;
 
-  /** A struggling device drops to the lowest internal resolution once (not saved). */
+  /**
+   * A struggling device steps the internal resolution down one tier at a time (540 -> 360 ->
+   * 240 -> 180), so the machine stays as crisp as the hardware allows. Not saved.
+   */
   private watchQuality(dt: number): void {
-    if (this.mode !== 'play' || this.qualityDropped) return;
+    if (this.mode !== 'play') return;
     this.lowFpsFor = this.fps < LOW_FPS ? this.lowFpsFor + dt : 0;
-    const px = this.renderer.settings.pixelHeight;
-    if (this.lowFpsFor < LOW_FPS_SECS || (px > 0 && px <= MIN_PIXEL_HEIGHT)) return;
-    this.qualityDropped = true;
-    this.renderer.settings.pixelHeight = MIN_PIXEL_HEIGHT;
+    if (this.lowFpsFor < LOW_FPS_SECS) return;
+    this.lowFpsFor = 0;
+    const next = nextQualityStep(this.renderer.settings.pixelHeight);
+    if (next === null) return;
+    this.qualityCap = next;
+    this.renderer.settings.pixelHeight = next;
     this.resize();
-    this.ui.toast('Running slow: resolution lowered (Settings to change)');
+    this.ui.toast('Running slow: resolution lowered (Settings to change)', 4000, 'warn');
+  }
+
+  /** True when no live ball is out on the table (waiting in the shooter lane, or between balls). */
+  private ballInShooter(): boolean {
+    const s = this.session;
+    if (!s) return true;
+    for (const b of s.sim.balls) if (b.inShooter && b.state === 'field') return true;
+    return false;
   }
 
   private activeSession(): { session: BallSession; bot: Bot | null } | null {
@@ -526,18 +508,29 @@ export class GameApp {
     this.world.update(dt);
     this.updateCoins(dt);
     this.pops.update(dt);
+    this.particles.update(dt);
+    this.coinFlight.update(dt);
+    this.frenzyLights(shown, dt);
     this.dmd.update(dt);
-    this.dmdTex.needsUpdate = true;
-    this.updateHud(shown);
-    if (shown) {
-      let maxV = 0;
-      let ramp = false;
+    if (this.dmd.dirty) this.dmdTex.needsUpdate = true;
+    this.updateHud(shown, dt);
+    // Runs with or without a session: a roll bed, a held coil or the hurry-up must never outlive
+    // the table (quit to title, a cell or shop screen).
+    let maxV = 0;
+    let ramp = false;
+    if (shown)
       for (const b of shown.sim.balls) {
         if (b.state === 'transport') ramp = true;
         else if (b.state === 'field') maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
       }
-      audio.roll(this.mode === 'play' ? maxV : maxV * 0.4, ramp);
-    }
+    const playing = shown !== null && this.mode === 'play' && !this.menuOpen;
+    audio.roll(this.menuOpen ? 0 : this.mode === 'play' ? maxV : maxV * 0.4, ramp);
+    audio.plungerPull(playing ? shown.sim.plungerPull : 0);
+    audio.hurryTick(playing ? shown.game.hurryLeft : 0);
+    if (!playing) audio.releaseCoils();
+    audio.frame(playing && shown.sim.balls.length > 0);
+    // The phone rings or the ATM chirps: a steady rim on the screen, so the cue is not audio-only.
+    this.hud.root.classList.toggle('pulse-alarm', audio.ringing() || audio.alarming());
     this.renderer.flash = Math.max(0, this.renderer.flash - dt * 4);
     this.onFrame?.(dt);
     this.renderer.render(this.world.scene, this.world.camera, this.time);
@@ -618,6 +611,8 @@ export class GameApp {
         break;
       case 'pop':
         audio.pop(e.x);
+        this.world.table.flashPart('bumper', e.id);
+        this.particles.burst('spark', this.at(e.x, e.y, 1.1), 10, 0xffd48a, 9, 0.7);
         if (!quiet) {
           this.shake(0.25);
           this.world.swingBulb(0.05);
@@ -626,22 +621,34 @@ export class GameApp {
         break;
       case 'sling':
         audio.sling(e.x);
+        this.world.table.flashPart('sling', e.id.endsWith('R') ? 1 : 0);
+        this.particles.burst('spark', this.at(e.x, e.y, 0.6), 7, 0xfff0d0, 8, 0.5);
         if (!quiet) this.shake(0.15);
         break;
       case 'drop':
-        audio.drop(e.x);
+        audio.drop(e.x, e.value);
+        this.world.table.flashPart('target', e.value);
+        this.particles.burst('spark', this.at(e.x, e.y, 0.7), 6, 0xff9a40, 7, 0.6);
+        break;
+      case 'trigger':
+        // Rollover switches: a light tick as the ball runs the lanes.
+        if (e.dir === 1 && (e.id.startsWith('lane') || e.id.includes('nlane'))) audio.lane(e.x);
         break;
       case 'dropsReset':
         audio.dropReset();
         break;
       case 'spin':
         audio.spin(e.value, 20);
+        this.world.table.flashPart('spinner', 0, 0.5 + 0.1 * e.value);
         break;
       case 'hit':
         audio.hit(e.id, e.value, e.x);
         break;
       case 'flipperHit':
         audio.flipperHit(e.value, e.x);
+        // A hard flip throws a few sparks off the rubber.
+        if (e.value > 28)
+          this.particles.burst('spark', this.at(e.x, e.y, 0.5), 4, 0xfff4e0, 6, 0.4);
         break;
       case 'launch':
         audio.launch(e.value / 45);
@@ -651,6 +658,8 @@ export class GameApp {
         break;
       case 'holeCapture':
         audio.hole();
+        this.world.table.fireFlasher('hole', 0.7);
+        this.particles.burst('glint', this.at(e.x, e.y, 0.8), 5, 0xffe2a0, 4, 0.9);
         if (!quiet) {
           this.hitStop = 0.05;
           this.shake(0.4);
@@ -687,16 +696,29 @@ export class GameApp {
     const evs = this.gameEvents;
     this.gameEvents = [];
     const combo = this.session?.game.combo.count ?? 0;
+    // PAYDAY pays through a jackpot score too and has its own fanfare; a hurry-up has none.
+    let paydayNow = false;
+    let jackpotNow = false;
+    for (const e of evs) {
+      if (e.t === 'payday') paydayNow = true;
+      else if (e.t === 'score' && e.shot === 'jackpot') jackpotNow = true;
+    }
     for (const e of evs) {
       switch (e.t) {
         case 'score': {
           const p = this.world.table.worldOf(e.x, e.y, 1.6, this.tmpV);
-          const big = e.amount >= 3 || e.shot === 'jackpot';
+          const jackpot = e.shot === 'jackpot';
+          const big = e.amount >= 3 || jackpot;
           this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
-          // Coin clinks rise in pitch through combos.
-          if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount) + combo));
+          if (e.amount >= 0.3 || jackpot) this.coinBurst(e.amount, e.x, e.y, big);
+          // Coin clinks rise in pitch through combos; bigger payouts add a bell on the ladder.
+          if (jackpot && !paydayNow) audio.jackpot(1);
+          else audio.score(e.amount, combo, big);
           break;
         }
+        case 'hurry':
+          audio.hurry(e.on, jackpotNow);
+          break;
         case 'callout':
           if (e.sub === 'LOCKUP IS LIT' && this.mode === 'play') this.hints.show('lockup');
           this.dmd.show({
@@ -710,27 +732,41 @@ export class GameApp {
           break;
         case 'skillShot':
           this.shows.play('skill');
-          audio.knocker();
+          audio.skillShot(e.super);
+          this.lightBurst(0xfff2c0, e.super ? 1.2 : 0.8, 'white');
+          this.hud.banner(e.super ? 'Super skill shot' : 'Skill shot', { tone: 'gold' });
           this.flash(0.25);
           this.shake(0.6);
           break;
         case 'combo':
-          if (e.count >= 3) this.shake(0.15 * e.count);
+          audio.combo(e.count);
+          if (e.count >= 3) {
+            this.shake(0.15 * e.count);
+            this.world.table.fireFlasher(e.count % 2 ? 'yellow' : 'red', 0.5 + 0.1 * e.count);
+            this.hud.banner(comboName(e.count), {
+              tone: 'gold',
+              sub: `Combo x${e.mult}`,
+              ms: 1200,
+            });
+          }
           break;
         case 'lock':
-          audio.kick();
+          audio.lock(e.locks);
           this.shake(0.5);
+          this.lightBurst(0xff5030, 0.6, 'red');
           break;
         case 'riot':
           if (e.on) {
             this.react('riot');
             if (this.mode === 'play') this.hints.show('riot');
             this.shows.play('riot');
-            audio.knocker();
+            audio.riot(true);
+            this.lightBurst(0xff3020, 1.2, 'red');
+            this.hud.banner('Riot!', { tone: 'red', sub: 'PAYDAY at the Chute', ms: 2200 });
             this.flash(0.4);
             this.shake(1);
             this.world.swingBulb(0.4);
-          }
+          } else audio.riot(false);
           break;
         case 'payday':
           if (this.mode === 'play' && this.session)
@@ -743,30 +779,39 @@ export class GameApp {
             this.react('bigPayday');
           this.shows.play('payday');
           this.hitStop = e.super ? 0.06 : 0.04;
-          audio.knocker();
+          audio.payday(e.super);
+          this.lightBurst(0xffc040, e.super ? 1.5 : 1.0);
+          this.particles.burst('ember', this.at(10, 18, 2.5), e.super ? 60 : 30, 0xffa830, 12, 0.9);
+          this.hud.banner(e.super ? 'Super payday' : 'Payday', {
+            tone: 'gold',
+            sub: `+${formatCoins(e.amount)} coins`,
+            ms: 2400,
+          });
           this.flash(e.super ? 0.5 : 0.3);
           this.shake(e.super ? 1.4 : 0.9);
           this.world.swingBulb(e.super ? 0.6 : 0.3);
           this.input.buzz(e.super ? 120 : 60);
           break;
         case 'extraBall':
-          audio.knocker();
-          this.ui.toast('EXTRA BALL');
+          audio.extraBall();
+          this.lightBurst(0x60ff90, 1.0);
+          this.hud.banner('Extra ball', { tone: 'green', sub: 'Shoot again' });
           break;
         case 'award':
-          if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
+          if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`, 2400, 'good');
+          else audio.levelUp();
           break;
         case 'luck':
           if (e.kind === 'spark') {
             this.flash(0.35);
-            audio.creak();
+            audio.spark();
           } else {
             audio.kick();
             this.shake(0.4);
           }
           break;
         case 'tunnel':
-          audio.clang();
+          audio.tunnel();
           this.shake(0.8);
           this.flash(0.3);
           this.react('tunnel', true);
@@ -775,24 +820,85 @@ export class GameApp {
           this.onJailbreak(e.phase, e.n);
           break;
         case 'active':
-          audio.kick();
-          this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
+          audio.active();
+          this.ui.toast(`${charmDef(e.id).name}: ${e.charges} left`, 2200, 'good');
           break;
         case 'jobDone':
           this.react('jobDone');
-          audio.knocker();
+          audio.jobComplete();
           this.flash(0.2);
+          this.hud.banner('Job done', { tone: 'green', sub: 'Reward at the ATM' });
           break;
         case 'ballSaved':
-          audio.knocker();
+          audio.save();
+          break;
+        case 'laneComplete':
+          audio.chime(1);
+          this.particles.burst('glint', this.at(10, 35, 1.2), 14, 0xfff0b0, 6, 0.5);
+          this.world.table.giPulse(0xffe6a0, 0.4);
+          break;
+        case 'playfieldX':
+          if (e.on) {
+            audio.levelUp();
+            this.lightBurst(0x50e0ff, 0.9, 'white');
+            this.hud.banner(e.mult >= 3 ? 'Triple time' : 'Double time', {
+              tone: 'green',
+              sub: `Everything pays x${e.mult}`,
+              ms: 2000,
+            });
+          }
+          break;
+        case 'frenzy':
+          if (e.on) {
+            audio.banner('big', 6);
+            this.lightBurst(0xff8a20, 1.0, 'yellow');
+            this.shake(0.6);
+            this.hud.banner('Yard brawl!', { tone: 'red', sub: 'Every switch pays', ms: 2000 });
+          } else audio.banner('info', 3);
+          break;
+        case 'crateLit':
+          audio.banner('secret', 4);
+          this.world.table.flashLamp('arrowPerimL', 1);
+          this.world.table.flashLamp('arrowPerimR', 1);
+          this.hud.banner('Crate lit', { tone: 'plain', sub: 'Shoot a Perimeter', ms: 1600 });
+          break;
+        case 'mystery': {
+          audio.banner('secret', 6);
+          this.shows.play('skill');
+          // The DMD reel spins for a second; the banner lands with it.
+          const name = MYSTERY_NAMES[e.award];
+          const amount = e.amount;
+          window.setTimeout(() => {
+            this.lightBurst(0xffd060, 0.9, 'all');
+            if (amount > 0) audio.jackpot(1);
+            else audio.unlocked();
+            this.hud.banner(name, {
+              tone: 'gold',
+              sub: amount > 0 ? `+${formatCoins(amount)} coins` : 'From the crate',
+              ms: 2000,
+            });
+          }, 1100);
+          break;
+        }
+        case 'addABall':
+          audio.extraBall();
+          this.lightBurst(0xff5a30, 1.0, 'all');
+          this.hud.banner('Reinforcements', { tone: 'red', sub: 'Add-a-ball', ms: 1800 });
+          break;
+        case 'bonusMult':
+          audio.bonusMult(e.mult);
+          break;
+        case 'ballOver':
+          audio.ballOver(e.tilted);
           break;
         case 'tiltWarning':
           audio.warn();
-          this.ui.toast(`DANGER — WARNING ${e.n}`);
+          this.hud.banner(`Warning ${e.n}`, { tone: 'red', sub: 'Ease off or the table tilts' });
           break;
         case 'tilt':
           this.react('tilt', true);
           audio.tilt();
+          this.hud.banner('Tilt', { tone: 'red', sub: 'The flippers are dead', ms: 2200 });
           this.flash(0.3);
           break;
         case 'drain':
@@ -807,6 +913,55 @@ export class GameApp {
           break;
       }
     }
+  }
+
+  /** World position over a table point (h: height above the playfield, in ball diameters). */
+  private at(x: number, y: number, h = 1): THREE.Vector3 {
+    return this.world.table.worldOf(x, y, h, this.tmpV);
+  }
+
+  /** Screen position (CSS px) of a table point, for DOM effects that start on the table. */
+  private screenOf(x: number, y: number): { x: number; y: number } {
+    const v = this.at(x, y, 1).project(this.world.camera);
+    const r = this.renderer.canvas.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  }
+
+  /** Coin flecks for a payout, and coins flying to the Pocket for the bigger ones. */
+  private coinBurst(amount: number, x: number, y: number, big: boolean): void {
+    const n = Math.min(26, Math.round(2 + Math.sqrt(amount) * (big ? 5 : 2)));
+    this.particles.burst(
+      'coin',
+      this.at(x, y, 1.4),
+      n,
+      0xffc83a,
+      big ? 12 : 7,
+      0.85,
+      big ? 1.2 : 0.9,
+    );
+    if (amount >= 1) {
+      const p = this.screenOf(x, y);
+      this.coinFlight.launch(p.x, p.y, Math.min(10, Math.ceil(Math.sqrt(amount) * 1.5)));
+    }
+  }
+
+  /** The machine's big-moment light show: flashers, GI tint, bloom kick, backglass blaze. */
+  private lightBurst(color: number, k: number, flashers = 'all'): void {
+    const t = this.world.table;
+    t.fireFlasher(flashers, k);
+    t.giPulse(color, k);
+    this.renderer.bloomPulse(k * 0.8);
+    this.world.backbox.pulseGlass(k);
+  }
+
+  /** YARD BRAWL keeps the bumper caps strobing in turn while it runs. */
+  private frenzyLights(shown: BallSession | null, dt: number): void {
+    const g = shown?.game;
+    if (!g || g.frenzyLeft <= 0 || this.mode !== 'play') return;
+    this.frenzyBlink -= dt;
+    if (this.frenzyBlink > 0) return;
+    this.frenzyBlink = this.save.settings.reducedFlashing ? 0.5 : 0.12;
+    this.world.table.flashPart('bumper', Math.floor(Math.random() * 4), 0.8);
   }
 
   shake(amount: number): void {
@@ -832,9 +987,13 @@ export class GameApp {
   private onPress(a: Action): void {
     audio.unlock();
     if (a === 'pause' || (a === 'back' && this.overlays > 0)) {
-      if (this.overlays > 0) this.closeOverlay();
-      else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending')
+      if (this.overlays > 0) {
+        this.ui.cue('close');
+        this.closeOverlay();
+      } else if (this.mode !== 'title' && this.mode !== 'fall' && this.mode !== 'ending') {
+        this.ui.cue('open');
         this.openPause();
+      }
       return;
     }
     if (this.ui.open) {
@@ -865,36 +1024,22 @@ export class GameApp {
     this.world.setMode('title');
     this.world.coins.clear();
     this.trayCoins = 0;
-    const saved = this.save.run;
     this.newAttractBall();
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel title', 'data-skin': 'title' },
-        titleLogo(),
-        h('p', { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '1.05em', color: '#ffb24a', margin: '4px 0', textShadow: '0 0 8px rgba(255, 178, 74, 0.4)' } }, '“You owe the Warden. The machine is the only way out.”'),
-        h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.1em', letterSpacing: '0.1em', color: '#a49477', margin: '4px 0' } }, `RUNS ON THE CELL WALL: ${this.save.tallies}`),
-        h('p', { class: 'tally', style: { letterSpacing: '0.15em', fontSize: '1.3em', color: '#ffb24a' } }, tallyMarks(this.save.tallies)),
-        h(
-          'div',
-          { class: 'cell-dock', style: { flexWrap: 'wrap', gap: '10px' } },
-          saved
-            ? h('button', { class: 'primary', onclick: () => this.continueRun() }, 'Continue')
-            : null,
-          h(
-            'button',
-            { class: saved ? '' : 'primary', onclick: () => this.enterLineup() },
-            saved ? 'New Run' : 'Wake Up',
-          ),
-          h('button', { onclick: () => this.newRunFlow(undefined, true) }, this.dailyLabel()),
-          h('button', { onclick: () => this.enterMeta() }, 'Rap Sheet'),
-          h('button', { onclick: () => this.openSettings() }, 'Settings'),
-        ),
-        h(
-          'div',
-          { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.05em', color: '#a49477', marginTop: '10px', letterSpacing: '0.06em' } },
-          'CONTROLS: [Z / /] FLIPPERS · [SPACE] PLUNGER · [X] NUDGE TABLE',
-        ),
+      titlePanel(
+        {
+          saved: this.save.run,
+          tallies: this.save.tallies,
+          dailyBest: this.dailyBestText(),
+          touch: matchMedia('(pointer: coarse)').matches,
+        },
+        {
+          continueRun: () => this.continueRun(),
+          newRun: () => this.enterLineup(),
+          daily: () => this.newRunFlow(undefined, true),
+          rapSheet: () => this.enterMeta(),
+          settings: () => this.openSettings(),
+        },
       ),
     );
   }
@@ -904,6 +1049,7 @@ export class GameApp {
   openPause(): void {
     this.menuOpen = this.mode === 'play';
     this.overlays++;
+    audio.ui('pause');
     this.ui.push(
       pausePanel(
         {
@@ -917,6 +1063,7 @@ export class GameApp {
           : this.mode === 'play'
             ? 'this ball is lost; the run is saved'
             : 'the run is saved',
+        this.run && this.run.phase !== 'over' ? where(this.run) : '',
       ),
     );
   }
@@ -974,6 +1121,11 @@ export class GameApp {
 
   private changeSettings(s: Settings): void {
     const voiceOn = s.voice && !this.save.settings.voice;
+    this.qualityCap = capAfterSettings(
+      this.qualityCap,
+      this.save.settings.pixelHeight,
+      s.pixelHeight,
+    );
     this.save.settings = s;
     this.input.rebuildKeyMap();
     this.applySettings();
@@ -1013,7 +1165,7 @@ export class GameApp {
       return;
     }
     navigator.clipboard.writeText(link).then(
-      () => this.ui.toast('Link copied: anyone who opens it plays this run'),
+      () => this.ui.toast('Link copied: anyone who opens it plays this run', 3000, 'good'),
       () => this.ui.toast(link, 8000),
     );
   }
@@ -1034,7 +1186,7 @@ export class GameApp {
       return;
     }
     navigator.clipboard.writeText(report).then(
-      () => this.ui.toast('Bug report copied to the clipboard'),
+      () => this.ui.toast('Bug report copied to the clipboard', 2600, 'good'),
       () => this.downloadReport(report),
     );
   }
@@ -1104,15 +1256,16 @@ export class GameApp {
     this.world.cell.setTallies(this.save.tallies);
     this.persist();
     this.ui.toast(`Seed ${sd}`);
+    audio.runStart();
     this.enterDeadlineIntro();
   }
 
-  private dailyLabel(): string {
+  /** Today's best Daily Sentence result, for the title screen ('' if none yet). */
+  private dailyBestText(): string {
     const d = this.save.daily;
-    const today = dayKey(new Date());
-    const best =
-      d.date === today && d.best ? ` (best: ${d.best.deadlines} paid, ${d.best.coins}c)` : '';
-    return `Daily Sentence${best}`;
+    return d.date === dayKey(new Date()) && d.best
+      ? `Today's best: ${d.best.deadlines} paid, ${d.best.coins} coins`
+      : '';
   }
 
   /** Resume the autosaved run at the start of its round. */
@@ -1153,7 +1306,9 @@ export class GameApp {
       u.inmate ? inmateDef(u.inmate).name : '',
       u.endless ? 'Endless' : '',
     ].filter(Boolean);
-    this.ui.toast(`Unlocked${what.length ? `: ${what.join(', ')}` : `: ${u.text}`}`, 3500);
+    audio.unlocked();
+    this.ui.toast(unlockToast('Unlocked', what.length ? what.join(', ') : u.text), 4500, 'unlock');
+    this.ui.cue('reward');
   }
 
   private decks = new Map<WardenTrigger, string[]>();
@@ -1176,32 +1331,29 @@ export class GameApp {
         label: phase === 'escaped' ? 'THE ESCAPE' : 'JAILBREAK',
         value: phase === 'escaped' ? 1e12 : 1e11,
       });
+    audio.jailbreak(phase, n);
     switch (phase) {
       case 'start':
         this.shows.play('jailbreak');
-        audio.knocker();
         this.flash(0.5);
         this.shake(1.2);
         this.world.swingBulb(0.7);
         this.react('jailbreak', true);
         break;
       case 'shot':
-        audio.creak();
         this.shake(0.3 + n * 0.08);
         this.world.swingBulb(0.15 + n * 0.03);
         this.input.buzz(40 + n * 6);
         break;
       case 'posts':
-        audio.clang();
         if (this.session) this.world.table.setTags(new Set(this.session.sim.tags));
-        this.ui.toast('THE OUTLANE POSTS FALL OFF');
+        this.hud.banner('The posts fall off', { tone: 'red', sub: 'The outlanes are open' });
         break;
       case 'lights':
         this.world.lightsDying = true;
-        this.ui.toast('THE LIGHTS ARE DYING');
+        this.hud.banner('The lights are dying', { tone: 'red' });
         break;
       case 'glass':
-        audio.glassCrack();
         paintCracks(this.cracks, n * 7919 + 13);
         this.cracks.style.display = '';
         this.flash(0.4);
@@ -1209,7 +1361,6 @@ export class GameApp {
       case 'escaped':
         this.flash(0.8);
         this.shake(2);
-        audio.knocker();
         break;
       case 'failed':
         this.react('caught', true);
@@ -1220,8 +1371,11 @@ export class GameApp {
   /** The Warden reacts to play (rate-limited unless `force`). */
   private react(t: WardenTrigger, force = false): void {
     if (!this.run || this.mode !== 'play') return;
-    if (force) this.subs.say('THE WARDEN', this.warden(t));
-    else this.subs.react('THE WARDEN', () => this.warden(t), performance.now());
+    if (force) {
+      this.subs.say('THE WARDEN', this.warden(t));
+      audio.warden();
+    } else if (this.subs.react('THE WARDEN', () => this.warden(t), performance.now()))
+      audio.warden();
   }
 
   private lastSave = -1e9;
@@ -1246,70 +1400,10 @@ export class GameApp {
     const last = lastCall(r);
     this.autosave();
     const line = this.warden(r.deadline === 0 ? 'intro' : last ? 'lastCall' : 'sentence');
+    if (r.deadline > 0) audio.warden();
     this.dmd.say(`THE WARDEN: ${line}`);
     this.subs.say('THE WARDEN', line, false);
-    const cards = r.sentences.map((id) => {
-      const d = sentenceDef(id);
-      return h('div', { class: 'sentence' }, h('b', null, d.name), h('small', null, d.text));
-    });
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel', 'data-skin': 'deadline' },
-        h(
-          'h2',
-          { 'data-slot': 'head' },
-          last
-            ? `Deadline ${r.deadline + 1}: Last Call`
-            : `Deadline ${r.deadline + 1} of ${r.deadlines}`,
-        ),
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line}”`),
-          r.deadline > 0
-            ? h(
-                'div',
-                { class: 'receipt-alert-box' },
-                `★ HEAVIER COIN MECH: TABLE PAYOUTS MULTIPLIED AT x${formatCoins(payScale(r))}`,
-              )
-            : null,
-          h(
-            'div',
-            { class: 'cell-gauges-grid' },
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
-              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
-              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Pocket Cash'),
-              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
-            ),
-          ),
-          h(
-            'div',
-            { class: 'cell-rack-hdr', style: { marginTop: '4px' } },
-            `MANDATORY SENTENCE (ROUND ${ECONOMY.roundsPerDeadline}):`,
-          ),
-          ...cards,
-          h(
-            'div',
-            { class: 'cell-dock' },
-            h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'Proceed To The ATM'),
-          ),
-        ),
-      ),
-    );
+    this.ui.show(introPanel(r, line, { next: () => this.enterJobs() }));
   }
 
   /** The phone after a paid deadline: perks, or the red phone's bargains. */
@@ -1328,27 +1422,8 @@ export class GameApp {
       const line = this.warden('deadlinePaid');
       this.dmd.say(`THE WARDEN: ${line}`);
       this.subs.say('THE WARDEN', line, false);
-      const cards = call.offers.map((o, i) =>
-        h(
-          'button',
-          {
-            class: `job${i === 0 ? ' primary' : ''}`,
-            style: { minHeight: '52px', fontSize: '1.2em' },
-            onclick: () => this.answerPhone(() => choosePerk(r, i)),
-          },
-          h('b', null, perkDef(o.id).text.replace('{shot}', o.shot ?? '')),
-        ),
-      );
       this.ui.show(
-        h(
-          'div',
-          { class: 'panel', 'data-skin': 'phone' },
-          h('h2', { 'data-slot': 'head' }, 'The phone rings'),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-            h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line} Pick one. It is yours for the rest of your stay.”`),
-            h('div', { class: 'col' }, ...cards),
-          ),
-        ),
+        phonePanel(r, line, { choose: (i) => this.answerPhone(() => choosePerk(r, i)) }),
       );
       return;
     }
@@ -1357,58 +1432,21 @@ export class GameApp {
     this.subs.say('THE RED PHONE', line, false);
     this.flash(0.15);
     audio.creak();
-    const cards = call.offers.map((id, i) => {
-      if (id.startsWith('charm:')) {
-        const c = charmDef(id.slice(6));
-        return h(
-          'button',
-          { class: 'red-bargain-box', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-          h('div', { class: 'red-bargain-name' }, `⛧ ${c.name} (DEVIL CHARM)`),
-          h('div', { class: 'red-bargain-gain' }, `Gain: ${c.text}`),
-          h('div', { class: 'red-bargain-cost' }, 'Blood Price: Permanently binds to charm slot. Cannot be sold.'),
-        );
-      }
-      const b = bargainDef(id);
-      return h(
-        'button',
-        { class: 'red-bargain-box', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
-        h('div', { class: 'red-bargain-name' }, `⛧ ${b.name}`),
-        h('div', { class: 'red-bargain-gain' }, `The Boon: ${b.gain}`),
-        h('div', { class: 'red-bargain-cost' }, `Blood Sacrifice: ${b.cost}`),
-      );
-    });
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel red', 'data-skin': 'redCall' },
-        h('h2', { 'data-slot': 'head' }, 'The red phone rings'),
-        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', color: '#ff9a88', margin: '4px 0' } }, `“${line}”`),
-          h('div', { class: 'col' }, ...cards),
-          h(
-            'div',
-            { class: 'cell-dock' },
-            h(
-              'button',
-              {
-                class: 'primary',
-                onclick: () =>
-                  this.answerPhone(() => {
-                    this.subs.say('THE WARDEN', this.warden('hangUp'));
-                    return hangUp(r);
-                  }),
-              },
-              'Slam The Receiver (Hang Up)',
-            ),
-          ),
-        ),
-      ),
+      redPhonePanel(r, line, {
+        accept: (i) => this.answerPhone(() => acceptBargain(r, i)),
+        hangUp: () =>
+          this.answerPhone(() => {
+            this.subs.say('THE WARDEN', this.warden('hangUp'));
+            return hangUp(r);
+          }),
+      }),
     );
   }
 
   private answerPhone(fn: () => boolean): void {
     if (!fn()) return;
-    audio.atmBeep();
+    audio.phonePick();
     this.enterDeadlineIntro();
   }
 
@@ -1421,7 +1459,7 @@ export class GameApp {
     this.unlockCheck();
     this.persist();
     this.subs.say('THE WARDEN', this.warden('payEarly'));
-    this.ui.toast(`+${r.tickets - before} tickets`);
+    this.ui.toast(`+${r.tickets - before} tickets`, 2600, 'good');
     if (r.phase === 'over') this.endRun();
     else this.enterPhone();
   }
@@ -1437,48 +1475,9 @@ export class GameApp {
     this.hints.show('jobs');
     if (sentenceActive(r)) this.hints.show('sentence');
     this.world.setMode('seated');
-    audio.atmBeep();
-    const cards = r.jobOffers.map((o, i) => {
-      const def = jobDef(o.id);
-      const serial = `PRISON LABOR DEPT // WORK ORDER #${String(Math.abs(o.id.charCodeAt(0) * 17 + o.target * 3 + r.round * 7) % 900 + 100).padStart(3, '0')}`;
-      return h(
-        'button',
-        {
-          class: `job${def.key ? ' key' : ''}${i === 0 ? ' primary' : ''}`,
-          'data-skin': 'jobs',
-          onclick: () => this.takeJob(i),
-        },
-        h('div', { class: 'ticket-head' }, serial),
-        h('div', { class: 'ticket-task' }, jobText(def, o.target)),
-        h('div', { class: 'ticket-seal' }, `★ ${rewardText(def, r.deadline).toUpperCase()} ★`),
-      );
-    });
+    this.ui.cue('open');
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm jobs' },
-        h('div', { class: 'plaque' }, h('h2', null, `Round ${r.round + 1}: Work Orders`)),
-        sentenceActive(r)
-          ? h(
-              'div',
-              { class: 'cell-warning-strip', style: { textAlign: 'center', margin: '4px auto', maxWidth: '600px' } },
-              `⚠️ SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
-            )
-          : null,
-        h('p', { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.2em', letterSpacing: '0.08em', color: 'var(--bc-crt-green)' } }, 'SELECT ONE WORK ORDER FROM THE TERMINAL DISPENSER:'),
-        h('div', { class: 'col' }, ...cards),
-        canPayEarly(r)
-          ? h(
-              'div',
-              { class: 'cell-dock', style: { marginTop: '12px' } },
-              h(
-                'button',
-                { class: 'primary', onclick: () => this.payEarlyFlow() },
-                `★ Expedited Debt Settlement (+${payEarlyReward(r)} Bonus Tickets)`,
-              ),
-            )
-          : null,
-      ),
+      jobsPanel(r, { take: (i) => this.takeJob(i), payEarly: () => this.payEarlyFlow() }),
     );
     if (sentenceActive(r))
       this.dmd.show({
@@ -1514,6 +1513,16 @@ export class GameApp {
         : k.ask === 'tickets'
           ? `${k.amount} tickets`
           : charmDef(k.charm!).name;
+    const get =
+      k.offer === 'key'
+        ? 'A key'
+        : k.offer === 'tip'
+          ? 'A tip about the table'
+          : k.offer === 'contraband'
+            ? k.item
+              ? contrabandDef(k.item).name
+              : 'Contraband'
+            : `${k.offerAmount ?? NEIGHBOR.ticketsOffered} tickets`;
     const answer = (help: boolean) => {
       if (!answerKnock(r, help)) return;
       recordKnock(this.save.meta);
@@ -1524,42 +1533,7 @@ export class GameApp {
       this.persist();
       this.enterJobs();
     };
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel knock', 'data-skin': 'knock' },
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px 10px', fontFamily: 'var(--bc-typewriter)' } },
-          h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.4em', letterSpacing: '0.1em', color: '#84261a', borderBottom: '1px dashed rgba(132, 38, 26, 0.4)', paddingBottom: '2px' } }, 'SMUGGLED NOTE THROUGH THE BRICKS'),
-          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#291c12', margin: '4px 0' } }, `“${ask}”`),
-          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#84261a', fontWeight: 'bold', margin: '4px 0' } }, `“${offer}”`),
-          h(
-            'div',
-            { class: 'cell-dock', style: { marginTop: '10px' } },
-            h(
-              'button',
-              {
-                class: canHelp(r) ? 'primary' : '',
-                disabled: !canHelp(r),
-                onclick: () => answer(true),
-              },
-              `Slide Over ${give}`,
-            ),
-            h(
-              'button',
-              { class: canHelp(r) ? '' : 'primary', onclick: () => answer(false) },
-              'Ignore The Tapping',
-            ),
-          ),
-          h(
-            'div',
-            { style: { fontSize: '0.8em', color: '#6a5640', textAlign: 'center', marginTop: '4px' } },
-            `The neighbor has knocked ${r.neighbor.asked} time(s) · You assisted ${r.neighbor.helped} time(s)`,
-          ),
-        ),
-      ),
-    );
+    this.ui.show(knockPanel(r, k, { ask, offer, give, get }, { answer }));
   }
 
   takeJob(i: number): void {
@@ -1572,93 +1546,12 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'buy';
     this.world.setMode('seated');
-    const price = ballPrice(r);
-    const max = maxAffordableBalls(r);
-    const opts: HTMLElement[] = [];
-    for (let n = 1; n <= ECONOMY.maxBallsPerRound; n++) {
-      const cost = costForBalls(r, n);
-      opts.push(
-        h(
-          'button',
-          {
-            class: n === Math.min(3, max) ? 'primary' : '',
-            disabled: n > max,
-            onclick: () => this.buy(n),
-          },
-          `${n} ball${n > 1 ? 's' : ''} — ${cost ? `${cost}c` : 'free'}`,
-        ),
-      );
-    }
-    this.ui.show(
-      h(
-        'div',
-        { class: 'panel', 'data-skin': 'buy' },
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h(
-            'div',
-            { class: 'cell-cockpit-bar' },
-            h('h2', { class: 'cell-cockpit-title' }, 'Procure Pinballs'),
-            h(
-              'span',
-              { class: 'cell-cockpit-prog' },
-              `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-            ),
-          ),
-          h(
-            'div',
-            { class: 'cell-gauges-grid' },
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Pocket Cash'),
-              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
-              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
-              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
-            ),
-          ),
-          h(
-            'p',
-            { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.92em', margin: '4px 0' } },
-            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c coins from pocket.`,
-          ),
-          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
-          h(
-            'div',
-            {
-              style: {
-                background: 'rgba(41, 28, 18, 0.08)',
-                border: '1px dashed #6a5640',
-                borderRadius: '3px',
-                padding: '6px 10px',
-                marginTop: '8px',
-                fontFamily: 'var(--bc-typewriter)',
-                color: '#291c12',
-                fontSize: '0.86em',
-                lineHeight: '1.35',
-              },
-            },
-            h('b', { style: { color: '#84261a', textTransform: 'uppercase', display: 'block', marginBottom: '2px' } }, 'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY'),
-            'Extra balls give you more attempts to shoot bank targets and complete your Work Order. Unspent coins stay in your pocket to deposit at the ATM for 10% round compound interest.',
-          ),
-        ),
-      ),
-    );
+    this.ui.show(buyPanel(r, { buy: (n) => this.buy(n) }));
   }
 
   buy(n: number): void {
     if (!this.run || !buyBalls(this.run, n)) return;
+    audio.ui('buy');
     this.enterCell();
   }
 
@@ -1667,101 +1560,20 @@ export class GameApp {
     this.mode = 'cell';
     this.world.setMode('seated');
     this.session = null;
-    const left = ballsLeft(r);
-    const pips = '● '.repeat(Math.min(5, left)) + '○ '.repeat(Math.max(0, 5 - left));
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel', 'data-skin': 'cell' },
-        h(
-          'div',
-          { class: 'cell-cockpit' },
-          h(
-            'div',
-            { class: 'cell-cockpit-bar' },
-            h('h2', { class: 'cell-cockpit-title' }, 'Cell Block 9'),
-            h(
-              'span',
-              { class: 'cell-cockpit-prog' },
-              `DEADLINE ${r.deadline + 1}/${r.deadlines} · ROUND ${r.round + 1}/${ECONOMY.roundsPerDeadline}`,
-            ),
-          ),
-          h(
-            'div',
-            { class: 'cell-gauges-grid' },
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Pocket Coins'),
-              h('div', { class: 'cell-gauge-val amber' }, `${r.pocket}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Bank Vault'),
-              h('div', { class: 'cell-gauge-val green' }, `${r.bank}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Debt Target'),
-              h('div', { class: 'cell-gauge-val red' }, `${r.debt}c`),
-            ),
-            h(
-              'div',
-              { class: 'cell-gauge-box' },
-              h('div', { class: 'cell-gauge-label' }, 'Balls Ready'),
-              h('div', { class: 'cell-gauge-val balls' }, String(left)),
-              h('div', { class: 'cell-gauge-pips' }, pips.trim()),
-            ),
-          ),
-          r.job
-            ? h(
-                'div',
-                { class: 'cell-order-banner' },
-                h(
-                  'span',
-                  { class: 'cell-order-title' },
-                  `WORK ORDER: ${jobText(jobDef(r.job.id), r.job.target)}`,
-                ),
-                h(
-                  'span',
-                  { class: `cell-order-status${r.job.done ? ' done' : ''}` },
-                  r.job.done ? '✓ COMPLETED' : `${formatCoins(r.job.progress)}/${r.job.target}`,
-                ),
-              )
-            : null,
-          this.charmBar(r),
-          h(
-            'div',
-            { style: { fontFamily: 'var(--bc-crt)', fontSize: '0.95em', color: '#a49477', margin: '2px 0' } },
-            `SHOT UPGRADES: ${levelsText(r)}`,
-          ),
-          this.stash(r, () => this.enterCell()),
-          sentenceActive(r)
-            ? h(
-                'div',
-                { class: 'cell-warning-strip' },
-                `⚠️ SENTENCE IN FORCE: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
-              )
-            : null,
-          h(
-            'div',
-            { class: 'cell-dock' },
-            h(
-              'button',
-              {
-                class: `play-ball-btn${left > 0 ? ' primary' : ''}`,
-                disabled: left <= 0,
-                onclick: () => this.startBall(),
-              },
-              'Play Ball',
-            ),
-            h('button', { onclick: () => this.enterAtm('cell') }, 'ATM Terminal'),
-            h('button', { onclick: () => this.enterShop() }, 'Vending Cabinet'),
-          ),
-        ),
-      ),
+      cellPanel(r, {
+        play: () => this.startBall(),
+        atm: () => this.enterAtm('cell'),
+        shop: () => this.enterShop(),
+        use: (i, target) => {
+          const name = contrabandDef(r.contraband[i]).name;
+          if (useContraband(r, i, target ?? {})) {
+            audio.atmBeep();
+            this.ui.toast(`${name}: done.`, 2200, 'good');
+          }
+          this.enterCell();
+        },
+      }),
     );
   }
 
@@ -1770,218 +1582,22 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'atm';
     this.world.setMode('seated');
-    const dep = (n: number) => {
-      deposit(r, n);
-      audio.atmBeep();
-      this.enterAtm(back);
-    };
-    const need = Math.max(0, r.debt - r.bank);
-    const solvent = r.bank >= r.debt;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm', 'data-skin': 'atm' },
-        h(
-          'div',
-          { class: 'atm-terminal-screen' },
-          h(
-            'div',
-            { class: 'atm-header-banner' },
-            h('h2', null, 'AUTOMATED TELLER // FIRMWARE v4.19'),
-            h(
-              'div',
-              { class: 'atm-header-sub' },
-              back === 'deadline'
-                ? '★ DEADLINE RECONCILIATION PROTOCOL ACTIVE ★'
-                : 'DEPOSITS ARE NON-REFUNDABLE · SAVINGS ACCRUE +10% ROUND INTEREST',
-            ),
-          ),
-          h(
-            'div',
-            { class: 'atm-readouts' },
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Pocket Cash'),
-              h('span', { class: 'atm-readout-val amber' }, `${r.pocket}c`),
-            ),
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Bank Vault (+10%)'),
-              h('span', { class: 'atm-readout-val green' }, `${r.bank}c`),
-            ),
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Debt Target'),
-              h('span', { class: 'atm-readout-val red' }, `${r.debt}c`),
-            ),
-            h(
-              'div',
-              { class: `atm-readout-box ${solvent ? 'status-solvent' : 'status-shortfall'}` },
-              h('span', { class: 'atm-readout-label' }, 'Payment Status'),
-              h(
-                'span',
-                { class: `atm-readout-val ${solvent ? 'green' : 'red'}` },
-                solvent ? 'SOLVENT [PAID]' : `SHORTFALL: -${need}c`,
-              ),
-            ),
-          ),
-          h(
-            'div',
-            { class: 'atm-keypad-panel' },
-            h('button', { disabled: r.pocket < 1, onclick: () => dep(1) }, '+1c'),
-            h('button', { disabled: r.pocket < 5, onclick: () => dep(5) }, '+5c'),
-            h('button', { disabled: r.pocket < 10, onclick: () => dep(10) }, '+10c'),
-            h(
-              'button',
-              {
-                class: need > 0 && r.pocket >= need ? 'primary' : '',
-                disabled: need < 1 || r.pocket < 1,
-                onclick: () => dep(Math.min(need, r.pocket)),
-              },
-              `Pay Owed (${Math.min(need, r.pocket)}c)`,
-            ),
-            h('button', { disabled: r.pocket < 1, onclick: () => dep(r.pocket) }, 'Deposit All'),
-          ),
-          this.loanRow(r, back),
-          h(
-            'div',
-            { class: 'cell-dock' },
-            h(
-              'button',
-              {
-                class: 'primary',
-                onclick: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
-              },
-              back === 'deadline' ? 'Return to Deadline' : 'Return to Cell',
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  private loanRow(r: RunState, back: 'cell' | 'deadline'): HTMLElement | null {
-    const avail = loanAvailable(r);
-    const owed = r.loanDue
-      ? h('div', { class: 'atm-credit-hdr', style: { color: 'var(--bc-red)' } }, `LOAN SURCHARGE ADDED TO NEXT DEBT: ${r.loanDue}c`)
-      : null;
-    if (avail <= 0)
-      return (
-        owed ??
-        h(
-          'div',
-          { class: 'atm-credit-facility' },
-          h(
-            'div',
-            { class: 'atm-credit-hdr' },
-            r.deadline >= r.deadlines - 1 ? 'CREDIT LINE: NO LOANS ON LAST CALL' : 'CREDIT LINE: LIMIT REACHED',
-          ),
-        )
-      );
-    const take = (n: number) => {
-      if (borrow(r, n) > 0) {
-        audio.atmBeep();
-        this.subs.say('THE WARDEN', this.warden('loan'));
-      }
-      this.enterAtm(back);
-    };
-    const half = Math.max(1, Math.floor(avail / 2));
-    return h(
-      'div',
-      { class: 'atm-credit-facility' },
-      h(
-        'div',
-        { class: 'atm-credit-hdr' },
-        `EMERGENCY CREDIT (WARDEN CAPITAL): BORROW UP TO ${avail}c (REPAY AT ${Math.round(r.mods.loanRate * 100)}%)`,
-      ),
-      h(
-        'div',
-        { class: 'atm-credit-btns' },
-        h('button', { onclick: () => take(half) }, `Borrow ${half}c (Owe ${loanCost(r, half)}c)`),
-        h('button', { onclick: () => take(avail) }, `Borrow ${avail}c (Owe ${loanCost(r, avail)}c)`),
-      ),
-    );
-  }
-
-  /** Owned charms in slot order (active ones show charges and their key). */
-  private charmBar(r: RunState): HTMLElement {
-    const items = r.charms.map((id, i) => {
-      const c = charmDef(id);
-      const charges = c.active
-        ? ` [${i + 1}] ${'●'.repeat(r.charges[id] ?? 0)}${'○'.repeat(c.active.charges - (r.charges[id] ?? 0))}`
-        : '';
-      return h(
-        'span',
-        { class: 'cell-token', style: { borderColor: RARITY_COLORS[c.rarity] }, title: c.text },
-        itemIcon(id),
-        h('span', null, c.name),
-        charges ? h('span', { class: 'cell-gauge-pips' }, charges) : null,
-      );
-    });
-    return h(
-      'div',
-      { class: 'cell-equipment-rack' },
-      h(
-        'div',
-        { class: 'cell-rack-hdr' },
-        `EQUIPMENT RACK · SLOTS ${r.charms.length}/${r.mods.charmSlots} · TICKETS: ${r.tickets} 🎟️ · KEYS: `,
-        keysIcon(),
-        ` ${r.keys}`,
-      ),
-      h(
-        'div',
-        { class: 'cell-rack-shelf' },
-        ...(items.length ? items : [h('span', { class: 'dim' }, 'Empty rack')]),
-      ),
-    );
-  }
-
-  /** Contraband stash with Use buttons (Oil Can and Shiv ask for a target). */
-  private stash(r: RunState, back: () => void): HTMLElement | null {
-    if (!r.contraband.length) return null;
-    const use = (i: number, t = {}) => {
-      const name = contrabandDef(r.contraband[i]).name;
-      if (useContraband(r, i, t)) {
-        audio.atmBeep();
-        this.ui.toast(`${name}: done.`);
-      }
-      back();
-    };
-    const rows = r.contraband.map((id, i) => {
-      const d = contrabandDef(id);
-      if (d.target === 'shot')
-        return h(
-          'div',
-          { class: 'cell-contraband-row' },
-          h('span', { class: 'dim' }, itemIcon(id), `${d.name}:`),
-          ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
-            h('button', { onclick: () => use(i, { shot }) }, shot),
-          ),
-        );
-      if (d.target === 'charm')
-        return h(
-          'div',
-          { class: 'cell-contraband-row' },
-          h('span', { class: 'dim' }, itemIcon(id), `${d.name}:`),
-          ...r.charms.map((cid, slot) =>
-            h('button', { onclick: () => use(i, { charmSlot: slot }) }, charmDef(cid).name),
-          ),
-        );
-      return h(
-        'button',
-        { disabled: !canUse(r, id), title: d.text, onclick: () => use(i) },
-        itemIcon(id),
-        `Use ${d.name}`,
-      );
-    });
-    return h(
-      'div',
-      { class: 'cell-contraband-shelf' },
-      h('div', { class: 'cell-rack-hdr' }, 'CONTRABAND STASH'),
-      h('div', { class: 'cell-contraband-row' }, ...rows),
+      atmPanel(r, back, {
+        deposit: (n) => {
+          deposit(r, n);
+          audio.deposit();
+          this.enterAtm(back);
+        },
+        borrow: (n) => {
+          if (borrow(r, n) > 0) {
+            audio.cashOut();
+            this.subs.say('THE WARDEN', this.warden('loan'));
+          }
+          this.enterAtm(back);
+        },
+        done: () => (back === 'deadline' ? this.enterDeadline() : this.enterCell()),
+      }),
     );
   }
 
@@ -1990,141 +1606,26 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'shop';
     this.world.setMode('seated');
-    const tags = ownedTags(r);
-    const charmCards = r.shop.charms.map((id, i) => {
-      const c = charmDef(id);
-      const synergy = c.tags.some((t) => tags.has(t));
-      const icon = itemIcon(id);
-      return h(
-        'button',
-        {
-          class: `shop-card-tile${synergy ? ' synergy-glow' : ''}`,
-          style: { borderColor: RARITY_COLORS[c.rarity] },
-          disabled: r.tickets < c.cost || r.charms.length >= r.mods.charmSlots,
-          onclick: () => {
-            if (buyCharm(r, i)) audio.coin(4);
-            this.enterShop();
-          },
-        },
-        h(
-          'div',
-          { class: 'shop-card-meta' },
-          h('span', { class: 'shop-card-tier', style: { color: RARITY_COLORS[c.rarity] } }, c.rarity),
-          h('span', { class: 'shop-card-price' }, `🎟️ ${c.cost} ${c.cost === 1 ? 'ticket' : 'tickets'}`),
-        ),
-        h(
-          'div',
-          { class: 'shop-card-body' },
-          icon,
-          h(
-            'div',
-            null,
-            h(
-              'div',
-              { class: 'shop-card-heading' },
-              c.name,
-              synergy ? h('span', { class: 'shop-synergy-tag' }, '✨ SYNERGY') : null,
-            ),
-            h('p', { class: 'shop-card-lore' }, c.text),
-          ),
-        ),
-      );
-    });
-    const cbCards = r.shop.contraband.map((id, i) => {
-      const d = contrabandDef(id);
-      const price = contrabandPrice(r, id);
-      const icon = itemIcon(id);
-      return h(
-        'button',
-        {
-          class: 'shop-card-tile',
-          disabled: r.pocket < price || r.contraband.length >= contrabandSlots(r),
-          onclick: () => {
-            if (buyContraband(r, i)) audio.coin(3);
-            this.enterShop();
-          },
-        },
-        h(
-          'div',
-          { class: 'shop-card-meta' },
-          h('span', { class: 'shop-card-tier' }, 'CONTRABAND'),
-          h('span', { class: 'shop-card-price' }, `🪙 ${price}c`),
-        ),
-        h(
-          'div',
-          { class: 'shop-card-body' },
-          icon,
-          h(
-            'div',
-            null,
-            h('div', { class: 'shop-card-heading' }, d.name),
-            h('p', { class: 'shop-card-lore' }, d.text),
-          ),
-        ),
-      );
-    });
-    const sells = r.charms.map((id, slot) => {
-      const c = charmDef(id);
-      return h(
-        'button',
-        {
-          disabled: !!c.cursed,
-          onclick: () => {
-            if (sellCharm(r, slot)) audio.atmBeep();
-            this.enterShop();
-          },
-        },
-        itemIcon(id),
-        c.cursed ? `${c.name} (CURSED)` : `Pawn ${c.name} (+${sellValue(r, id)}🎟️)`,
-      );
-    });
-    const cost = rerollCost(r);
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel shop', 'data-skin': 'shop' },
-        h('h2', { 'data-slot': 'head' }, 'Vending cabinet'),
-        h(
-          'div',
-          { class: 'shop-cockpit' },
-          h(
-            'div',
-            { class: 'shop-counters-bar' },
-            h('div', null, 'TICKETS: ', h('b', { class: 'amber-badge' }, `${r.tickets} 🎟️`)),
-            h('div', null, 'POCKET: ', h('b', { class: 'amber-badge' }, `${r.pocket}c 🪙`)),
-            h('div', null, 'SLOTS: ', h('b', null, `${r.charms.length}/${r.mods.charmSlots}`)),
-            h('div', null, 'CONTRABAND: ', h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`)),
-          ),
-          h('div', { class: 'shop-section-label' }, 'LUCKY CHARMS (TICKETS)'),
-          h('div', { class: 'shop-charms-grid' }, ...charmCards),
-          cbCards.length ? h('div', { class: 'shop-section-label' }, 'CONTRABAND CACHE (COINS)') : null,
-          cbCards.length ? h('div', { class: 'shop-charms-grid' }, ...cbCards) : null,
-          sells.length
-            ? h(
-                'div',
-                { class: 'shop-pawn-drawer' },
-                h('div', { class: 'shop-section-label' }, 'PAWN & RESALE (REFUND TICKETS)'),
-                h('div', { class: 'shop-pawn-cards' }, ...sells),
-              )
-            : null,
-          h(
-            'div',
-            { class: 'cell-dock' },
-            h(
-              'button',
-              {
-                disabled: r.pocket < cost,
-                onclick: () => {
-                  if (reroll(r)) audio.atmBeep();
-                  this.enterShop();
-                },
-              },
-              `Reroll Shelf (${cost}c)`,
-            ),
-            h('button', { class: 'primary', onclick: () => this.enterCell() }, 'Leave Cabinet'),
-          ),
-        ),
-      ),
+      shopPanel(r, {
+        buyCharm: (i) => {
+          if (buyCharm(r, i)) audio.vend();
+          this.enterShop();
+        },
+        buyContraband: (i) => {
+          if (buyContraband(r, i)) audio.vend();
+          this.enterShop();
+        },
+        sell: (slot) => {
+          if (sellCharm(r, slot)) audio.ui('sell');
+          this.enterShop();
+        },
+        reroll: () => {
+          if (reroll(r)) audio.atmBeep();
+          this.enterShop();
+        },
+        done: () => this.enterCell(),
+      }),
     );
   }
 
@@ -2160,6 +1661,7 @@ export class GameApp {
     this.simInput = emptyInput();
     this.mode = 'play';
     this.world.setMode(this.save.settings.camera === 'seated' ? 'seated' : 'play');
+    audio.ballFeed();
   }
 
   private onBallOver(): void {
@@ -2187,7 +1689,7 @@ export class GameApp {
     if (ticks > t.ticks) {
       this.pourCoins(Math.floor((t.total * ticks) / 24) - Math.floor((t.total * t.ticks) / 24));
       t.ticks = ticks;
-      audio.coin(Math.min(8, Math.floor(ticks / 3)));
+      audio.countTick(ticks, 24);
     }
     if (t.k >= 1) {
       this.tally = null;
@@ -2224,7 +1726,7 @@ export class GameApp {
     const o = this.outcome!;
     this.mode = 'ballEnd';
     const res = finishBall(r, o);
-    if (res.debtAdded) this.ui.toast(`HEAD COUNT: +${res.debtAdded}c debt`);
+    if (res.debtAdded) this.ui.toast(`Head count: +${res.debtAdded} debt`, 3200, 'bad');
     recordBall(this.save.meta, o, res.gained);
     this.hints.show('pocket');
     this.unlockCheck();
@@ -2242,91 +1744,23 @@ export class GameApp {
       anim: 'count',
       duration: 1.6,
     });
-    const lines: HTMLElement[] = [
-      h(
-        'div',
-        { class: 'receipt-header' },
-        h('h2', { class: 'receipt-title' }, 'PENITENTIARY LABOR LOG'),
-        h('div', { class: 'receipt-sub' }, `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1} · BALL RECONCILIATION`),
-      ),
-      h(
-        'div',
-        { class: 'receipt-stamp-box' },
-        h(
-          'span',
-          { class: `receipt-stamp ${o.tilted ? 'tilted' : 'settled'}` },
-          o.tilted ? 'FORFEIT / TILTED' : 'BALL SETTLED',
-        ),
-      ),
-      h(
-        'div',
-        { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Table Earnings'),
-        h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val' }, `${formatCoins(o.earned)}c`),
-      ),
-      h(
-        'div',
-        { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Bonus Multiplier'),
-        h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val' }, o.bonus > 0 ? `x${formatCoins(o.bonus)}` : '—'),
-      ),
-      h(
-        'div',
-        { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Net Credited To Pocket'),
-        h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val highlight' }, `+${res.gained}c`),
-      ),
-      h(
-        'div',
-        { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Total Inmate Pocket'),
-        h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val' }, `${r.pocket}c`),
-      ),
-      h(
-        'div',
-        { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Balls Remaining In Rack'),
-        h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val' }, String(ballsLeft(r))),
-      ),
-    ];
-    if (o.extraBalls)
-      lines.push(h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`));
-    for (const l of o.levelUps)
-      lines.push(h('div', { class: 'receipt-alert-box' }, `▲ SHOT UPGRADE: ${l.toUpperCase()} NOW LVL ${r.shotLevels[l]}`));
-    if (res.jobDone)
-      lines.push(
-        h(
-          'div',
-          { class: 'receipt-alert-box' },
-          `★ WORK ORDER COMPLETE: ${jobText(res.jobDone, r.job!.target)} (${rewardText(res.jobDone, r.deadline)})`,
-        ),
-      );
-    else if (r.job && !r.job.done) {
-      const def = jobDef(r.job.id);
-      lines.push(
-        h(
-          'div',
-          { class: 'receipt-sub', style: { textAlign: 'center', marginTop: '6px' } },
-          `Active Job: ${jobText(def, r.job.target)} (${formatCoins(r.job.progress)}/${r.job.target})`,
-        ),
-      );
-    }
+    if (res.jobDone) this.ui.cue('reward');
+    let lastTick = 0;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel', 'data-skin': 'tally' },
-        ...lines,
-        h(
-          'div',
-          { class: 'cell-dock', style: { marginTop: '8px' } },
-          h('button', { class: 'primary', onclick: () => this.afterBall() }, 'Continue'),
-          this.replayButton(() => this.finishBallPanelAgain()),
-        ),
+      ballEndPanel(
+        { r, o, res },
+        {
+          next: () => this.afterBall(),
+          // A tick as the Pocket total counts up, at most a few a second.
+          tick: () => {
+            const now = performance.now();
+            if (now - lastTick > 120) {
+              lastTick = now;
+              this.ui.cue('tick');
+            }
+          },
+        },
+        this.replayButton(() => this.finishBallPanelAgain()),
       ),
     );
     this.ballEndPanel = this.ui.current;
@@ -2344,9 +1778,9 @@ export class GameApp {
     const s = this.session;
     if (!s || !this.moments.length) return null;
     const m = this.moments.reduce((a, b) => (b.value > a.value ? b : a));
-    return h(
-      'button',
+    return button(
       {
+        k: 'replay',
         onclick: () => {
           before?.();
           this.startReplay(
@@ -2379,7 +1813,7 @@ export class GameApp {
     const play = rec.player();
     while (s.steps < from && !s.over) s.step(play(s.steps));
     live = true;
-    this.replay = { session: s, play, end: to, label, back };
+    this.replay = { session: s, play, end: to, back };
     this.mode = 'replay';
     this.ui.hide();
     this.simCursor = s.sim.events.head;
@@ -2437,7 +1871,7 @@ export class GameApp {
       if (underSentence && r.bank + r.pocket >= r.debt)
         this.subs.say('THE WARDEN', this.warden('sentenceSurvived'));
     } else {
-      this.ui.toast(`Round ${roundBefore + 1} over. The bank pays interest.`);
+      this.ui.toast(`Round ${roundBefore + 1} over. The Bank pays interest.`);
       this.enterJobs();
     }
   }
@@ -2446,79 +1880,10 @@ export class GameApp {
     const r = this.run!;
     this.mode = 'deadline';
     this.world.cell.setAtmAlarm(true);
+    audio.atmAlarm();
     this.world.setMode('seated');
-    const canPay = r.bank >= r.debt;
-    const couldPay = r.bank + r.pocket >= r.debt;
-    const shortfall = Math.max(0, r.debt - r.bank);
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel atm', 'data-skin': 'atm' },
-        h(
-          'div',
-          { class: 'atm-terminal-screen' },
-          h(
-            'div',
-            { class: 'atm-header-banner' },
-            h('h2', null, `DEADLINE ${r.deadline + 1} RECONCILIATION`),
-            h(
-              'div',
-              { class: 'atm-header-sub' },
-              canPay
-                ? '★ ACCOUNT SOLVENT: PROCEED WITH REPAYMENT ★'
-                : '⚠️ CRITICAL DEBT SHORTFALL: TRAPDOOR ARMED ⚠️',
-            ),
-          ),
-          h(
-            'div',
-            { class: 'atm-readouts' },
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Bank Vault Balance'),
-              h('span', { class: 'atm-readout-val green' }, `${r.bank}c`),
-            ),
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Debt Target'),
-              h('span', { class: 'atm-readout-val red' }, `${r.debt}c`),
-            ),
-            h(
-              'div',
-              { class: 'atm-readout-box' },
-              h('span', { class: 'atm-readout-label' }, 'Pocket Cash'),
-              h('span', { class: 'atm-readout-val amber' }, `${r.pocket}c`),
-            ),
-            h(
-              'div',
-              { class: `atm-readout-box ${canPay ? 'status-solvent' : 'status-shortfall'}` },
-              h('span', { class: 'atm-readout-label' }, 'Settlement Status'),
-              h(
-                'span',
-                { class: `atm-readout-val ${canPay ? 'green' : 'red'}` },
-                canPay ? 'READY TO SETTLE' : `SHORTFALL: -${shortfall}c`,
-              ),
-            ),
-          ),
-          h(
-            'div',
-            { class: 'cell-dock', style: { marginTop: '10px' } },
-            h(
-              'button',
-              { disabled: r.pocket < 1, onclick: () => this.enterAtm('deadline') },
-              'Make Final Deposit',
-            ),
-            canPay
-              ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay Debt & Settle')
-              : h(
-                  'button',
-                  { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
-                  'Face The Warden',
-                ),
-          ),
-        ),
-      ),
+      deadlinePanel(r, { deposit: () => this.enterAtm('deadline'), pay: () => this.payDeadline() }),
     );
   }
 
@@ -2526,6 +1891,7 @@ export class GameApp {
     const r = this.run!;
     settleDeadline(r);
     recordDeadline(this.save.meta, r);
+    if (r.phase !== 'over') audio.deadlinePaid();
     this.unlockCheck();
     this.persist();
     if (r.phase === 'over') this.endRun();
@@ -2573,19 +1939,18 @@ export class GameApp {
     this.ui.hide();
     this.ending = r.result;
     this.endings.start(r.result);
-    if (r.result === 'cellmate') audio.knock(4);
-    if (r.result === 'paidInFull') audio.creak();
+    audio.ending(r.result);
   }
 
   private endingCue(who: string, text: string): void {
     if (who === 'TITLE') {
       this.dmd.show({ text, priority: 10, anim: 'jailbreak', duration: 4 });
-      audio.knocker();
+      audio.titleCard();
       return;
     }
     this.subs.say(who, text);
     if (this.ending === 'cellmate' && text.startsWith('Then the wall')) {
-      audio.clang();
+      audio.wallDown();
       window.setTimeout(() => this.shake(1.4), 900);
     }
   }
@@ -2617,104 +1982,32 @@ export class GameApp {
     this.mode = 'rapsheet';
     this.renderer.tint.set(1, 1, 1);
     if (!this.ending) this.world.setMode('seated');
-    const fell = r.result === 'fell';
-    const ENDING_TEXT: Record<string, string> = {
-      paidInFull: 'Paid in full. The door opens.',
-      breakout: 'Escaped through the drain. JAILBREAK.',
-      cellmate: 'Paid in full. The wall came down.',
-    };
-    const drains = Object.entries(r.stats.drains)
-      .map(([k, v]) => `${k} ${v}`)
-      .join(', ');
+    const daily = this.save.daily.best;
     this.ui.show(
-      h(
-        'div',
-        { class: 'panel', 'data-skin': fell ? 'rapsheet' : 'endingResult' },
-        h('h1', null, 'Rap sheet'),
-        h(
-          'p',
-          null,
-          fell
-            ? `Fell at deadline ${r.deadline + 1}${r.endless ? ' (Endless)' : ` of ${r.deadlines}`}, owing ${r.debt}c.`
-            : (ENDING_TEXT[r.result ?? ''] ?? ''),
-        ),
-        h(
-          'p',
-          { class: 'dim' },
-          `${inmateDef(r.inmate).name}${r.hardTime ? `, Hard Time ${r.hardTime}` : ''} · seed ${r.seed}${r.assist ? ' · assist' : ''}`,
-        ),
-        r.kind === 'daily'
-          ? h(
-              'p',
-              { class: this.dailyBest ? 'good' : 'dim' },
-              this.dailyBest
-                ? `Daily Sentence: a new best for today (${r.deadline} paid, ${r.stats.coinsEarned}c).`
-                : `Daily Sentence: today's best is ${this.save.daily.best?.deadlines ?? 0} paid, ${this.save.daily.best?.coins ?? 0}c.`,
+      runEndPanel(
+        {
+          r,
+          fresh: this.fresh,
+          tallies: this.save.tallies,
+          dailyBest: this.dailyBest,
+          dailyLine:
+            r.kind === 'daily'
+              ? this.dailyBest
+                ? `Daily Sentence: a new best for today (${r.deadline} paid, ${r.stats.coinsEarned} coins).`
+                : `Daily Sentence: today's best is ${daily?.deadlines ?? 0} paid, ${daily?.coins ?? 0} coins.`
+              : null,
+          unlockText: (u) => (u.ending ? u.text : `${u.text} → ${unlockReward(u)}`),
+        },
+        { again: () => this.enterTitle(), copyLink: () => this.copyLink(r) },
+        r.result === 'breakout'
+          ? this.replayButton(
+              () => this.rapSheet(),
+              () => {
+                this.endings.stop();
+                this.ending = null;
+              },
             )
           : null,
-        h(
-          'div',
-          { class: 'grid' },
-          'Balls played',
-          h('b', null, String(r.stats.balls)),
-          'Coins earned',
-          h('b', null, String(r.stats.coinsEarned)),
-          'Best ball',
-          h('b', null, `${r.stats.biggestBall}c`),
-          'Skill shots',
-          h('b', null, String(r.stats.skillShots)),
-          'RIOTs',
-          h('b', null, String(r.stats.riots)),
-          'Biggest PAYDAY',
-          h('b', null, `${Math.round(r.stats.biggestPayday)}c`),
-          'Longest combo',
-          h('b', null, String(r.stats.longestCombo)),
-          'Jobs done',
-          h('b', null, String(r.stats.jobsDone)),
-          'Sentences survived',
-          h('b', null, String(r.stats.sentencesSurvived)),
-          'Loans',
-          h('b', null, String(r.stats.loans)),
-          'Paid early',
-          h('b', null, String(r.stats.earlyPays)),
-          'Red calls',
-          h('b', null, `${r.stats.redCalls} (${r.bargains.length} taken)`),
-          'Tilts',
-          h('b', null, String(r.stats.tilts)),
-        ),
-        h('p', { class: 'dim' }, `Drains: ${drains || 'none'}`),
-        h(
-          'p',
-          { class: 'dim' },
-          `Build: ${r.charms.map((id) => charmDef(id).name).join(', ') || 'no charms'}`,
-        ),
-        this.fresh.length
-          ? h(
-              'div',
-              { class: 'unlocks' },
-              h('b', null, 'Unlocked'),
-              ...this.fresh.map((u) =>
-                h('p', null, u.ending ? u.text : `${u.text} → ${unlockReward(u)}`),
-              ),
-            )
-          : null,
-        h('p', { class: 'dim' }, 'A new mark is scratched into the wall.'),
-        h('p', { class: 'tally' }, tallyMarks(this.save.tallies)),
-        h(
-          'div',
-          { class: 'row' },
-          h('button', { class: 'primary', onclick: () => this.enterTitle() }, 'Again'),
-          h('button', { onclick: () => this.copyLink(r) }, 'Copy seed link'),
-          r.result === 'breakout'
-            ? this.replayButton(
-                () => this.rapSheet(),
-                () => {
-                  this.endings.stop();
-                  this.ending = null;
-                },
-              )
-            : null,
-        ),
       ),
     );
   }
@@ -2745,6 +2038,7 @@ export class GameApp {
     if (this.mode === 'fall') {
       this.fallT += dt;
       if (this.world.mode !== 'fall') this.world.setMode('fall');
+      audio.setView('fall');
       // The light above shrinks to nothing over the three seconds.
       const k = Math.min(1, this.fallT / 2.6);
       this.renderer.tint.setScalar(Math.max(0, 1 - k * k * 1.1));
@@ -2755,6 +2049,7 @@ export class GameApp {
         ? (this.devCam ?? (this.save.settings.camera === 'seated' ? 'seated' : 'play'))
         : (CAMERA_FOR[this.mode] ?? 'seated');
     if (this.world.mode !== m) this.world.setMode(m);
+    audio.setView(m);
     if (this.mode !== 'play') {
       const look =
         (this.input.isHeld('lookLeft') ? 1 : 0) - (this.input.isHeld('lookRight') ? 1 : 0);
@@ -2796,110 +2091,60 @@ export class GameApp {
     d.text(`DEBT ${r.debt}`, 126, 26, { font: FONT_SMALL, v: 10, align: 'right' });
   }
 
-  private hudCache = new Map<HTMLElement, string>();
   private glassCanvas: HTMLCanvasElement | null = null;
   private glassTex: THREE.CanvasTexture | null = null;
-  private glassKey = '';
+  private glassSig = -1;
+  private atmSig = -1;
   private glassLevels: Record<string, number> | null = null;
-  private atmKey = '';
 
-  /** Repaint the backglass (print + live ladders) and re-upload it. */
-  private paintGlass(levels: Record<string, number> | null): void {
-    this.glassLevels = levels;
-    if (!this.glassCanvas || !this.glassTex) return;
-    paintBackglass(this.glassCanvas, levels);
-    this.glassTex.needsUpdate = true;
+  /**
+   * Which HUD layout a screen gets: columns beside the table, the DMD, or none. Menu screens
+   * carry their own gauges on their frames (screens.ts), so they get no HUD over them.
+   */
+  private hudLayout(): HudLayout {
+    switch (this.mode) {
+      case 'play':
+      case 'tally':
+        return 'columns';
+      // The ball-over receipt is narrow enough to sit between the columns (not on a phone).
+      case 'ballEnd':
+        return this.portraitQuery.matches ? 'off' : 'columns';
+      case 'replay':
+      case 'fall':
+      case 'ending':
+        return 'dmd';
+      default:
+        return 'off';
+    }
   }
 
-  /** Set innerHTML only when it changed (the HUD updates every frame). */
-  private setHtml(el: HTMLElement, html: string): void {
-    if (this.hudCache.get(el) === html) return;
-    this.hudCache.set(el, html);
-    el.innerHTML = html;
-  }
-
-  private updateHud(shown: BallSession | null): void {
+  private updateHud(shown: BallSession | null, dt: number): void {
     const r = this.run;
     const playing = this.mode === 'play' || this.mode === 'tally';
-    const m = this.mode;
-    this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
-    this.hud.classList.toggle('playing', m === 'play');
-    // Endings keep the DMD (it shows the title) but drop the run's numbers; a replay keeps
-    // only the status rack, which says what is being replayed.
-    const replaying = m === 'replay';
-    const ending = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
-    const quiet = ending || replaying;
-    this.hudLedger.style.display = this.hudScore.style.display = quiet ? 'none' : '';
-    this.hudStatus.style.display = ending ? 'none' : '';
-    this.hudStatusHead.textContent = replaying ? 'Replay' : 'Status';
-    if (replaying) {
-      this.setHtml(
-        this.hudRight,
-        `INSTANT REPLAY<br><b>${this.replay?.label ?? ''}</b><div class="job"><small>Plunger or Enter skips</small></div>`,
-      );
-    } else if (r) {
-      const g = shown && playing ? shown.game : null;
-      const earn = g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : '';
-      this.setHtml(
-        this.hudStats,
-        `Pocket <b>${r.pocket}c</b>${earn}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`,
-      );
-      // This ball's live numbers sit under the DMD.
-      this.setHtml(
-        this.hudScore,
-        g
-          ? `This ball <b class="earn">+${formatCoins(g.earned)}c</b> · Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}${g.luck > 0 ? ` · Luck <b>${g.luck}</b>` : ''}`
-          : '',
-      );
-      let right = `Deadline ${r.deadline + 1}${r.endless ? '' : `/${r.deadlines}`}<br>Round ${r.round + 1}/${roundsIn(r)}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
-      if (g?.jailbreak)
-        right += `<div class="job jb">JAILBREAK<br><b>${g.jbShots}/${JAILBREAK.shotsToEscape}</b></div>`;
-      else if (jailbreakLit(r)) right += `<div class="job jb">JAILBREAK LIT<br>AT THE HOLE</div>`;
-      if (r.job) {
-        const def = jobDef(r.job.id);
-        const prog = g ? g.jobProgress() : r.job.progress;
-        const done = r.job.done || (g?.jobDone ?? false);
-        right += `<div class="job${done ? ' done' : ''}">${jobText(def, r.job.target)}<br><b>${done ? 'DONE' : `${formatCoins(Math.min(prog, r.job.target))}/${r.job.target}`}</b></div>`;
-      }
+    const g = shown && playing ? shown.game : null;
+    if (r) {
       if (r.keys) this.hints.show('keys');
       if (g && g.stats.seconds > 25) this.hints.show('nudge');
-      if (r.tickets || r.keys)
-        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · ${keysIconHtml()}Keys <b>${r.keys}</b>` : ''}`;
-      if (r.neighbor.tip && !g?.jailbreak)
-        right += `<br><small>Tunnel: Cell Block top to bottom</small>`;
-      const actives = g ? g.ctx.actives : [];
-      if (actives.length)
-        right += `<div class="actives">${actives
-          .map(
-            (a) =>
-              `[${a.slot}] ${itemIconHtml(a.id)}${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
-          )
-          .join('<br>')}<br><small>B fires the first charged</small></div>`;
-      this.setHtml(this.hudRight, right);
+    }
+    this.hud.update(dt, this.hudLayout(), r, shown, playing);
+    if (r) {
       // Backglass ladders and the ATM's LCD follow the run.
-      const lv = JSON.stringify(r.shotLevels);
-      if (lv !== this.glassKey) {
-        this.glassKey = lv;
-        this.paintGlass(r.shotLevels);
+      let lv = 0;
+      for (const k in r.shotLevels) lv = lv * 31 + r.shotLevels[k as keyof typeof r.shotLevels];
+      if (lv !== this.glassSig && this.glassCanvas && this.glassTex) {
+        this.glassSig = lv;
+        this.glassLevels = r.shotLevels;
+        paintBackglass(this.glassCanvas, r.shotLevels);
+        this.glassTex.needsUpdate = true;
       }
-      const atm = `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`;
-      if (atm !== this.atmKey) {
-        this.atmKey = atm;
-        this.world.cell.drawAtm(atm);
+      const atm = (r.debt * 31 + r.bank) * 31 + r.round * 2 + (r.phase === 'deadline' ? 1 : 0);
+      if (atm !== this.atmSig) {
+        this.atmSig = atm;
+        this.world.cell.drawAtm(
+          `DEBT ${r.debt}\nBANK ${r.bank}\n${r.phase === 'deadline' ? 'PAY NOW' : `ROUND ${r.round + 1}/${roundsIn(r)}`}`,
+        );
       }
     }
-    const pull = shown ? shown.sim.plungerPull : 0;
-    this.hudPlunger.style.display =
-      playing && shown && shown.sim.balls.some((b) => b.inShooter && b.state === 'field')
-        ? ''
-        : 'none';
-    (this.hudPlunger.firstChild as HTMLElement).style.height = `${Math.round(pull * 100)}%`;
-    // Mark the pull that drops into the lit Roll Call lane.
-    const mark = this.hudPlunger.lastChild as HTMLElement;
-    const armed = shown ? shown.game.lamps.skill !== Lamp.Off : false;
-    mark.style.display = armed ? '' : 'none';
-    if (shown && armed)
-      mark.style.bottom = `${Math.round(shown.sim.cfg.plunger.lanePull[shown.game.machine.skillLane] * 100)}%`;
   }
 }
 
@@ -2919,29 +2164,6 @@ const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
   tally: 'tray',
   ballEnd: 'tray',
 };
-
-function tallyMarks(n: number): string {
-  let s = '';
-  for (let i = 0; i < n; i++) s += (i + 1) % 5 === 0 ? '/ ' : '|';
-  return s || '—';
-}
-
-function rewardText(def: JobDef, deadline: number): string {
-  const r = def.reward;
-  const parts: string[] = [];
-  if (r.keys) parts.push(`${r.keys} KEY`);
-  if (r.tickets) parts.push(`${r.tickets} ticket${r.tickets > 1 ? 's' : ''}`);
-  const coins = jobCoins(def, deadline);
-  if (coins) parts.push(`${coins}c`);
-  if (r.level) parts.push(`+1 ${r.level} level`);
-  return `Reward: ${parts.join(', ')}`;
-}
-
-function levelsText(r: RunState): string {
-  return (Object.entries(r.shotLevels) as [string, number][])
-    .map(([k, v]) => `${k} ${v}`)
-    .join(' · ');
-}
 
 /** What a milestone gave, for the Rap Sheet. */
 function unlockReward(u: UnlockDef): string {

@@ -46,7 +46,19 @@ export type GameEvent =
    * JAILBREAK: started, a lit shot made (n so far), the machine falling apart (posts, lights,
    * glass), escaped, or failed (every ball drained).
    */
-  | { t: 'jailbreak'; phase: JailbreakPhase; n: number };
+  | { t: 'jailbreak'; phase: JailbreakPhase; n: number }
+  /** DOUBLE TIME: the playfield multiplier changed (on false: it ran out, back to x1). */
+  | { t: 'playfieldX'; mult: number; on: boolean }
+  /** YARD BRAWL: every switch pays extra while on. */
+  | { t: 'frenzy'; on: boolean }
+  /** CONTRABAND CRATE lit at the Perimeters. */
+  | { t: 'crateLit' }
+  /** CONTRABAND CRATE opened: the award rolled (amount: coins paid, if any). */
+  | { t: 'mystery'; award: MysteryId; amount: number }
+  /** REINFORCEMENTS: a ball added to the RIOT. */
+  | { t: 'addABall' };
+
+export type MysteryId = 'cash' | 'bonusX' | 'ballSave' | 'frenzy' | 'double' | 'lockup' | 'luck';
 
 export type JailbreakPhase = 'start' | 'shot' | 'posts' | 'lights' | 'glass' | 'escaped' | 'failed';
 

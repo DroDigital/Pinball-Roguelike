@@ -179,37 +179,37 @@
   --green: #1d5a2c;
   --edge: #6b5a3c;
 }
-.panel.bc-light .grid b,
-.panel.bc-light .setting b {
+.panel.bc-skin.bc-light .grid b,
+.panel.bc-skin.bc-light .setting b {
   color: var(--ink);
 }
-.panel.bc-light .warden {
+.panel.bc-skin.bc-light .warden {
   color: #5b3410;
 }
-.panel.bc-light .cost,
-.panel.bc-light small.cost {
+.panel.bc-skin.bc-light .cost,
+.panel.bc-skin.bc-light small.cost {
   color: #84261a;
 }
-.panel.bc-light .tally {
+.panel.bc-skin.bc-light .tally {
   color: #6a5640;
 }
-.panel.bc-light .neighbor {
+.panel.bc-skin.bc-light .neighbor {
   color: var(--ink);
 }
-.panel.bc-light .sentence {
+.panel.bc-skin.bc-light .sentence {
   background: rgba(132, 38, 26, 0.1);
   border-color: #84261a;
 }
-.panel.bc-light .sentence b {
+.panel.bc-skin.bc-light .sentence b {
   color: #84261a;
 }
-.panel.bc-light .chip {
+.panel.bc-skin.bc-light .chip {
   background: rgba(41, 28, 18, 0.06);
 }
-.panel.bc-light .chip.unknown {
+.panel.bc-skin.bc-light .chip.unknown {
   color: #8a7658;
 }
-.panel.bc-light .unlocks {
+.panel.bc-skin.bc-light .unlocks {
   border-color: #8f3a12;
 }
 
@@ -239,12 +239,12 @@
 }
 
 /* Paper screens: light inputs, readable card captions. */
-.panel.bc-light input[type='text'] {
+.panel.bc-skin.bc-light input[type='text'] {
   background: rgba(255, 255, 255, 0.4);
   color: var(--ink);
   border-color: var(--edge);
 }
-.panel.bc-light input[type='text']::placeholder {
+.panel.bc-skin.bc-light input[type='text']::placeholder {
   color: #8a7658;
 }
 .panel button.mugcard small {
@@ -271,7 +271,9 @@
   font-size: clamp(1.05rem, calc(2.2cqw * var(--text-scale)), 1.95rem);
   line-height: 1.25;
   color: var(--bc-crt-green);
-  text-shadow: 0 0 6px rgba(114, 255, 153, 0.55), 0 0 1px #a8f6b5;
+  text-shadow:
+    0 0 6px rgba(114, 255, 153, 0.55),
+    0 0 1px #a8f6b5;
   background:
     radial-gradient(circle at 50% 50%, rgba(18, 48, 25, 0.22) 0%, rgba(2, 14, 6, 0.78) 100%),
     repeating-linear-gradient(
@@ -407,10 +409,16 @@
 .panel.jobs:has(button.bc-skin) {
   width: min(1180px, 96vw);
   max-width: none;
-  background: radial-gradient(ellipse at center, rgba(14, 20, 15, 0.92) 20%, rgba(6, 10, 7, 0.97) 100%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(14, 20, 15, 0.92) 20%,
+    rgba(6, 10, 7, 0.97) 100%
+  );
   border: 1px solid rgba(85, 105, 88, 0.5);
   border-radius: 6px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), inset 0 0 40px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.85),
+    inset 0 0 40px rgba(0, 0, 0, 0.6);
   padding: 14px 18px 18px;
 }
 .panel.jobs:has(button.bc-skin) > p {
@@ -807,7 +815,9 @@ button.bc-skin.bc-s-jobs.key b {
   background-color: #0b2210;
   border-color: #1f6a35;
   color: var(--bc-crt-green);
-  box-shadow: inset 0 0 5px rgba(114, 255, 153, 0.25), 0 2px 4px #000;
+  box-shadow:
+    inset 0 0 5px rgba(114, 255, 153, 0.25),
+    0 2px 4px #000;
   padding: 4px 12px;
   min-width: 50px;
 }
@@ -893,7 +903,10 @@ button.bc-skin.bc-s-jobs.key b {
   padding: 8px 10px;
   cursor: pointer;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
-  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease,
+    box-shadow 0.12s ease;
   min-height: 85px;
 }
 .shop-card-tile:hover:not(:disabled) {
@@ -985,7 +998,12 @@ button.bc-skin.bc-s-jobs.key b {
 .shop-cockpit > .cell-dock {
   position: sticky;
   bottom: 0;
-  background: linear-gradient(to top, rgba(10, 16, 12, 0.98) 75%, rgba(10, 16, 12, 0.4) 90%, transparent);
+  background: linear-gradient(
+    to top,
+    rgba(10, 16, 12, 0.98) 75%,
+    rgba(10, 16, 12, 0.4) 90%,
+    transparent
+  );
   z-index: 5;
   margin-top: auto;
   padding: 8px 0 2px;
@@ -1083,7 +1101,11 @@ button.bc-skin.bc-s-jobs.key b {
    CLOVERPIT DIEGETIC UI: OCCULT RED PHONE BARGAINS
    ========================================================================== */
 .panel.red.bc-skin > .bc-skin__content {
-  background: radial-gradient(circle at center, rgba(60, 10, 8, 0.35) 0%, rgba(14, 2, 2, 0.85) 100%);
+  background: radial-gradient(
+    circle at center,
+    rgba(60, 10, 8, 0.35) 0%,
+    rgba(14, 2, 2, 0.85) 100%
+  );
   text-shadow: 0 0 8px rgba(226, 83, 62, 0.5);
   box-shadow: inset 0 0 35px rgba(226, 83, 62, 0.25);
 }
@@ -1098,7 +1120,9 @@ button.bc-skin.bc-s-jobs.key b {
   text-align: left;
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
 }
 .red-bargain-box:hover {
   transform: translateY(-2px);
@@ -1341,4 +1365,568 @@ body:has(#ui .panel.bc-skin) #hud .hud-frame.bc-skin {
   --fw: calc(var(--banner) / 4);
   left: calc(50% + var(--banner) / 4);
   width: var(--fw);
+}
+
+/* ==========================================================================
+   MERGED SCREENS: the overhaul's clarity (verdicts, locked reasons, honest
+   tallies) written in the skin's own type and colours
+   ========================================================================== */
+.bc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel .warden {
+  font-family: var(--bc-typewriter);
+  font-style: italic;
+  margin: 4px 0;
+}
+.panel .warden.red {
+  color: #ff9a88;
+}
+/* What the gauges mean for the debt, in one line. */
+.bc-verdict {
+  font-family: var(--bc-typewriter);
+  font-size: 0.9em;
+  padding: 4px 10px;
+  border-left: 4px solid currentColor;
+  background: rgba(0, 0, 0, 0.25);
+}
+.bc-verdict.good {
+  color: var(--bc-green);
+}
+.bc-verdict.warn {
+  color: var(--bc-gold);
+}
+.bc-verdict.bad {
+  color: #ff9a88;
+}
+.bc-skin.bc-light .bc-verdict {
+  background: rgba(41, 28, 18, 0.06);
+}
+.bc-skin.bc-light .bc-verdict.good {
+  color: #1d5a2c;
+}
+.bc-skin.bc-light .bc-verdict.warn {
+  color: #7a4a10;
+}
+.bc-skin.bc-light .bc-verdict.bad {
+  color: #84261a;
+}
+.atm-verdict {
+  font-family: var(--bc-crt);
+  font-size: 1.15em;
+  letter-spacing: 0.06em;
+  margin: 6px 0 2px;
+}
+.atm-verdict.good {
+  color: var(--bc-crt-green);
+}
+.atm-verdict.warn {
+  color: var(--bc-amber);
+}
+.atm-verdict.bad {
+  color: #ff7a62;
+}
+.atm-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-family: var(--bc-crt);
+  font-size: 1em;
+  letter-spacing: 0.05em;
+}
+.atm-outcomes .good {
+  color: var(--bc-crt-green);
+}
+.atm-outcomes .bad {
+  color: #ff7a62;
+}
+.atm-credit-hdr.owed {
+  color: var(--bc-red);
+}
+.title-tagline {
+  font-family: var(--bc-typewriter);
+  font-size: 1.05em;
+  color: var(--bc-amber);
+  margin: 4px 0;
+  text-shadow: 0 0 8px rgba(255, 178, 74, 0.4);
+}
+.title-wall,
+.title-daily {
+  font-family: var(--bc-head);
+  font-size: 1.1em;
+  letter-spacing: 0.1em;
+  color: #a49477;
+  margin: 4px 0;
+}
+.title-daily {
+  font-size: 0.95em;
+  color: var(--bc-gold);
+}
+.title-controls {
+  font-family: var(--bc-crt);
+  font-size: 1.05em;
+  color: #a49477;
+  margin-top: 10px;
+  letter-spacing: 0.06em;
+}
+.panel .tally {
+  margin: 4px 0;
+}
+.bc-skin.bc-light .tally-group i,
+.bc-skin.bc-light .tally-group.full::after {
+  background: #5a4630;
+}
+.jobs-prompt {
+  font-family: var(--bc-crt);
+  font-size: 1.2em;
+  letter-spacing: 0.08em;
+  color: var(--bc-crt-green);
+}
+.jobs-early {
+  flex-direction: column;
+  align-items: center;
+  margin-top: 12px;
+}
+.jobs-early p {
+  font-family: var(--bc-crt);
+  color: var(--bc-crt-green);
+  margin: 0;
+  text-align: center;
+}
+.bc-type {
+  font-family: var(--bc-typewriter);
+  font-size: 0.92em;
+  margin: 4px 0;
+}
+.bc-directive {
+  background: rgba(41, 28, 18, 0.08);
+  border: 1px dashed #6a5640;
+  border-radius: 3px;
+  padding: 6px 10px;
+  margin-top: 8px;
+  font-family: var(--bc-typewriter);
+  font-size: 0.86em;
+  line-height: 1.35;
+}
+.bc-directive b {
+  display: block;
+  margin-bottom: 2px;
+  color: #84261a;
+  text-transform: uppercase;
+}
+.cell-levels {
+  font-family: var(--bc-crt);
+  font-size: 0.95em;
+  color: #a49477;
+  margin: 2px 0;
+}
+.shop-card-status {
+  margin-top: 4px;
+  font-family: var(--bc-crt);
+  font-size: 0.95em;
+  letter-spacing: 0.06em;
+  color: #ff7a62;
+}
+/* The neighbour's note. */
+.bc-letter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 10px;
+  font-family: var(--bc-typewriter);
+}
+.bc-letter-head {
+  font-family: var(--bc-head);
+  font-size: 1.4em;
+  letter-spacing: 0.1em;
+  color: #84261a;
+  border-bottom: 1px dashed rgba(132, 38, 26, 0.4);
+  padding-bottom: 2px;
+}
+.bc-letter .neighbor {
+  font-size: 1.05em;
+  font-style: italic;
+  margin: 4px 0;
+}
+.bc-letter .neighbor.offer {
+  color: #ff9a88;
+  font-weight: bold;
+}
+.bc-trade {
+  font-family: var(--bc-head);
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+.bc-skin .bc-letter .neighbor,
+.bc-skin .bc-trade {
+  color: #291c12;
+}
+.bc-skin .bc-letter .neighbor.offer {
+  color: #84261a;
+}
+.bc-letter .cell-dock {
+  margin-top: 10px;
+}
+.bc-letter-foot {
+  font-size: 0.8em;
+  opacity: 0.75;
+  text-align: center;
+  margin-top: 4px;
+}
+/* Receipt: struck-out lines on a tilt, the change rows quieter, the sum on a rule. */
+.receipt-row.lost .receipt-row-label,
+.receipt-row.lost .receipt-row-val {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.receipt-row.minor {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+.receipt-row.sum {
+  border-top: 1px solid rgba(41, 28, 18, 0.55);
+  padding-top: 2px;
+}
+.receipt-alert-box.bad {
+  background: rgba(132, 38, 26, 0.08);
+  border-color: #84261a;
+  color: #84261a;
+}
+.panel.bc-skin.bc-s-tally .cell-dock {
+  margin-top: 8px;
+}
+.panel .credits {
+  font-size: 0.8em;
+  margin-top: 10px;
+}
+.panel .credits a {
+  color: inherit;
+}
+
+/* The inmate's dossier on the booking sheet (paper when framed, the plain panel otherwise). */
+.dossier {
+  font-family: var(--bc-typewriter);
+  padding: 4px 10px;
+  border: 1px dashed #84261a;
+  border-radius: 3px;
+  margin: 4px 0;
+}
+.dossier-name {
+  font-family: var(--bc-head);
+  font-size: 1.25em;
+  letter-spacing: 0.08em;
+}
+.panel .dossier p {
+  margin: 1px 0;
+  font-size: 0.92em;
+}
+.panel .dossier .up,
+.panel .dossier .down {
+  font-weight: bold;
+}
+.bc-skin .dossier {
+  background: rgba(0, 0, 0, 0.04);
+}
+.bc-skin .dossier-name {
+  color: #291c12;
+}
+.panel.bc-skin .dossier .dim {
+  color: #5a4630;
+}
+.panel.bc-skin .dossier .up {
+  color: #1d5a2c;
+}
+.panel.bc-skin .dossier .down {
+  color: #84261a;
+}
+.lineup-ht {
+  justify-content: center;
+  align-items: center;
+  margin: 3px 0;
+}
+.lineup-ht .ht {
+  font-family: var(--bc-head);
+  font-size: 1.15em;
+  letter-spacing: 0.08em;
+  margin: 0 8px;
+}
+.panel .row.seed {
+  justify-content: center;
+  margin: 3px 0;
+}
+.panel .row.seed span,
+.lineup-note {
+  font-family: var(--bc-typewriter);
+  font-size: 0.9em;
+}
+.panel .row.seed input {
+  font-family: var(--bc-typewriter);
+  text-transform: uppercase;
+  padding: 2px 6px;
+}
+.lineup-note {
+  text-align: center;
+  margin: 3px 0;
+}
+
+/* A ticket whose paper art has not been painted yet keeps light ink on the dark card. */
+button.job:not(.bc-skin) .ticket-head,
+button.job:not(.bc-skin) .ticket-seal {
+  color: var(--bc-amber, #e6b54a);
+  border-color: rgba(230, 181, 74, 0.45);
+}
+button.job:not(.bc-skin) .ticket-task {
+  color: var(--bc-bone, #efe6cf);
+}
+
+/* Title: the run in four steps, lit in turn like an attract-mode lamp chase. */
+.title-reel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 760px);
+  margin: 18px auto 14px;
+}
+.reel-step {
+  --lit: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px 12px;
+  border: 1px solid #3a3226;
+  border-radius: 8px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 178, 74, 0.1), transparent 70%),
+    linear-gradient(#17130e, #0c0a07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 10px rgba(0, 0, 0, 0.5);
+  animation: reel-chase 4.8s steps(1) infinite;
+  animation-delay: calc(var(--i) * 1.2s);
+}
+.reel-bulb {
+  position: absolute;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #5a3f18;
+  box-shadow: 0 0 0 2px #1a140c;
+}
+.reel-glyph {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  color: #8a7658;
+}
+.reel-glyph > .ico,
+.reel-glyph > .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-size: 46px;
+}
+.reel-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.reel-step b {
+  font-family: var(--bc-head);
+  font-size: 1.15em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c9b890;
+}
+.reel-step small {
+  font-family: var(--bc-typewriter);
+  font-size: 0.72em;
+  line-height: 1.3;
+  color: #8f8068;
+}
+@keyframes reel-chase {
+  0% {
+    border-color: var(--bc-gold);
+    box-shadow:
+      inset 0 0 18px rgba(255, 178, 74, 0.25),
+      0 0 18px rgba(255, 178, 74, 0.35);
+  }
+  25%,
+  100% {
+    border-color: #3a3226;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+}
+.reel-step .reel-bulb,
+.reel-step .reel-glyph,
+.reel-step b {
+  animation: inherit;
+  animation-name: reel-lamp;
+}
+@keyframes reel-lamp {
+  0% {
+    color: var(--bc-gold);
+    filter: drop-shadow(0 0 6px rgba(255, 190, 90, 0.8));
+  }
+  25%,
+  100% {
+    filter: none;
+  }
+}
+.reel-step .reel-bulb {
+  animation-name: reel-bulb;
+}
+@keyframes reel-bulb {
+  0% {
+    background: #ffd27a;
+    box-shadow:
+      0 0 0 2px #1a140c,
+      0 0 12px 3px rgba(255, 200, 110, 0.8);
+  }
+  25%,
+  100% {
+    background: #5a3f18;
+    box-shadow: 0 0 0 2px #1a140c;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reel-step,
+  .reel-step .reel-bulb,
+  .reel-step .reel-glyph,
+  .reel-step b {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .title-reel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Cell: empty charm slots, shot-level plates and the coming sentence. */
+.cell-slot-empty {
+  width: 120px;
+  height: 34px;
+  border: 2px dashed rgba(164, 148, 119, 0.28);
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.02) 0 6px,
+    transparent 6px 12px
+  );
+}
+.cell-rack-hint {
+  font-family: var(--bc-typewriter);
+  font-size: 0.8em;
+  color: #7d705a;
+}
+.cell-plates-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cell-plates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px;
+}
+.cell-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 4px 6px;
+  border: 1px solid #2f3a30;
+  border-radius: 4px;
+  background: linear-gradient(#141a15, #0b0f0c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.cell-plate small {
+  font-family: var(--bc-head);
+  font-size: 0.78em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a7e68;
+  white-space: nowrap;
+}
+.cell-plate b {
+  font-family: var(--bc-crt);
+  font-size: 1.5em;
+  line-height: 1;
+  color: #c9b890;
+}
+.cell-plate.up {
+  border-color: rgba(114, 255, 153, 0.45);
+}
+.cell-plate.up b {
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 6px rgba(114, 255, 153, 0.55);
+}
+.cell-plate-pips {
+  display: flex;
+  gap: 3px;
+}
+.cell-plate-pips i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2a2a22;
+}
+.cell-plate-pips i.on {
+  background: var(--bc-amber);
+  box-shadow: 0 0 4px rgba(255, 178, 74, 0.7);
+}
+.cell-plate.up .cell-plate-pips i.on {
+  background: var(--bc-crt-green);
+  box-shadow: 0 0 4px rgba(114, 255, 153, 0.7);
+}
+.cell-sentence-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 4px 12px;
+  border: 1px solid rgba(132, 38, 26, 0.7);
+  border-radius: 3px;
+  background: rgba(60, 16, 12, 0.35);
+  transform: rotate(-0.6deg);
+}
+.cell-sentence-tag span {
+  font-family: var(--bc-head);
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #b0655a;
+}
+.cell-sentence-tag b {
+  font-family: var(--bc-typewriter);
+  color: #ff9a88;
+}
+
+/* Shop cards wear their rarity: a tinted wash, a coloured glyph, and they stay legible while
+   you save up for them (the price line already says what is missing). */
+.panel .shop-card-tile[style*='--rar'] {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--rar) 16%, transparent),
+    transparent 55%
+  ) !important;
+}
+.shop-card-tile[style*='--rar'] .shop-card-body .icon {
+  color: var(--rar);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--rar) 45%, transparent));
+}
+#ui .panel button.shop-card-tile.is-disabled,
+#ui .panel button.shop-card-tile:disabled {
+  opacity: 0.78;
+  filter: saturate(0.7) brightness(0.85);
 }

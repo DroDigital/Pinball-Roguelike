@@ -1,7 +1,9 @@
-// Offline support: precache the app shell, its hashed assets and their fonts on install, serve
-// them cache-first, and fetch pages network-first so a new build is picked up when online.
-// Bump the version when the shell changes shape.
-const CACHE = 'ball-and-chain-v3';
+// Offline support: precache the app shell, its hashed assets, the fonts and images their
+// stylesheets name, and the sample bank on install; serve them cache-first, and fetch pages
+// network-first so a new build is picked up when online.
+// Bump CACHE when the shell changes shape or the sample bank (public/sfx) changes: its files are
+// served cache-first.
+const CACHE = 'ball-and-chain-v5';
 const SHELL = [
   './',
   './index.html',
@@ -19,14 +21,24 @@ self.addEventListener('install', (e) => {
       const html = await (await fetch('./index.html', { cache: 'no-store' })).text();
       const assets = [...html.matchAll(/(?:src|href)="(\.?\/?assets\/[^"]+)"/g)].map((m) => m[1]);
       await cache.addAll(assets);
-      // Stylesheets name their fonts; the woff2 files are all a modern browser asks for.
+      // The sample bank (tools/build-sfx.mjs lists its files). Sound is optional: a failure here
+      // must not stop the app shell from installing, and the game falls back to synthesis.
+      try {
+        const files = await (await fetch('./sfx/files.json', { cache: 'no-store' })).json();
+        await cache.addAll(files.map((f) => `./sfx/${f}`));
+      } catch {
+        // offline play still works; sounds are cached as they are first fetched
+      }
+      // Fonts and images named inside the built stylesheets (woff2 is all a modern browser asks
+      // for, so the legacy woff fallbacks are skipped).
       for (const css of assets.filter((a) => a.endsWith('.css'))) {
         const base = new URL(css, location.href);
-        const text = await (await cache.match(css))?.text();
-        const fonts = [...(text ?? '').matchAll(/url\(([^)]+\.woff2)\)/g)].map(
-          (m) => new URL(m[1].replace(/["']/g, ''), base).href,
-        );
-        await cache.addAll(fonts);
+        const text = await (await fetch(css)).text();
+        const refs = [...text.matchAll(/url\(([^)]+)\)/g)]
+          .map((m) => m[1].replace(/['"]/g, ''))
+          .filter((u) => !u.startsWith('data:') && !/\.woff$/.test(u))
+          .map((u) => new URL(u, base).href);
+        await cache.addAll(refs);
       }
       await self.skipWaiting();
     })(),

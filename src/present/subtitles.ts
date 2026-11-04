@@ -1,8 +1,10 @@
 /**
- * The Warden's voice: a subtitle line at the bottom of the screen and, if the player turned
+ * The Warden's voice: a caption in the notice slot (see app/notices.ts) and, if the player turned
  * it on, the browser's speech synthesis pitched low and slow. Reactive lines during play are
  * rate-limited so the Warden comments rather than narrates.
  */
+import type { Notices } from '../app/notices';
+
 const REACT_COOLDOWN_MS = 12000;
 /** Who speaks aloud, and how; narration and sounds ("THE WALL") stay on screen only. */
 const VOICES: Record<string, { pitch: number; rate: number }> = {
@@ -13,38 +15,46 @@ const VOICES: Record<string, { pitch: number; rate: number }> = {
 const MS_PER_CHAR = 55;
 const MIN_MS = 2600;
 
+/** Who is speaking, for the caption's colour (the CSS keys off this class). */
+function speakerClass(speaker: string): string {
+  if (speaker === 'THE RED PHONE') return 'red';
+  if (speaker === 'NEXT DOOR' || speaker === 'THE WALL') return 'wall';
+  return speaker ? 'warden' : 'plain';
+}
+
 export class Subtitles {
-  readonly el: HTMLElement;
-  private timer = 0;
   private lastReact = -1e9;
   voice = false;
   private chosen: SpeechSynthesisVoice | null = null;
 
-  constructor(parent: HTMLElement) {
-    this.el = document.createElement('div');
-    this.el.id = 'subtitle';
-    parent.append(this.el);
-  }
+  constructor(private readonly notices: Notices) {}
 
   /** Show (and maybe speak) a line now. `show` false only speaks it (a panel shows it). */
   say(speaker: string, text: string, show = true): void {
     const v = VOICES[speaker];
     if (this.voice && v) this.speak(text, v.pitch, v.rate);
     if (!show) return;
-    this.el.replaceChildren();
+    const el = document.createElement('div');
+    el.className = `note caption ${speakerClass(speaker)}`;
+    el.setAttribute('role', 'status');
     // Narration has no speaker label.
     if (speaker) {
       const who = document.createElement('b');
-      who.textContent = `${speaker}: `;
-      this.el.append(who);
+      who.className = 'cap-who';
+      who.textContent = speaker;
+      el.append(who);
     }
-    this.el.append(text);
-    this.el.style.opacity = '1';
-    window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(
-      () => (this.el.style.opacity = '0'),
-      Math.max(MIN_MS, text.length * MS_PER_CHAR),
-    );
+    const line = document.createElement('span');
+    line.className = 'cap-text';
+    line.textContent = text;
+    el.append(line);
+    // One caption at a time: a new line replaces the last.
+    this.notices.post({
+      kind: 'caption',
+      key: 'caption',
+      el,
+      ms: Math.max(MIN_MS, text.length * MS_PER_CHAR),
+    });
   }
 
   /** A reaction to play: dropped if the Warden spoke recently. Returns whether it was said. */
@@ -56,8 +66,7 @@ export class Subtitles {
   }
 
   clear(): void {
-    window.clearTimeout(this.timer);
-    this.el.style.opacity = '0';
+    this.notices.clear('caption');
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
   }
 

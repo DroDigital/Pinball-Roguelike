@@ -29,6 +29,9 @@ export interface FoldedFx {
   luck: number;
   sparkMult: number;
   holeHoldAdd: number;
+  frenzyPopsAdd: number;
+  playfieldSecondsAdd: number;
+  crateSpinsAdd: number;
   mounts: string[];
   interestAdd: number;
   /** 0 = no change. */
@@ -68,6 +71,9 @@ export function emptyFx(): FoldedFx {
     luck: 0,
     sparkMult: 1,
     holeHoldAdd: 0,
+    frenzyPopsAdd: 0,
+    playfieldSecondsAdd: 0,
+    crateSpinsAdd: 0,
     mounts: [],
     interestAdd: 0,
     loanRate: 0,
@@ -108,6 +114,9 @@ function fold(out: FoldedFx, fx: CharmFx): void {
   if (fx.luck) out.luck += fx.luck;
   if (fx.sparkMult) out.sparkMult *= fx.sparkMult;
   if (fx.holeHoldAdd) out.holeHoldAdd += fx.holeHoldAdd;
+  if (fx.frenzyPopsAdd) out.frenzyPopsAdd += fx.frenzyPopsAdd;
+  if (fx.playfieldSecondsAdd) out.playfieldSecondsAdd += fx.playfieldSecondsAdd;
+  if (fx.crateSpinsAdd) out.crateSpinsAdd += fx.crateSpinsAdd;
   if (fx.mount) out.mounts.push(fx.mount);
   if (fx.interestAdd) out.interestAdd += fx.interestAdd;
   if (fx.loanRate) out.loanRate = out.loanRate ? Math.min(out.loanRate, fx.loanRate) : fx.loanRate;

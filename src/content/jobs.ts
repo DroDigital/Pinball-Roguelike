@@ -29,6 +29,12 @@ export interface BallStats {
   /** The neighbor's secret shot. */
   tunnels: number;
   jailbreakShots: number;
+  /** YARD BRAWL frenzies started. */
+  frenzies: number;
+  /** CONTRABAND CRATEs opened. */
+  crates: number;
+  /** Highest playfield multiplier reached (DOUBLE TIME). */
+  maxPlayfieldX: number;
 }
 
 export function emptyBallStats(): BallStats {
@@ -54,6 +60,9 @@ export function emptyBallStats(): BallStats {
     luckyBounces: 0,
     tunnels: 0,
     jailbreakShots: 0,
+    frenzies: 0,
+    crates: 0,
+    maxPlayfieldX: 1,
   };
 }
 
@@ -114,6 +123,30 @@ export const JOB_DEFS: JobDef[] = [
     mode: 'sum',
     target: 1,
     reward: { tickets: 4 },
+  },
+  {
+    id: 'brawl',
+    text: 'Start a Yard Brawl',
+    stat: 'frenzies',
+    mode: 'sum',
+    target: 1,
+    reward: { tickets: 3 },
+  },
+  {
+    id: 'crates',
+    text: 'Open {n} Contraband Crates',
+    stat: 'crates',
+    mode: 'sum',
+    target: 2,
+    reward: { tickets: 3 },
+  },
+  {
+    id: 'double',
+    text: 'Reach Double Time in one ball',
+    stat: 'maxPlayfieldX',
+    mode: 'max',
+    target: 2,
+    reward: { tickets: 3 },
   },
   {
     id: 'bonus',

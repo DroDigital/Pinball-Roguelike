@@ -6,6 +6,9 @@
  */
 import { FONT_LARGE, FONT_SMALL, textWidth, type PixelFont } from './dmd-font';
 
+/** Names the crate reel spins through before it lands. */
+const CRATE_REEL = ['CASH', 'BONUS X', 'BALL SAVE', 'YARD BRAWL', 'DOUBLE TIME', 'LOCKUP', 'LUCK'];
+
 export const DMD_W = 128;
 export const DMD_H = 32;
 
@@ -38,6 +41,7 @@ export class Dmd {
   time = 0;
   /** Any change since last draw (to skip texture uploads). */
   dirty = true;
+  private lastHash = -1;
 
   constructor(dotPx = 4) {
     this.dot = dotPx;
@@ -166,6 +170,12 @@ export class Dmd {
   }
 
   private draw(): void {
+    // Most frames repeat the last picture: hash the grid and skip the canvas work and upload.
+    let h = 2166136261;
+    for (let i = 0; i < this.buf.length; i++) h = Math.imul(h ^ this.buf[i], 16777619);
+    this.dirty = h !== this.lastHash;
+    if (!this.dirty) return;
+    this.lastHash = h;
     const sm = this.small;
     const img = this.img;
     const px = img.data;
@@ -187,7 +197,6 @@ export class Dmd {
     g.globalCompositeOperation = 'destination-over';
     g.drawImage(this.unlit, 0, 0);
     g.globalCompositeOperation = 'source-over';
-    this.dirty = true;
   }
 
   private small!: CanvasRenderingContext2D;
@@ -307,6 +316,31 @@ function registerDefaultAnims(d: Dmd): void {
     const scale = dmd.fitScale(c.text, FONT_LARGE, 124, 2);
     dmd.text(c.text, 64 + jx, 4, { scale, align: 'center', v: Math.floor(t * 8) % 2 ? 15 : 12 });
     if (c.sub) dmd.text(c.sub, 64, 24, { font: FONT_SMALL, align: 'center', v: 13 });
+  });
+  // CONTRABAND CRATE: a slot-machine reel of award names slows to a stop, then the real
+  // award lands with a flashing frame.
+  d.registerAnim('crate', (dmd, t, c) => {
+    const spin = 1.1;
+    dmd.rect(0, 0, 128, 1, 6);
+    dmd.rect(0, 31, 128, 1, 6);
+    if (t < spin) {
+      // Decelerating reel: the step rate falls from ~22/s to ~4/s.
+      const step = Math.floor(22 * t - 8 * t * t);
+      const name = CRATE_REEL[step % CRATE_REEL.length];
+      const y = 12 + Math.round(((22 * t - 8 * t * t) % 1) * -6);
+      dmd.text('CONTRABAND CRATE', 64, 2, { font: FONT_SMALL, align: 'center', v: 9 });
+      dmd.text(name, 64, y, { scale: 2, align: 'center', v: 13 });
+      return;
+    }
+    const flash = Math.floor((t - spin) * 10) % 2 === 0;
+    if (flash) {
+      dmd.rect(0, 0, 2, 32, 15);
+      dmd.rect(126, 0, 2, 32, 15);
+    }
+    const label = c.sub ?? c.text;
+    const scale = dmd.fitScale(label, FONT_LARGE, 120, 2);
+    dmd.text('CONTRABAND CRATE', 64, 2, { font: FONT_SMALL, align: 'center', v: 11 });
+    dmd.text(label, 64, 12, { scale, align: 'center', v: flash ? 15 : 12 });
   });
   d.registerAnim('count', (dmd, _t, c) => {
     dmd.text(c.text, 64, 3, { font: FONT_SMALL, align: 'center', v: 11 });
