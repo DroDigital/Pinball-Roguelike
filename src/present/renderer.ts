@@ -102,6 +102,8 @@ uniform vec3 uTint;
 uniform float uExposure;
 uniform float uBloom;
 uniform float uSharpen;
+// Big-moment punch: a slight zoom and a chromatic split, 0 at rest.
+uniform float uPunch;
 varying vec2 vUv;
 
 float bayer4(vec2 p) {
@@ -122,14 +124,20 @@ vec3 sceneAt(vec2 uv) {
 }
 
 void main() {
-  vec3 c = sceneAt(vUv);
+  vec2 d = vUv - 0.5;
+  vec2 uv = 0.5 + d * (1.0 - 0.018 * uPunch);
+  vec3 c;
+  if (uPunch > 0.01) {
+    vec2 ca = d * 0.014 * uPunch;
+    c = vec3(sceneAt(uv + ca).r, sceneAt(uv).g, sceneAt(uv - ca).b);
+  } else c = sceneAt(uv);
   if (uPixelate < 0.5 && uSharpen > 0.0) {
     vec2 o = 1.0 / uLowRes;
     vec3 b = (sceneAt(vUv + vec2(o.x, 0.0)) + sceneAt(vUv - vec2(o.x, 0.0))
             + sceneAt(vUv + vec2(0.0, o.y)) + sceneAt(vUv - vec2(0.0, o.y))) * 0.25;
     c = max(c + clamp(c - b, vec3(-0.35), vec3(0.35)) * uSharpen, vec3(0.0));
   }
-  c += texture2D(tBloom, vUv).rgb * uBloom;
+  c += texture2D(tBloom, uv).rgb * uBloom;
   c *= uExposure;
   // ACES filmic tone map, then linear -> sRGB (render target holds linear HDR).
   c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
@@ -251,6 +259,7 @@ export class RetroRenderer {
       uExposure: { value: 1.1 },
       uBloom: { value: 0.75 },
       uSharpen: { value: 0.3 },
+      uPunch: { value: 0 },
     });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.postMat);
     this.quad.frustumCulled = false;
@@ -365,6 +374,7 @@ export class RetroRenderer {
     u.uFlash.value = this.flash;
     u.uExposure.value = this.exposure * (1 + this.pulse * 0.12);
     u.uBloom.value = bloomOn ? this.settings.bloom * (1 + this.pulse * 1.4) : 0;
+    u.uPunch.value = this.reducedFlashing ? 0 : this.pulse;
     u.uPixelate.value = this.lowH <= 360 && this.settings.pixelHeight > 0 ? 1 : 0;
     u.uSharpen.value = this.lowH > 360 ? 0.3 : 0;
     this.runPass(this.postMat, null);

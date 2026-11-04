@@ -1672,3 +1672,13 @@ body:has(#ui .panel.bc-skin) #hud .hud-frame.bc-skin {
   text-align: center;
   margin: 3px 0;
 }
+
+/* A ticket whose paper art has not been painted yet keeps light ink on the dark card. */
+button.job:not(.bc-skin) .ticket-head,
+button.job:not(.bc-skin) .ticket-seal {
+  color: var(--bc-amber, #e6b54a);
+  border-color: rgba(230, 181, 74, 0.45);
+}
+button.job:not(.bc-skin) .ticket-task {
+  color: var(--bc-bone, #efe6cf);
+}
