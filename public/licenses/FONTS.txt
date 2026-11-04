@@ -1,0 +1,32 @@
+Fonts used by Ball & Chain
+==========================
+
+All six are free fonts that may be used and redistributed with the game. They are bundled as
+woff2 files (npm: @fontsource/*); the licence texts sit beside this file.
+
+Inter                 SIL Open Font License 1.1   Inter-OFL.txt
+                      Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+                      Body text and labels.
+
+Saira Stencil One     SIL Open Font License 1.1   SairaStencilOne-OFL.txt
+                      Copyright 2019 The Saira Stencil Project Authors
+                      (https://github.com/Omnibus-Type/Saira)
+                      The machine's printed lettering and banners.
+
+Special Elite         Apache License 2.0          SpecialElite-Apache-2.0.txt
+                      Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI)
+                      Typewritten notes, tips and the Warden's lines.
+
+Bebas Neue            SIL Open Font License 1.1   BebasNeue-OFL.txt
+                      Copyright 2019 The Bebas Neue Project Authors
+                      (https://github.com/dharmatype/Bebas-Neue)
+                      Headings, buttons and label plates.
+
+Oswald                SIL Open Font License 1.1   Oswald-OFL.txt
+                      Copyright 2016 The Oswald Project Authors
+                      (https://github.com/googlefonts/OswaldFont)
+                      Painted plates in the artwork.
+
+VT323                 SIL Open Font License 1.1   VT323-OFL.txt
+                      Copyright 2011, The VT323 Project Authors (peter.hull@oikoi.com)
+                      CRT figures: the ATM, the HUD and the cell's gauges.

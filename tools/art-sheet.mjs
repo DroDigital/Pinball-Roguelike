@@ -1,3 +1,4 @@
+/* global console, process, Buffer, window */
 // Paints every piece of the app's artwork in headless Chromium and writes it to tools/out/art,
 // so a change to src/present/artwork can be looked at without running the game.
 //   node tools/art-sheet.mjs [art id ...]      e.g. node tools/art-sheet.mjs menus/title-panel

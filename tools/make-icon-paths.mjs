@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process, URL, fetch */
 // Builds src/app/icon-paths.ts: the item icons, picked from game-icons.net (CC BY 3.0, see
 // README credits) through the @iconify-json/game-icons data. Run it again after editing ITEM_ICONS:
 //   node tools/make-icon-paths.mjs [path/to/icons.json]

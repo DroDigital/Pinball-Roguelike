@@ -3,6 +3,7 @@
  * (left/right move, plunger selects): numbers step with − / +, choices cycle.
  */
 import { h } from './ui';
+import { keyName } from './widgets';
 import { defaultSettings, type Settings } from './settings';
 import { DEFAULT_BINDINGS, type Action } from './input';
 
@@ -19,7 +20,7 @@ const REBINDABLE: [Action, string][] = [
   ['pause', 'Pause'],
 ];
 
-const PIXEL_HEIGHTS = [180, 240, 360, 0];
+const PIXEL_HEIGHTS = [180, 240, 360, 540, 0];
 const TEXT_SIZES = [0.85, 1, 1.15, 1.3];
 
 export interface SettingsHandlers {
@@ -30,7 +31,6 @@ export interface SettingsHandlers {
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
-const keyName = (code: string) => code.replace(/^Key|^Digit/, '').replace('Arrow', '');
 
 export function settingsPanel(
   s: Settings,
@@ -49,16 +49,25 @@ export function settingsPanel(
       'div',
       { class: 'setting' },
       h('span', null, label),
-      h('button', { 'data-k': `${id}-`, onclick: dec }, '−'),
+      h('button', { 'data-k': `${id}-`, 'data-cue': 'slider', onclick: dec }, '−'),
       h('b', null, value),
-      h('button', { 'data-k': `${id}+`, onclick: inc }, '+'),
+      h('button', { 'data-k': `${id}+`, 'data-cue': 'slider', onclick: inc }, '+'),
     );
   const toggle = (id: string, label: string, value: string, flip: () => void, note = '') =>
     h(
       'div',
       { class: 'setting' },
       h('span', null, label, note ? h('small', null, note) : null),
-      h('button', { 'data-k': id, class: 'wide', onclick: flip }, value),
+      h(
+        'button',
+        {
+          'data-k': id,
+          'data-cue': value === 'On' ? 'toggleOff' : value === 'Off' ? 'toggleOn' : 'slider',
+          class: 'wide',
+          onclick: flip,
+        },
+        value,
+      ),
     );
   const cycle = <T>(list: T[], v: T, d: number) =>
     list[(list.indexOf(v) + d + list.length) % list.length] ?? list[0];
@@ -156,6 +165,12 @@ export function settingsPanel(
       on.change({ ...s, bindings: null });
     }),
     h(
+      'p',
+      { class: 'dim credits' },
+      'Fonts: Inter, Oswald, Bebas Neue, VT323 and Saira Stencil One (SIL OFL 1.1), Special Elite (Apache 2.0). Item icons: game-icons.net (CC BY 3.0). Sounds: CC0 (see CREDITS.md). ',
+      h('a', { href: './licenses/FONTS.txt', target: '_blank', rel: 'noopener' }, 'Licences'),
+    ),
+    h(
       'div',
       { class: 'row' },
       h(
@@ -166,7 +181,11 @@ export function settingsPanel(
         },
         'All defaults',
       ),
-      h('button', { 'data-k': 'back', class: 'primary', onclick: () => on.back() }, 'Back'),
+      h(
+        'button',
+        { 'data-k': 'back', 'data-cue': 'close', class: 'primary', onclick: () => on.back() },
+        'Back',
+      ),
     ),
   );
 }
@@ -189,20 +208,25 @@ export interface PauseHandlers {
 }
 
 /** `quitNote` says what quitting costs (e.g. the ball in play). */
-export function pausePanel(on: PauseHandlers, quitNote: string): HTMLElement {
+export function pausePanel(on: PauseHandlers, quitNote: string, where = ''): HTMLElement {
   return h(
     'div',
     { class: 'panel', 'data-skin': 'pause' },
     h('h2', { 'data-slot': 'head' }, 'Paused'),
+    where ? h('p', { class: 'dim' }, where) : null,
     h(
       'div',
       { class: 'col' },
-      h('button', { class: 'primary', onclick: () => on.resume() }, 'Resume'),
-      h('button', { onclick: () => on.settings() }, 'Settings'),
-      h('button', { onclick: () => on.bugReport() }, 'Copy bug report'),
       h(
         'button',
-        { onclick: () => on.quit() },
+        { class: 'primary', 'data-k': 'resume', 'data-cue': 'close', onclick: () => on.resume() },
+        'Resume',
+      ),
+      h('button', { 'data-k': 'settings', onclick: () => on.settings() }, 'Settings'),
+      h('button', { 'data-k': 'bug', onclick: () => on.bugReport() }, 'Copy bug report'),
+      h(
+        'button',
+        { 'data-k': 'quit', onclick: () => on.quit() },
         quitNote ? `Quit to title (${quitNote})` : 'Quit to title',
       ),
     ),

@@ -34,102 +34,6 @@ body {
   display: block;
   image-rendering: pixelated;
 }
-#hud {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 8;
-}
-/* Landscape: DMD and stats in a left column beside the table. Portrait: DMD on top. */
-#hud .left {
-  position: absolute;
-  left: 14px;
-  top: 12px;
-  width: min(30vw, 420px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-#hud .dmd {
-  width: 100%;
-  border: 3px solid #1a0e08;
-  border-radius: 4px;
-  box-shadow: 0 0 24px rgba(255, 120, 30, 0.25);
-  image-rendering: pixelated;
-}
-#hud .stats {
-  font-size: 0.85rem;
-  line-height: 1.5;
-  text-shadow:
-    0 0 6px #000,
-    0 0 2px #000;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-#hud .stats b {
-  color: var(--amber);
-  font-weight: bold;
-}
-#hud .stats .debt b {
-  color: var(--red);
-}
-#hud .right {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  text-align: right;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  text-shadow: 0 0 6px #000;
-  text-transform: uppercase;
-}
-#hud .plunger {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  width: 16px;
-  height: 120px;
-  border: 2px solid var(--edge);
-  background: rgba(0, 0, 0, 0.5);
-}
-#hud .plunger i {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(to top, #ffb347, #ff4a2a);
-}
-#hud .plunger em {
-  position: absolute;
-  left: -4px;
-  right: -4px;
-  height: 2px;
-  background: rgba(255, 240, 200, 0.6);
-}
-#hud .touch-lockbar {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: auto;
-  display: none;
-  gap: 10px;
-}
-#hud .touch-btn {
-  font: inherit;
-  font-size: 0.8rem;
-  letter-spacing: 0.1em;
-  color: var(--ink);
-  background: rgba(42, 22, 12, 0.85);
-  border: 1px solid var(--edge);
-  padding: 10px 18px;
-  touch-action: none;
-}
-@media (pointer: coarse) {
-  #hud.playing .touch-lockbar {
-    display: flex;
-  }
-}
 #ui {
   position: fixed;
   inset: 0;
@@ -241,52 +145,46 @@ body {
   background: #0b4a20;
   outline-color: var(--atm);
 }
-#subtitle {
-  position: fixed;
-  left: 50%;
-  bottom: 4%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-style: italic;
-  font-size: calc(1.05rem * var(--text-scale, 1));
-  color: #e8dcc0;
-  background: rgba(0, 0, 0, 0.62);
-  padding: 0.35em 0.9em;
-  max-width: min(90vw, 44em);
-  text-align: center;
-  z-index: 20;
-}
-#subtitle b {
-  font-style: normal;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.12em;
-  color: #c84a30;
-  font-size: 0.8em;
-}
-#toast {
-  position: fixed;
-  left: 50%;
-  bottom: 12%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ink);
-  text-shadow:
-    0 0 8px #000,
-    0 0 3px #000;
-  font-size: 1.05rem;
-  text-align: center;
-  max-width: 90vw;
-}
 .tally {
-  font-family: 'Courier New', monospace;
-  color: #c9b9a0;
-  letter-spacing: 0.15em;
-  word-break: break-all;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: center;
+}
+.tally-group {
+  position: relative;
+  display: inline-flex;
+  gap: 4px;
+  height: 18px;
+}
+.tally-group i {
+  width: 2px;
+  height: 100%;
+  background: #cdbb97;
+  border-radius: 1px;
+  transform: rotate(var(--tilt, 0deg));
+}
+.tally-group i:nth-child(odd) {
+  --tilt: 2deg;
+}
+.tally-group i:nth-child(even) {
+  --tilt: -1.5deg;
+}
+.tally-group.full::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 2px;
+  background: #cdbb97;
+  transform: rotate(-52deg);
+  border-radius: 1px;
+}
+.tally-none,
+.tally-more {
+  font-size: var(--fs-s);
+  color: var(--ink-3);
 }
 .fade {
   animation: fade 0.35s ease-out;
@@ -322,40 +220,6 @@ body {
   width: 14em;
   user-select: text;
   -webkit-user-select: text;
-}
-
-/* ---- M7: hint notes */
-#hint {
-  position: fixed;
-  left: 14px;
-  bottom: 12%;
-  max-width: min(360px, 80vw);
-  padding: 8px 12px;
-  background: #e8dcbc;
-  color: #2a1c10;
-  font-family: Georgia, serif;
-  font-size: calc(0.92rem * var(--text-scale, 1));
-  line-height: 1.35;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
-  transform: rotate(-1.2deg) translateY(12px);
-  opacity: 0;
-  transition:
-    opacity 0.35s,
-    transform 0.35s;
-  pointer-events: none;
-  z-index: 15;
-}
-#hint.on {
-  opacity: 1;
-  transform: rotate(-1.2deg);
-  pointer-events: auto;
-}
-#hint b {
-  display: block;
-  font-family: 'Courier New', monospace;
-  font-size: 0.7em;
-  letter-spacing: 0.2em;
-  color: #8a2a1a;
 }
 
 /* ---- M7: instant replay letterbox */
@@ -510,9 +374,6 @@ body.replaying::after {
   padding: 6px 10px;
   margin: 8px 0;
 }
-#hud .right .job.jb {
-  color: #ff6a50;
-}
 canvas.cracks {
   position: fixed;
   inset: 0;
@@ -574,37 +435,6 @@ canvas.ending-sky {
   }
 }
 
-@media (max-aspect-ratio: 6/5) {
-  #hud .left {
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(96vw, 512px);
-    top: 6px;
-    gap: 4px;
-  }
-  #hud .stats {
-    font-size: 0.75rem;
-  }
-  #hud .right {
-    top: calc(min(96vw, 512px) / 4 + 12px);
-    font-size: 0.75rem;
-  }
-}
-
-#hud .earn {
-  color: #ffd27a;
-}
-#hud .right .job {
-  margin-top: 8px;
-  max-width: 220px;
-  margin-left: auto;
-  font-size: 0.75rem;
-  color: var(--atm);
-  text-shadow: 0 0 6px #000;
-}
-#hud .right .job.done {
-  color: var(--amber);
-}
 .panel .col {
   display: flex;
   flex-direction: column;
@@ -715,8 +545,602 @@ canvas.ending-sky {
   align-items: center;
   flex-wrap: wrap;
 }
-#hud .right .actives {
-  margin-top: 8px;
-  font-size: 0.75rem;
-  color: #ffd27a;
+
+/* ================================================================ overhaul behaviours
+   One-message notices, banners, count-ups, the panel entrance, flipper-reachable locked
+   buttons. Their look follows the panel skin (skin.css): metal plates, CRT figures, paper notes. */
+:root {
+  /* tokens for the HUD, notices and banners (main colours above win where names meet) */
+  --font-display: 'Saira Stencil One', Impact, 'Arial Narrow Bold', sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-note: 'Special Elite', 'Courier New', ui-monospace, monospace;
+
+  /* surfaces, darkest to lightest */
+  --s0: #120c09;
+  --s1: #1b130e;
+  --s2: #261b14;
+  --s3: #33251b;
+  --line: #3a2b20;
+  --line-2: #5b4531;
+  /* text */
+  --ink-2: #d0c0a0;
+  --ink-3: #a09076;
+  /* signal colours */
+  --gold: #ffb52e;
+  --gold-hi: #ffd777;
+  --gold-lo: #b06a0a;
+  --gold-ink: #2a1600;
+  --red-hi: #ff937a;
+  --red-lo: #7d2013;
+  --red-bg: #2a0f0a;
+  --green-lo: #2f7a39;
+  --green-bg: #0f2615;
+  --teal: #62d6c8;
+  --teal-bg: #0c2321;
+  --steel: #e6e0cf;
+  --paper: #eadfbf;
+  --paper-ink: #2b1d10;
+  --rarity: #cfc6b0;
+
+  /* shape */
+  --r-s: 6px;
+  --r-m: 10px;
+  --r-l: 14px;
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
+  --gap-6: 36px;
+  --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 224, 170, 0.06);
+  --shadow-panel:
+    0 34px 90px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 224, 170, 0.07);
+  --ring: 0 0 0 3px var(--bg), 0 0 0 6px var(--gold-hi);
+
+  /* type scale (rem follows the text-size setting; the floors keep the smallest size legible) */
+  --fs-2xs: max(11px, 0.68rem);
+  --fs-xs: max(12px, 0.75rem);
+  --fs-s: max(13px, 0.84rem);
+  --fs-m: max(14.5px, 0.95rem);
+  --fs-l: 1.15rem;
+  --fs-xl: 1.6rem;
+  --fs-2xl: 2.3rem;
+
+  /* layout */
+  --gutter: 16px;
+  --note-room: 0px;
+  /* the margin beside the table in landscape (the table is about 60vh wide) */
+  --side: clamp(220px, calc((100vw - 60vh) / 2 - 22px), 440px);
+}
+button {
+  font: inherit;
+}
+[hidden] {
+  display: none !important;
+}
+/* Until the faces load (main.ts) the UI waits, then fades in. */
+#ui,
+#hud,
+#notices {
+  transition: opacity 0.25s;
+}
+html.fonts-wait #ui,
+html.fonts-wait #hud,
+html.fonts-wait #notices {
+  opacity: 0;
+}
+.ico {
+  display: inline-flex;
+  width: 1.1em;
+  height: 1.1em;
+  flex: none;
+}
+.ico svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.n {
+  font-variant-numeric: tabular-nums;
+}
+/* Counting numbers hold their width (counter.ts sets min-width) so what sits beside stays put. */
+.count {
+  display: inline-block;
+  text-align: right;
+}
+
+/* The focus ring: shown for keyboard, flipper and gamepad navigation. */
+#ui.nav button:focus,
+#ui button:focus-visible,
+.touch-btn:focus-visible {
+  outline: 2px solid var(--bc-gold);
+  outline-offset: 2px;
+  z-index: 2;
+}
+/* A locked button can be focused too (it says why when pressed): a quieter ring. */
+#ui button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+}
+#ui.nav button[aria-disabled='true']:focus,
+#ui button[aria-disabled='true']:focus-visible {
+  outline-color: var(--ink-3);
+  opacity: 0.7;
+}
+#ui button.shake {
+  animation: shake 0.4s;
+}
+@keyframes shake {
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* ---------------------------------------------------------------- notices */
+/* Toasts, tips and captions share one slot per layout (notices.ts decides how many fit):
+   the right margin in play, a strip under the panel in menus, and just under the top band on a
+   portrait phone. Nothing here lands on a panel header, a HUD card or the flippers. */
+#notices {
+  position: fixed;
+  z-index: 30;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: var(--side);
+  max-height: calc(100dvh - var(--right-bottom, 0px) - 28px);
+  padding-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.toast,
+.note {
+  flex: none;
+  animation: toast-in 0.3s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+  transition:
+    opacity 0.26s,
+    transform 0.26s;
+}
+.toast.out,
+.note.out {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.9rem;
+  font-size: var(--fs-m);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  background: rgb(22, 14, 10);
+  border: 1px solid var(--line-2);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--r-m);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+}
+.toast.bump {
+  animation: toast-bump 0.35s;
+}
+.toast-ico {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.toast.good {
+  border-left-color: var(--green);
+}
+.toast.good .toast-ico {
+  color: var(--green);
+}
+.toast.bad,
+.toast.warn {
+  border-left-color: var(--red);
+}
+.toast.bad .toast-ico,
+.toast.warn .toast-ico {
+  color: var(--red-hi);
+}
+.toast.unlock {
+  border-color: var(--gold);
+  border-left-width: 4px;
+  background: linear-gradient(90deg, #3a2509, rgb(22, 14, 10) 70%);
+}
+.toast.unlock .toast-ico {
+  width: 1.8rem;
+  height: 1.8rem;
+  color: var(--gold-hi);
+}
+.unlock-body {
+  display: flex;
+  flex-direction: column;
+}
+.unlock-title {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.unlock-what {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.1rem;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+@keyframes toast-bump {
+  40% {
+    transform: scale(1.04);
+  }
+}
+
+/* Captions (the Warden, the red phone, the wall) and tips. */
+.note {
+  position: relative;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-note);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+}
+.note .cap-text,
+.note .note-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.note.caption {
+  color: var(--ink);
+  background: rgb(14, 9, 6);
+  border: 1px solid var(--line-2);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--r-m);
+}
+.cap-who {
+  display: block;
+  margin-bottom: 2px;
+  font: 800 var(--fs-xs) / 1.2 var(--font-ui);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.note.caption.red {
+  border-left-color: var(--red);
+}
+.note.caption.red .cap-who {
+  color: var(--red-hi);
+}
+.note.caption.wall {
+  border-left-color: var(--ink-3);
+  font-style: italic;
+}
+.note.caption.wall .cap-who {
+  color: var(--ink-3);
+}
+.note.tip {
+  padding-right: 2.4rem;
+  overflow: hidden;
+  font-size: 0.9rem;
+  line-height: 1.38;
+  color: var(--paper-ink);
+  background: var(--paper);
+  border-radius: 3px;
+  transform: rotate(-0.8deg);
+}
+.note.tip.out {
+  transform: translateY(6px) rotate(-0.8deg);
+}
+.note.tip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: #9b3524;
+  transform-origin: left;
+  animation: note-count var(--note-ms, 5s) linear forwards;
+}
+.note-tag {
+  display: block;
+  margin-bottom: 1px;
+  font: 800 var(--fs-xs) / 1.2 var(--font-ui);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #9b3524;
+}
+.note-x {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #6a5238;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+@media (pointer: fine) {
+  .note.tip {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+}
+@keyframes note-count {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* A menu is up: the slot is a strip under the panel (the panel leaves room for it). A toast sits
+   beside a note; the rest wait their turn (notices.ts). */
+body:has(#ui > .panel) #notices {
+  left: 0;
+  right: 0;
+  top: auto;
+  margin-inline: auto;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(1060px, calc(100vw - 2 * var(--gutter)));
+  max-height: none;
+  padding-bottom: 0;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 10px;
+}
+body:has(#ui > .panel) .toast {
+  flex: 0 1 auto;
+  min-width: min(300px, 100%);
+  max-width: 520px;
+  order: 0;
+}
+body:has(#ui > .panel) .note {
+  flex: 1 1 340px;
+  max-width: 560px;
+  order: 1;
+  padding-block: 0.5rem;
+}
+body:has(#ui > .panel) .note.tip {
+  order: 2;
+}
+/* Notes in the strip take two lines: a tip's tag sits beside its text. */
+body:has(#ui > .panel) .note .cap-text,
+body:has(#ui > .panel) .note .note-text {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+body:has(#ui > .panel) .note {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7em;
+}
+body:has(#ui > .panel) .note-tag,
+body:has(#ui > .panel) .cap-who {
+  flex: none;
+  margin: 0;
+}
+body:has(#ui > .panel) .note .cap-text,
+body:has(#ui > .panel) .note .note-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Portrait phones, playing: the slot hangs just under the top band, one message at a time. */
+@media (max-aspect-ratio: 6/5) {
+  #notices {
+    left: 0;
+    right: 0;
+    bottom: auto;
+    top: calc(var(--band-bottom, 126px) + 8px);
+    margin-inline: auto;
+    width: min(440px, calc(100vw - 16px));
+    max-height: none;
+    padding-bottom: 0;
+  }
+  .toast {
+    padding: 0.45rem 0.7rem;
+    font-size: var(--fs-s);
+  }
+  /* In play the slot hangs over the top of the table: a toast is one line, so it covers as
+     little of the playfield as it can. Menus keep their strip and may wrap. */
+  body:not(:has(#ui > .panel)) .toast {
+    white-space: nowrap;
+  }
+  body:not(:has(#ui > .panel)) .toast-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .note {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+  .note.tip {
+    padding-right: 2.2rem;
+    font-size: 0.78rem;
+  }
+  .note .cap-text,
+  .note .note-text {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .note {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6em;
+  }
+  .note-tag,
+  .cap-who {
+    flex: none;
+    margin: 0;
+  }
+  .note .cap-text,
+  .note .note-text {
+    flex: 1;
+    min-width: 0;
+  }
+  body:has(#ui > .panel) #notices {
+    top: auto;
+    width: min(480px, calc(100vw - 2 * var(--gutter)));
+  }
+  body:has(#ui > .panel) .toast,
+  body:has(#ui > .panel) .note {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+@media (max-width: 860px) {
+  body:has(#ui > .panel) #notices {
+    justify-content: stretch;
+  }
+  body:has(#ui > .panel) .toast,
+  body:has(#ui > .panel) .note {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+/* ---------------------------------------------------------------- banner layer (juice hook) */
+#banner {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: 16%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.banner-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: banner-in 0.45s cubic-bezier(0.2, 1.3, 0.3, 1) backwards;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+.banner-item.out {
+  opacity: 0;
+  transform: translateY(-10px) scale(1.04);
+}
+.banner-text {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3.6rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-hi);
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.8),
+    0 0 36px rgba(255, 150, 20, 0.6);
+}
+.banner-sub {
+  font: 800 0.85rem/1.2 var(--font-ui);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 0 2px 6px #000;
+}
+.banner-item.tone-red .banner-text {
+  color: var(--red-hi);
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.8),
+    0 0 36px rgba(240, 88, 63, 0.7);
+}
+.banner-item.tone-green .banner-text {
+  color: var(--green);
+}
+.banner-item.tone-plain .banner-text {
+  color: var(--ink);
+}
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+/* ---------------------------------------------------------------- bump (number pulse) */
+.bump {
+  animation: bump 0.4s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes bump {
+  40% {
+    transform: scale(1.22);
+    filter: brightness(1.4);
+  }
+}
+
+/* ---------------------------------------------------------------- panel entrance */
+.panel.enter {
+  animation: panel-in 0.4s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+.panel.enter .stagger {
+  animation: rise 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 110ms);
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ---------------------------------------------------------------- motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* The phone rings or the ATM chirps: a steady rim on the screen (no animation, so no flashing). */
+#hud.pulse-alarm {
+  box-shadow: inset 0 0 0 2px rgba(255, 110, 70, 0.6);
 }

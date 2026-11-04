@@ -17,6 +17,9 @@
     "botstats": "tsx tools/botstats.ts",
     "economy": "tsx tools/economy.ts",
     "economy:summary": "tsx tools/economy-summary.ts",
+    "sfx:build": "node tools/build-sfx.mjs",
+    "audio:check": "node tools/audio-check.mjs",
+    "audio:payouts": "tsx tools/audio-payouts.ts",
     "e2e": "playwright test"
   },
   "dependencies": {

@@ -4,6 +4,7 @@
  */
 import { h } from './ui';
 import { itemIcon } from './icons';
+import { button } from './widgets';
 import { paintMugshot } from '../present/mugshot';
 import { INMATES, inmateDef } from '../content/inmates';
 import { HARD_TIME } from '../content/hard-time';
@@ -40,12 +41,13 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
     const canvas = h('canvas', { class: 'mug' });
     paintMugshot(canvas, d.id, d.number, !open);
     const why = UNLOCKS.find((u) => u.inmate === d.id)?.text ?? '';
-    return h(
-      'button',
+    return button(
       {
         class: `mugcard${c.inmate === d.id ? ' sel' : ''}`,
         disabled: !open,
+        why: `Locked: ${why}`,
         title: open ? d.name : `Locked: ${why}`,
+        k: `mug-${d.id}`,
         onclick: () => on.change({ ...c, inmate: d.id, hardTime: 0 }),
       },
       canvas,
@@ -66,41 +68,59 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
     h('div', { class: 'mugs' }, ...cards),
     h(
       'div',
-      { class: 'inmate', style: { fontFamily: 'var(--bc-typewriter)', padding: '4px 10px', background: 'rgba(0, 0, 0, 0.04)', border: '1px dashed #84261a', borderRadius: '3px', margin: '4px 0' } },
-      h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.25em', letterSpacing: '0.08em', color: '#291c12' } }, `${d.name.toUpperCase()} · INMATE #${d.number}`),
-      h('p', { class: 'dim', style: { margin: '1px 0 3px', color: '#5a4630', fontSize: '0.9em' } }, `OFFICIAL RECORD: ${d.charge}`),
-      h('p', { class: 'up', style: { color: '#1d5a2c', fontWeight: 'bold', margin: '1px 0', fontSize: '0.92em' } }, `[+] ADVANTAGE: ${d.upside}`),
-      h('p', { class: 'down', style: { color: '#84261a', fontWeight: 'bold', margin: '1px 0', fontSize: '0.92em' } }, `[−] DISADVANTAGE: ${d.downside}`),
+      { class: 'inmate dossier' },
+      h('div', { class: 'dossier-name' }, `${d.name.toUpperCase()} · INMATE #${d.number}`),
+      h('p', { class: 'dim' }, `OFFICIAL RECORD: ${d.charge}`),
+      h('p', { class: 'up' }, `[+] ADVANTAGE: ${d.upside}`),
+      h('p', { class: 'down' }, `[−] DISADVANTAGE: ${d.downside}`),
     ),
     h(
       'div',
-      { class: 'row', style: { justifyContent: 'center', alignItems: 'center', margin: '3px 0' } },
-      h('button', { disabled: ht <= 0, onclick: () => on.change({ ...c, hardTime: ht - 1 }) }, '−'),
-      h('span', { class: 'ht', style: { fontFamily: 'var(--bc-head)', fontSize: '1.15em', letterSpacing: '0.08em', margin: '0 8px' } }, `Hard Time ${ht}${maxHt ? ` / ${maxHt}` : ''}`),
-      h(
-        'button',
-        { disabled: ht >= maxHt, onclick: () => on.change({ ...c, hardTime: ht + 1 }) },
+      { class: 'row lineup-ht' },
+      button(
+        {
+          disabled: ht <= 0,
+          why: 'Hard Time is already at its lowest.',
+          cue: 'slider',
+          k: 'ht-',
+          onclick: () => on.change({ ...c, hardTime: ht - 1 }),
+        },
+        '−',
+      ),
+      h('span', { class: 'ht' }, `Hard Time ${ht}${maxHt ? ` / ${maxHt}` : ''}`),
+      button(
+        {
+          disabled: ht >= maxHt,
+          why: maxHt
+            ? 'Hard Time is at your highest unlocked level.'
+            : 'Win with this inmate to unlock Hard Time.',
+          cue: 'slider',
+          k: 'ht+',
+          onclick: () => on.change({ ...c, hardTime: ht + 1 }),
+        },
         '+',
       ),
       endlessUnlocked(meta)
-        ? h(
-            'button',
-            { onclick: () => on.change({ ...c, endless: !c.endless }) },
+        ? button(
+            {
+              cue: c.endless ? 'toggleOff' : 'toggleOn',
+              k: 'endless',
+              onclick: () => on.change({ ...c, endless: !c.endless }),
+            },
             c.endless ? 'Endless: ON' : 'Endless: OFF',
           )
         : null,
     ),
     h(
       'div',
-      { class: 'row seed', style: { justifyContent: 'center', margin: '3px 0' } },
-      h('span', { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.9em' } }, 'PRISON RUN SEED:'),
+      { class: 'row seed' },
+      h('span', null, 'PRISON RUN SEED:'),
       h('input', {
         type: 'text',
         value: c.seed,
         maxlength: 24,
         placeholder: 'RANDOM',
         spellcheck: 'false',
-        style: { fontFamily: 'var(--bc-typewriter)', textTransform: 'uppercase', padding: '2px 6px' },
         // Typing doesn't re-render (it would steal focus); the choice is read on start.
         oninput: (e: Event) => {
           c.seed = (e.target as HTMLInputElement).value.trim().toUpperCase();
@@ -111,14 +131,14 @@ export function lineupPanel(meta: MetaState, c: LineupChoice, on: LineupHandlers
       ? h('ul', { class: 'htlist' }, ...htRows)
       : h(
           'p',
-          { class: 'dim', style: { fontFamily: 'var(--bc-typewriter)', textAlign: 'center', margin: '3px 0', fontSize: '0.85em' } },
+          { class: 'dim lineup-note' },
           maxHt ? 'No Hard Time.' : 'Win with this inmate to unlock Hard Time.',
         ),
     h(
       'div',
-      { class: 'cell-dock', style: { marginTop: '6px' } },
-      h('button', { onclick: () => on.back() }, 'Back'),
-      h('button', { class: 'primary', onclick: () => on.start() }, 'Wake Up (Enter Cell)'),
+      { class: 'cell-dock' },
+      button({ cue: 'back', k: 'back', onclick: () => on.back() }, 'Back'),
+      button({ primary: true, k: 'start', onclick: () => on.start() }, 'Wake Up (Enter Cell)'),
     ),
   );
 }
@@ -202,6 +222,10 @@ export function rapSheetPanel(meta: MetaState, tallies: number, back: () => void
     h('div', { class: 'chips' }, ...list(CONTRABAND, meta.discovered.contraband)),
     h('h3', null, `Sentences ${meta.discovered.sentences.length}/${SENTENCES.length}`),
     h('div', { class: 'chips' }, ...list(SENTENCES, meta.discovered.sentences)),
-    h('div', { class: 'row' }, h('button', { class: 'primary', onclick: back }, 'Back')),
+    h(
+      'div',
+      { class: 'row' },
+      button({ primary: true, cue: 'back', k: 'back', onclick: back }, 'Back'),
+    ),
   );
 }

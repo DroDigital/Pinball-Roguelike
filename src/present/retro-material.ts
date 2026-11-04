@@ -76,7 +76,7 @@ void main() {
   float streak = noise(vec2(vWorld.x * 0.35 + vWorld.z * 0.35, vWorld.y * 0.04));
   float grime = noise(vWorld.xz * 0.08 + vWorld.y * 0.05);
   float rust = smoothstep(0.75 - uDecay * 0.35 * uRust, 0.95, streak) * uRust;
-  albedo = mix(albedo, vec3(0.34, 0.14, 0.05) * (0.6 + grime * 0.6), rust * 0.8);
+  albedo = mix(albedo, vec3(0.24, 0.1, 0.04) * (0.6 + grime * 0.6), rust * 0.6);
   albedo *= 0.75 + grime * 0.35;
   // Bulb: Lambert with a hard inverse-square falloff.
   vec3 toL = uBulbPos - vWorld;

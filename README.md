@@ -5,13 +5,15 @@ cell in front of **DEBTOR'S PRISON**, a battered late-70s pinball machine. An AT
 you owe the Warden. Bank enough coins before each deadline, or the trapdoor under the stool
 opens.
 
-Built with Vite, TypeScript (strict), Three.js and Planck.js. The sound and music are
-generated in code and the 3D room is procedural; the menu frames, HUD bezels, machine prints
-(backglass, playfield illustration, cabinet side art) and title logo are drawn in code on 2D
-canvases (`src/present/artwork/`), with clean vector item icons from
-[game-icons.net](https://game-icons.net) (CC BY 3.0, see [Artwork & UI system](#artwork--ui-system)).
-[DESIGN.md](DESIGN.md) holds the design, the milestone checklist, calibration numbers and the decisions log;
-[CLAUDE.md](CLAUDE.md) holds the architecture rules and conventions.
+Built with Vite, TypeScript (strict), Three.js and Planck.js. The music is generated in code;
+the sound effects are a small bank (under 1 MB) of synthesised foley and CC0 recordings, rebuilt
+by `npm run sfx:build` and credited in [CREDITS.md](CREDITS.md). The 3D machine (playfield
+print, plastics, inserts, cabinet) and the room are procedural; the menu frames, HUD metal,
+backglass print and title logo are drawn in code on 2D canvases (`src/present/artwork/`), with
+vector item icons from [game-icons.net](https://game-icons.net) (CC BY 3.0, see
+[Artwork & UI system](#artwork--ui-system)). [DESIGN.md](DESIGN.md) holds the design, the
+milestone checklist, calibration numbers and the decisions log; [CLAUDE.md](CLAUDE.md) holds the
+architecture rules and conventions.
 
 ## Run it
 
@@ -142,10 +144,13 @@ it up. Each new charm and contraband item needs a test in `tests/rules/charms.te
   moved, run `npx tsx tools/calibrate-shots.ts` to re-measure the bot's cradle shots.
 
 ### Artwork & UI system
- 
-All UI frames, documents, machine artwork, and the title logo are painted dynamically in
-code using the HTML5 2D canvas API (`src/present/artwork/`). There are zero static PNG downloads
-needed at runtime, keeping the entire production build under 350 kB gzipped:
+
+All UI frames, documents, the backglass print and the title logo are painted in code with the
+2D canvas API (`src/present/artwork/`); there are no static image downloads at runtime. The 3D
+machine (playfield print, plastics, inserts, wireforms, cabinet, backbox) is built in
+`src/present/` (`table-view.ts`, `playfield-art.ts`, `plastics-art.ts`, `cabinet.ts`,
+`inserts.ts`, `flashers.ts`, `materials.ts`), rendered by `renderer.ts` (HDR, bloom, an
+environment map):
 
 - **Framework & Kit:** `src/present/artwork/kit.ts` provides reusable drawing primitives
   (metal plates, hex screws, chamfers, recesses, CRT scanlines, paper grain, metallic gradients,
@@ -155,8 +160,9 @@ needed at runtime, keeping the entire production build under 350 kB gzipped:
 - **Paper & Clipboard Sheets:** `src/present/artwork/sheets.ts` (booking dossier, deadline notice,
   job ticket, buy-balls panel, ball receipt, rap sheet, neighbor letter, ending panel).
 - **HUD Bezels:** `src/present/artwork/hud.ts` (score/DMD panel, coin ledger, status rack).
-- **Machine Prints:** `src/present/artwork/machine.ts` (70s style backglass with quiet lower strip
-  for live shot ladders, playfield illustration under table inserts, cabinet flank decals).
+- **Backglass Print:** `src/present/artwork/machine.ts` (the Warden behind bars, chains and the
+  machine's name, with a quiet lower strip where `backglass.ts` lights the live shot ladders;
+  the sunburst Warden art stands in until the print is ready).
 - **Title Logo:** `src/present/artwork/logo.ts` (metallic brass/bone bevels, chrome steel ball,
   and chain links).
 - **Item Icons:** Crisp inline SVG icons for all 65 charms and contraband items (`src/app/icons.ts`,
@@ -165,11 +171,16 @@ needed at runtime, keeping the entire production build under 350 kB gzipped:
 - **Menu Screens:** Mark a panel `data-skin="<screen>"` (a key of `SCREEN_ART`) and `UI.mount`
   places controls inside the frame's content window (`src/app/skin.ts`, `src/app/skin.css`).
   Put the heading on the frame's label plate with `data-slot="head"` (rect in `HEAD_RECT`).
-- **HUD Layout:** `hudLayout()` positions frames in gutters (landscape), a banner (tablet portrait),
-  or plain text (phones).
-- **Loading & Cache:** `src/present/art.ts` draws critical textures on demand and background textures
-  during idle frames as Blob URLs. The service worker (`public/sw.js`) precaches the application
-  shell and fonts for full offline play.
+- **HUD:** `src/app/hud.ts` lays out the play HUD: columns beside the table in landscape, a band
+  above and a strip below it on portrait phones, never over the playfield. `hud.css` dresses
+  its cards as the skin's riveted metal bezels with CRT figures.
+- **Notices and feedback:** toasts, tips and the Warden's captions share one queue that shows one
+  message at a time where it covers nothing (`src/app/notices.ts`); menu sounds come from
+  `data-cue` (`src/app/cues.ts`); locked buttons stay reachable by the flippers and say why
+  they are locked (`button()` in `src/app/widgets.ts`); numbers count up (`src/app/counter.ts`).
+- **Loading & Cache:** `src/present/art.ts` draws critical textures on demand and the rest in
+  idle time (at most 100 ms apart) as Blob URLs. The service worker (`public/sw.js`) precaches
+  the application shell, its fonts and the sample bank for full offline play.
 - **Exporting Art Sheets:** `node tools/art-sheet.mjs` renders all canvas artwork to disk under
   `tools/out/art/`.
 - **Screenshots:** `SHOT_DIR=screenshots/screens npx playwright test e2e/screens.spec.ts`
@@ -213,3 +224,20 @@ npm run economy:summary              # pool every archetype's report: win rates,
 
 The report shows clear rates per deadline, win rate and the charms in winning builds.
 Calibration history is in DESIGN.md.
+
+## Credits and licences
+
+The game's text is set in free fonts, bundled as woff2 files (npm `@fontsource/*`) and credited
+in Settings:
+
+- [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1): body text
+- [Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue) and
+  [Oswald](https://fonts.google.com/specimen/Oswald) (SIL Open Font License 1.1): headings,
+  buttons and plates
+- [VT323](https://fonts.google.com/specimen/VT323) (SIL Open Font License 1.1): CRT figures
+- [Saira Stencil One](https://github.com/Omnibus-Type/Saira) (SIL Open Font License 1.1): the
+  machine's printed lettering and banners
+- [Special Elite](https://fonts.google.com/specimen/Special+Elite) (Apache License 2.0): notes,
+  tips and the Warden's lines
+
+The licence texts ship in `public/licenses/` (served at `/licenses/` in a build).

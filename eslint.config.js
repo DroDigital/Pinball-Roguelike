@@ -22,6 +22,7 @@ export default tseslint.config(
     ignores: [
       'dist',
       'node_modules',
+      '.claude',
       'coverage',
       'screenshots',
       'tools/out',

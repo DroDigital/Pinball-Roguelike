@@ -4,7 +4,7 @@
  */
 import type { ArtId } from '../../content/art';
 import { paintLogo } from './logo';
-import { paintBackglassArt, paintCabinetSide, paintPlayfieldIllustration } from './machine';
+import { paintBackglassArt } from './machine';
 import { HUD_PAINTERS } from './hud';
 import { METAL_PAINTERS } from './metal';
 import { PAPER_PAINTERS } from './sheets';
@@ -15,8 +15,6 @@ export type Painter = (g: Ctx, w: number, h: number) => void;
 export const PAINTERS: Record<ArtId, Painter> = {
   'branding/title-logo': paintLogo,
   'machine/backglass': paintBackglassArt,
-  'machine/playfield-illustration': paintPlayfieldIllustration,
-  'machine/cabinet-side-art': paintCabinetSide,
   ...HUD_PAINTERS,
   ...METAL_PAINTERS,
   ...PAPER_PAINTERS,

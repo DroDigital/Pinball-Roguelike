@@ -1,0 +1,1063 @@
+/*
+ * The play HUD (see hud.ts). Landscape: two columns in the margins beside the table.
+ * Portrait: a top band and a bottom strip. Between rounds the menu panels carry the numbers.
+ * It is pointer-events: none (except the touch buttons) and never covers the playfield.
+ */
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.hud-cols {
+  position: absolute;
+  inset: 0;
+}
+.hc-left,
+.hc-right {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  width: var(--side);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hc-left {
+  left: max(14px, env(safe-area-inset-left));
+}
+.hc-right {
+  right: max(14px, env(safe-area-inset-right));
+}
+.hc-card {
+  padding: 0.65rem 0.8rem;
+  background: linear-gradient(180deg, rgba(30, 21, 15, 0.94), rgba(16, 10, 7, 0.94));
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-card);
+}
+.hc-dmd {
+  line-height: 0;
+  overflow: hidden;
+  background: #000;
+  border: 3px solid #0a0604;
+  border-radius: 9px;
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    0 0 30px rgba(255, 120, 30, 0.22),
+    var(--shadow-card);
+}
+canvas.dmd {
+  width: 100%;
+  height: auto;
+  display: block;
+  image-rendering: pixelated;
+}
+/* Only the DMD (instant replays, the fall). */
+#hud[data-layout='dmd'] .hc-left > :not(.hc-dmd),
+#hud[data-layout='dmd'] .hc-right {
+  display: none;
+}
+
+/* Debt, Bank and Pocket */
+.ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.ledger-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--red-hi);
+}
+.ledger-debt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.ledger-debt .amt-ico {
+  width: 0.62em;
+  height: 0.62em;
+  color: var(--gold);
+}
+.hc-ledger .meter {
+  margin: 0.5rem 0 0.45rem;
+}
+.ledger-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0.9rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+.lg b {
+  color: var(--ink);
+  font-weight: 800;
+}
+.lg-bank .ico {
+  color: var(--gold);
+}
+.lg-pocket .ico {
+  color: var(--ink-2);
+}
+/* What is left to deposit is the number the player acts on: it reads bigger than its row. */
+.lg-need {
+  margin-left: auto;
+  font-size: var(--fs-s);
+  font-weight: 800;
+  color: var(--gold-hi);
+}
+.lg-need.ok {
+  color: var(--green);
+}
+.hc-pocket {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: var(--gap-3);
+}
+.pocket-label {
+  grid-column: 1 / -1;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.pocket-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  font-family: var(--font-display);
+  font-size: 3.1rem;
+  line-height: 1.05;
+  color: var(--gold);
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.55),
+    0 0 26px rgba(255, 150, 20, 0.28);
+}
+.pocket-row .amt-ico {
+  width: 0.55em;
+  height: 0.55em;
+}
+.pocket-n {
+  display: inline-block;
+  transform-origin: left center;
+}
+.pocket-earn {
+  display: none;
+  font-size: var(--fs-s);
+  font-weight: 800;
+  color: var(--green);
+  text-align: right;
+}
+.pocket-earn.on {
+  display: block;
+}
+.hc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-bonus {
+  font-size: var(--fs-s);
+}
+.hc-combo {
+  display: none;
+  padding: 0.5rem 0.8rem 0.6rem;
+  background: linear-gradient(180deg, rgba(60, 36, 8, 0.95), rgba(30, 18, 6, 0.95));
+  border: 1px solid var(--gold-lo);
+  border-radius: var(--r-l);
+  box-shadow:
+    var(--shadow-card),
+    0 0 24px rgba(255, 150, 20, 0.28);
+}
+.hc-combo.on {
+  display: block;
+  animation: toast-in 0.25s cubic-bezier(0.2, 1.2, 0.3, 1) backwards;
+}
+.combo-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.combo-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-hi);
+}
+.combo-mult {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.combo-bar {
+  height: 5px;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 99px;
+}
+.combo-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-hi));
+  transform-origin: left;
+  will-change: transform;
+}
+
+/* Deadline, round, balls */
+.round-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-2);
+}
+.round-deadline {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.round-round {
+  font-size: var(--fs-s);
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.round-balls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  margin-top: 0.45rem;
+}
+.balls-text {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-sentence {
+  margin-top: 0.5rem;
+}
+.hc-job {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.job-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.job-head .ico {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 1px;
+  color: var(--gold);
+}
+.job-title {
+  font-size: var(--fs-s);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.job-count {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+}
+.hc-job.done {
+  border-color: var(--green-lo);
+}
+.hc-job.done .bar-fill {
+  background: linear-gradient(180deg, #c8ffce, var(--green));
+}
+.hc-job.done .job-count {
+  color: var(--green);
+}
+.hc-jb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-color: var(--red-lo);
+  background: linear-gradient(180deg, rgba(60, 14, 8, 0.95), rgba(30, 8, 5, 0.95));
+}
+.jb-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--red-hi);
+}
+.jb-count {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+.jb-sub {
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+.jb-bar .bar-fill {
+  background: linear-gradient(180deg, var(--red-hi), var(--red));
+}
+.hc-actives {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.active-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-s);
+  font-weight: 700;
+}
+.active-row.spent {
+  opacity: 0.55;
+}
+.active-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--ink-2);
+  background: linear-gradient(180deg, #2c2118, #1b130d);
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+.active-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.active-hint {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-charms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.hc-label {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.hc-charm-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.hc-charm-list .charm-chip {
+  padding: 0.12rem 0.55rem;
+  font-size: var(--fs-xs);
+}
+.hc-res {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hc-tip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+.hc-tip .ico {
+  color: var(--steel);
+}
+
+/* The plunger meter sits beside the table's shooter lane. */
+.hud-plunger {
+  position: absolute;
+  right: calc(var(--side) + 14px);
+  bottom: 28px;
+  width: 16px;
+  height: 130px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid var(--line-2);
+  border-radius: 6px;
+}
+.hud-plunger i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to top, #ffb347, #ff4a2a);
+  border-radius: 3px;
+}
+.hud-plunger em {
+  position: absolute;
+  left: -5px;
+  right: -5px;
+  height: 3px;
+  background: #fff3d0;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255, 240, 200, 0.8);
+}
+
+/* Touch buttons (lockbar, pause): bottom-left, away from the plunger corner. */
+.hud-touch {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: none;
+  gap: 8px;
+  pointer-events: auto;
+}
+.touch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 1rem;
+  font: 800 var(--fs-xs) / 1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(24, 16, 11, 0.92);
+  border: 1px solid var(--line-2);
+  border-bottom-width: 3px;
+  border-radius: var(--r-m);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-btn .ico {
+  width: 1.2em;
+  height: 1.2em;
+  color: var(--gold);
+}
+.touch-btn:active {
+  background: var(--s3);
+  transform: translateY(1px);
+}
+.touch-btn.pause {
+  padding: 0;
+  width: 48px;
+}
+@media (pointer: coarse) {
+  #hud.playing .hud-touch {
+    display: flex;
+  }
+}
+
+/* ------------------------------------------------------------ phones in portrait */
+@media (max-aspect-ratio: 6/5) {
+  .hud-cols {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 8px;
+    row-gap: 5px;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  }
+  .hc-left,
+  .hc-right {
+    display: contents;
+  }
+  .hc-card {
+    padding: 0.3rem 0.55rem;
+    border-radius: var(--r-m);
+  }
+  .hc-pocket {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    min-width: 5.2rem;
+  }
+  .pocket-label {
+    font-size: var(--fs-2xs);
+  }
+  .pocket-row {
+    font-size: 2rem;
+  }
+  .pocket-earn {
+    display: none !important;
+  }
+  .hc-dmd {
+    grid-area: 1 / 2;
+    align-self: center;
+    border-width: 2px;
+  }
+  .hc-round {
+    grid-area: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 5.6rem;
+  }
+  .round-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .round-deadline {
+    font-size: 0.95rem;
+  }
+  .round-round {
+    font-size: var(--fs-2xs);
+  }
+  .round-balls {
+    margin-top: 0;
+    gap: 6px;
+  }
+  .balls-text,
+  .hc-sentence {
+    display: none;
+  }
+  .pip {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+  .hc-ledger {
+    grid-area: 2 / 1 / 3 / 4;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0 0.6rem;
+    padding: 0.3rem 0.6rem;
+  }
+  .ledger-head {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .ledger-label {
+    font-size: var(--fs-2xs);
+  }
+  .ledger-debt {
+    font-size: 1.3rem;
+  }
+  .hc-ledger .meter {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0.1rem 0;
+    height: 10px;
+  }
+  .ledger-legend {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: var(--fs-2xs);
+  }
+  .ledger-legend .ico {
+    display: none;
+  }
+  /* Small pills under the band: the Jailbreak count on the left, bonus and luck on the right.
+     They sit in the grid's spare row, so they follow the band whatever its height. */
+  .hc-chips {
+    grid-area: 3 / 2 / 4 / 4;
+    align-self: start;
+    justify-self: end;
+    gap: 4px;
+  }
+  /* The DMD already calls out the combo on a phone. */
+  .hc-combo {
+    display: none !important;
+  }
+  .hc-jb {
+    grid-area: 3 / 1 / 4 / 3;
+    align-self: start;
+    justify-self: start;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.2rem 0.6rem;
+  }
+  .hc-jb .jb-title {
+    font-size: 0.85rem;
+  }
+  .hc-jb .jb-count {
+    font-size: 1rem;
+  }
+  .hc-jb .jb-bar,
+  .hc-jb .jb-sub {
+    display: none;
+  }
+  .hc-job {
+    position: relative;
+    grid-area: 4 / 1 / 5 / 4;
+    margin-left: 124px;
+    padding: 0.3rem 0.6rem;
+    gap: 0.25rem;
+  }
+  .job-head .ico {
+    display: none;
+  }
+  .job-title {
+    overflow: hidden;
+    padding-right: 3.4rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-2xs);
+  }
+  .hc-job .bar {
+    height: 6px;
+  }
+  .job-count {
+    position: absolute;
+    right: 0.7rem;
+    top: 0.3rem;
+    font-size: var(--fs-2xs);
+  }
+  .hc-actives {
+    position: absolute;
+    left: 8px;
+    bottom: calc(max(8px, env(safe-area-inset-bottom)) + 56px);
+    padding: 0.3rem 0.5rem;
+    gap: 0.2rem;
+  }
+  .active-name,
+  .active-hint {
+    display: none;
+  }
+  .hc-res,
+  .hc-tip,
+  .hc-charms {
+    display: none;
+  }
+  .hud-plunger {
+    right: 10px;
+    bottom: 76px;
+  }
+  .hud-touch {
+    left: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .touch-btn {
+    min-height: 44px;
+    padding: 0 0.7rem;
+  }
+  .touch-label {
+    display: none;
+  }
+  .touch-btn {
+    width: 48px;
+    padding: 0;
+  }
+}
+
+/* Phones in landscape and other short screens. The right column drops what the cell screen
+   shows between rounds (charms, tickets and keys, the tip) so the notices have room under it. */
+@media (max-height: 520px) and (min-aspect-ratio: 6/5) {
+  .hc-dmd,
+  .hc-charms,
+  .hc-res,
+  .hc-tip,
+  .active-hint,
+  .balls-text {
+    display: none;
+  }
+  .hc-left,
+  .hc-right {
+    gap: 6px;
+    top: 8px;
+  }
+  .pocket-row {
+    font-size: 2.2rem;
+  }
+  .hc-card {
+    padding: 0.4rem 0.6rem;
+  }
+  .hud-plunger {
+    bottom: 14px;
+    height: 100px;
+  }
+}
+
+/* ---------------------------------------------------------------- HUD kit (chips, amounts, pips, meter) */
+#hud .amt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#hud .amt-ico {
+  width: 1.05em;
+  height: 1.05em;
+}
+#hud .amt-coin {
+  color: var(--gold);
+}
+#hud .amt-ticket {
+  color: var(--teal);
+}
+#hud .amt-key {
+  color: var(--steel);
+}
+#hud .amt.big {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-xl);
+}
+#hud .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#hud .chip {
+  --chip: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.18rem 0.62rem;
+  font: 700 var(--fs-xs) / 1.4 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid color-mix(in srgb, var(--chip) 55%, transparent);
+  border-radius: 99px;
+  white-space: nowrap;
+}
+#hud .chip-ico {
+  width: 1.05em;
+  height: 1.05em;
+  color: var(--chip);
+}
+#hud .chip-plain {
+  --chip: var(--line-2);
+}
+#hud .chip-ghost {
+  --chip: var(--line-2);
+  background: transparent;
+  color: var(--ink-3);
+}
+#hud .chip-gold {
+  --chip: var(--gold);
+  color: var(--gold-hi);
+}
+#hud .chip-good {
+  --chip: var(--green);
+  color: var(--green);
+}
+#hud .chip-bad {
+  --chip: var(--red);
+  color: var(--red-hi);
+}
+#hud .chip-warn {
+  --chip: var(--gold);
+  color: var(--gold-hi);
+}
+#hud .chip-info {
+  --chip: var(--teal);
+  color: var(--teal);
+}
+#hud .chip.unknown {
+  color: #6b5c47;
+  border-style: dashed;
+  background: transparent;
+}
+#hud .pips {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+#hud .pip {
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #b9b9b0 45%, #6b6b66);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+#hud .pip.off {
+  opacity: 0.22;
+  transform: scale(0.8);
+  box-shadow: none;
+}
+#hud .pip.live {
+  background: radial-gradient(circle at 35% 30%, #fff8dc, var(--gold) 55%, var(--gold-lo));
+  box-shadow: 0 0 10px rgba(255, 181, 46, 0.8);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+#hud .pip-charge {
+  background: radial-gradient(circle at 35% 30%, #d8fff9, var(--teal) 55%, #1f7f74);
+}
+#hud .bar {
+  position: relative;
+  height: 8px;
+  background: #0a0604;
+  border: 1px solid var(--line-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+#hud .bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold));
+  border-radius: 99px;
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#hud .meter {
+  position: relative;
+  height: 14px;
+  background: #090504;
+  border: 1px solid var(--line-2);
+  border-radius: 99px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+#hud .meter.big {
+  height: 18px;
+}
+#hud .meter.slim {
+  height: 8px;
+}
+#hud .meter-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  transition:
+    left 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#hud .meter-fill.bank {
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold) 55%, var(--gold-lo));
+}
+#hud .meter-fill.pend {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 181, 46, 0.78) 0 5px,
+    rgba(255, 181, 46, 0.2) 5px 10px
+  );
+}
+#hud .meter-fill.live {
+  background: linear-gradient(180deg, #fff3c4, var(--gold-hi));
+  animation: pulse 1.1s ease-in-out infinite;
+}
+#hud .meter.covered {
+  border-color: var(--green-lo);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 0 12px rgba(134, 224, 143, 0.35);
+}
+#hud .meter.paid {
+  border-color: var(--green);
+}
+#hud .meter.paid .meter-fill.bank {
+  background: linear-gradient(180deg, #c8ffce, var(--green) 55%, var(--green-lo));
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ================================================================ the panel skin
+   The HUD wears the skin's machine metal (skin.css, src/present/artwork/hud.ts): brushed slate
+   bezels with rivets around black windows, brass label plates, and CRT figures inside. */
+#hud {
+  --hud-steel: linear-gradient(
+    180deg,
+    #4a5765 0%,
+    #2c3540 18%,
+    #222a33 52%,
+    #1a2028 82%,
+    #11161c 100%
+  );
+  --hud-brush: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.035) 0 1px,
+    rgba(0, 0, 0, 0.05) 1px 3px
+  );
+  --hud-rivets:
+    radial-gradient(circle at 7px 7px, #9aa6b2 0 1.6px, #0b0e12 2.4px, transparent 3px),
+    radial-gradient(
+      circle at calc(100% - 7px) 7px,
+      #9aa6b2 0 1.6px,
+      #0b0e12 2.4px,
+      transparent 3px
+    ),
+    radial-gradient(
+      circle at 7px calc(100% - 7px),
+      #9aa6b2 0 1.6px,
+      #0b0e12 2.4px,
+      transparent 3px
+    ),
+    radial-gradient(
+      circle at calc(100% - 7px) calc(100% - 7px),
+      #9aa6b2 0 1.6px,
+      #0b0e12 2.4px,
+      transparent 3px
+    );
+  --hud-window: linear-gradient(180deg, #020303, #07090a);
+  font-family: var(--bc-sans);
+}
+/* Each card is a bezel: 9px of steel (with rivets) around a recessed black window. */
+#hud .hc-card,
+#hud .hc-combo,
+#hud .hc-dmd {
+  border: 9px solid transparent;
+  border-radius: 7px;
+  background:
+    var(--hud-window) padding-box,
+    var(--hud-rivets) border-box,
+    var(--hud-brush) border-box,
+    var(--hud-steel) border-box;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 2px 10px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 10px 24px rgba(0, 0, 0, 0.65);
+}
+#hud .hc-card,
+#hud .hc-combo {
+  padding: 0.5rem 0.7rem;
+}
+#hud .hc-dmd {
+  border-width: 10px;
+  box-shadow:
+    inset 0 0 0 1px #000,
+    0 0 26px rgba(255, 120, 30, 0.2),
+    0 10px 24px rgba(0, 0, 0, 0.65);
+}
+/* Labels: stencilled heads; figures: phosphor numerals. */
+#hud .ledger-label,
+#hud .pocket-label,
+#hud .hc-label,
+#hud .round-round,
+#hud .job-head,
+#hud .jb-title,
+#hud .combo-name {
+  font-family: var(--bc-head);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+}
+#hud .ledger-debt,
+#hud .pocket-row,
+#hud .round-deadline,
+#hud .job-count,
+#hud .jb-count,
+#hud .combo-mult,
+#hud .ledger-legend,
+#hud .lg b,
+#hud .lg-need {
+  font-family: var(--bc-crt);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+#hud .ledger-debt {
+  font-size: 2.3rem;
+  color: #ff7a62;
+  text-shadow: 0 0 10px rgba(255, 90, 60, 0.45);
+}
+#hud .pocket-row {
+  font-size: 3.2rem;
+  color: var(--bc-amber);
+  text-shadow: 0 0 14px rgba(255, 170, 60, 0.45);
+}
+#hud .ledger-legend {
+  font-size: 1.05rem;
+  color: #6fbf86;
+}
+#hud .lg b {
+  color: var(--bc-crt-green);
+  text-shadow: 0 0 8px rgba(114, 255, 153, 0.35);
+}
+#hud .lg-need {
+  font-size: 1.15rem;
+  color: var(--bc-gold);
+}
+#hud .round-deadline {
+  font-size: 1.7rem;
+  color: var(--bc-bone);
+}
+#hud .job-count,
+#hud .jb-count {
+  font-size: 1.15rem;
+  color: var(--bc-crt-green);
+}
+#hud .job-title,
+#hud .active-name,
+#hud .balls-text,
+#hud .hc-tip,
+#hud .pocket-earn {
+  font-family: var(--bc-crt);
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+#hud .job-title {
+  color: var(--bc-crt-green);
+}
+#hud .chip {
+  font-family: var(--bc-crt);
+  font-size: 1rem;
+  font-weight: 400;
+  border-radius: 3px;
+}
+/* The meters are lamp strips in the window. */
+#hud .meter,
+#hud .bar {
+  border-radius: 2px;
+  border-color: #2a3139;
+  background: #030404;
+}
+#hud .meter-fill.bank,
+#hud .bar-fill {
+  border-radius: 0;
+}
+/* Touch buttons and the plunger gauge match the bezels. */
+#hud .touch-btn {
+  font-family: var(--bc-head);
+  letter-spacing: 0.12em;
+  border: 2px solid #0b0e12;
+  border-radius: 5px;
+  background: var(--hud-brush), var(--hud-steel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 4px 10px rgba(0, 0, 0, 0.6);
+}
+#hud .hud-plunger {
+  border: 3px solid #0b0e12;
+  border-radius: 3px;
+  background: #050607;
+  box-shadow: 0 0 0 2px #3a4552;
+}
