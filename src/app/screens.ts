@@ -7,7 +7,7 @@
  * render showed (counter.ts).
  */
 import { h } from './ui';
-import { itemIcon, keysIcon } from './icons';
+import { icon, itemIcon, keysIcon } from './icons';
 import { button, tallyMarks } from './widgets';
 import { titleLogo } from './skin';
 import { countTo, fmtInt } from './counter';
@@ -154,6 +154,27 @@ export interface TitleHandlers {
   settings(): void;
 }
 
+/** The run in four steps, lit in turn like an attract-mode lamp chase. */
+function titleReel(): HTMLElement {
+  const step = (n: number, glyph: HTMLElement | null, head: string, text: string) =>
+    h(
+      'div',
+      { class: 'reel-step', style: { '--i': String(n) } },
+      h('span', { class: 'reel-bulb' }),
+      h('span', { class: 'reel-glyph' }, glyph),
+      h('b', null, head),
+      h('small', null, text),
+    );
+  return h(
+    'div',
+    { class: 'title-reel', 'aria-label': 'How a run works' },
+    step(0, icon('debt'), 'Owe', 'Every deadline the Warden names a debt.'),
+    step(1, icon('ball'), 'Play', 'Every shot pays coins. Bank them.'),
+    step(2, itemIcon('brassKnuckles'), 'Build', 'Charms bend the table rules.'),
+    step(3, icon('key'), 'Escape', 'Clear the last deadline and walk out.'),
+  );
+}
+
 export function titlePanel(o: TitleOpts, on: TitleHandlers): HTMLElement {
   const s = o.saved;
   return h(
@@ -161,8 +182,9 @@ export function titlePanel(o: TitleOpts, on: TitleHandlers): HTMLElement {
     { class: 'panel title', 'data-skin': 'title', 'data-screen': 'title' },
     titleLogo(),
     h('p', { class: 'title-tagline' }, '“You owe the Warden. The machine is the only way out.”'),
-    h('div', { class: 'title-wall' }, `RUNS ON THE CELL WALL: ${o.tallies}`),
-    tallyMarks(o.tallies),
+    titleReel(),
+    o.tallies > 0 ? h('div', { class: 'title-wall' }, `RUNS ON THE CELL WALL: ${o.tallies}`) : null,
+    o.tallies > 0 ? tallyMarks(o.tallies) : null,
     h(
       'div',
       { class: 'cell-dock', style: { flexWrap: 'wrap', gap: '10px' } },
