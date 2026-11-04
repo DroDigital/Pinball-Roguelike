@@ -1911,3 +1911,22 @@ button.job:not(.bc-skin) .ticket-task {
   font-family: var(--bc-typewriter);
   color: #ff9a88;
 }
+
+/* Shop cards wear their rarity: a tinted wash, a coloured glyph, and they stay legible while
+   you save up for them (the price line already says what is missing). */
+.panel .shop-card-tile[style*='--rar'] {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--rar) 16%, transparent),
+    transparent 55%
+  ) !important;
+}
+.shop-card-tile[style*='--rar'] .shop-card-body .icon {
+  color: var(--rar);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--rar) 45%, transparent));
+}
+#ui .panel button.shop-card-tile.is-disabled,
+#ui .panel button.shop-card-tile:disabled {
+  opacity: 0.78;
+  filter: saturate(0.7) brightness(0.85);
+}

@@ -734,7 +734,7 @@ export function shopPanel(r: RunState, on: ShopHandlers): HTMLElement {
     return button(
       {
         class: `shop-card-tile${synergy ? ' synergy-glow' : ''}`,
-        style: { borderColor: RARITY_COLORS[c.rarity] },
+        style: { borderColor: RARITY_COLORS[c.rarity], '--rar': RARITY_COLORS[c.rarity] },
         disabled: short > 0 || full,
         why: full
           ? `Your charm slots are full (${r.charms.length}/${r.mods.charmSlots}). Pawn a charm first.`

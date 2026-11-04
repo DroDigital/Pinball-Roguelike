@@ -434,6 +434,14 @@ More to chase on every ball, and every hit felt:
 - [x] Cell textures redrawn at 256 px (grime, damp streaks, cracks, chipped brick and tile),
       mipmapped so distant walls do not shimmer
 - [x] Tests: `tests/rules/features.test.ts`, charm tests; replay determinism unchanged
+- [x] Screens: the title shows the run in four steps (Owe, Play, Build, Escape) lit in turn;
+      the cell shows open charm slots, a plate per shot level and the coming sentence as a
+      tag; shop cards are tinted by rarity and stay legible while you save up
+- [x] Balance after the modes (24 physics runs per build, Hard Time 0): deadline 1 at 91.7%
+      for every build; no-charm deadline 4 at 33.3%; wins: Riot 37.5%, Yard 20.8%, Bonus, Luck
+      and Random 16.7%, none 0%. Pooled over all winners no charm is in more than half (Notched
+      Spoon 23%). Same seeds with REINFORCEMENTS off: Riot 29.2%, so the add-a-ball is worth
+      about 2 wins in 24, inside the noise; left as is, watch Riot in the next 40-run pass
 
 ## Decisions log
 
