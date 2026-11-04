@@ -53,6 +53,10 @@ table and a longer ball save).
 
 - **Skill shot:** tap a flipper while the ball sits in the shooter lane to move the lit lane,
   then pull the plunger to the white mark.
+- **Table modes:** every second top-lane set starts **Double Time** (the playfield pays x2,
+  then x3); 30 pop bumper hits start a **Yard Brawl** (every switch pays extra); 40 spinner
+  spins light a **Contraband Crate** at the Perimeters (a mystery award); clearing the Cell
+  Block during a RIOT brings **Reinforcements** (an extra ball).
 - **Lineup:** pick an inmate. More inmates, Hard Time levels 1-8 and Endless unlock as you
   play, along with a third of the charms.
 - **Saves:** the run autosaves at every round start and after every ball; **Continue**

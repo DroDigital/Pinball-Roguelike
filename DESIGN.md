@@ -410,6 +410,31 @@ M10 kept inside the skin.
       390x844 touch
 - [ ] Regenerate `screenshots/` (kept from main for now)
 
+### M12 — Table modes and juice
+
+More to chase on every ball, and every hit felt:
+
+- [x] DOUBLE TIME: every 2nd top-lane set in a ball raises a playfield multiplier on all switch
+      and shot payouts (max x3, 20 s, the clock restarts on each step; jackpots are not
+      multiplied)
+- [x] YARD BRAWL: 30 pop hits in a ball start a 15 s frenzy where every switch pays a flat extra;
+      the bumper caps strobe in turn while it runs
+- [x] CONTRABAND CRATE: 40 spinner spins light a mystery award at either Perimeter (both arrows
+      blink). It rolls from the ball's seeded rng: cash (2-6 Perimeter values), Bonus X, a 10 s
+      ball save, a Yard Brawl, Double Time, Lockup lit or +3 luck; awards that cannot apply pay
+      cash. The DMD spins a slot-machine reel before it lands
+- [x] REINFORCEMENTS: a Cell Block clear during RIOT adds a ball (once per RIOT, +5 s save)
+- [x] Three Jobs (start a Yard Brawl, open 2 Crates, reach Double Time) and three charms (Brass
+      Megaphone, Prison Clock, Bolt Cutters) built on the modes; HUD chips show running modes
+- [x] Juice: a pooled particle field (sparks on bumpers, slings, targets and hard flips; coin
+      flecks on payouts; embers on PAYDAY; glints on lane sets), coins that fly from big
+      payouts into the Pocket counter, part flashes on every hit, flasher/GI/bloom/backglass
+      bursts and a chromatic screen punch on big moments, banners for skill shots, combos,
+      RIOT, PAYDAY, the modes, Job done and tilt. Reduced flashing caps all of it
+- [x] Cell textures redrawn at 256 px (grime, damp streaks, cracks, chipped brick and tile),
+      mipmapped so distant walls do not shimmer
+- [x] Tests: `tests/rules/features.test.ts`, charm tests; replay determinism unchanged
+
 ## Decisions log
 
 - 2026-11-03 — Merge of the overhaul (machine, sound, UI behaviour) into the skinned main: the
@@ -807,3 +832,8 @@ sfx:build` fails if a hit loses more than 6.5 dB of its loudest 100 ms behind a 
   so a two-line tip clears the footer's buttons. — Tips overlapped the Done and Reroll row.
 - 2026-10-12 — `tests/app` typechecks in the browser project (DOM lib), not the Node-tools
   project. — Its notices test imports `src/app`, so the tools config failed on DOM names.
+- 2026-11-04 — New table modes hang off switches the table already has (lanes, pops, spinner,
+  Perimeter, Cell Block) instead of new geometry. — No physics changes, so the soak, feel and
+  replay results still hold; variety comes from what the shots do, not where they are.
+- 2026-11-04 — DOUBLE TIME multiplies switch and shot payouts but not jackpots (PAYDAY,
+  hurry-ups, crate cash). — Stacked on PAYDAY it would let RIOT builds run away with the economy.
