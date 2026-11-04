@@ -33,52 +33,206 @@ function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, a
   }
 }
 
-const concrete = () =>
-  canvasTexture(64, 64, (g, w, h) => {
-    g.fillStyle = '#5a534b';
-    g.fillRect(0, 0, w, h);
-    speckle(g, w, h, 900, 0.18);
-    g.strokeStyle = 'rgba(20,16,12,0.45)';
+/**
+ * Tileable value noise multiplied over the texture: `cells` lattice points per side, wrapped so
+ * the texture still repeats seamlessly. dark/light set how far it darkens and lightens.
+ */
+function noiseLayer(
+  g: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  cells: number,
+  dark: number,
+  light: number,
+): void {
+  const grid = new Float32Array(cells * cells);
+  for (let i = 0; i < grid.length; i++) grid[i] = Math.random();
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let y = 0; y < h; y++) {
+    const fy = (y / h) * cells;
+    const y0 = Math.floor(fy) % cells;
+    const y1 = (y0 + 1) % cells;
+    const ty = fy - Math.floor(fy);
+    const sy = ty * ty * (3 - 2 * ty);
+    for (let x = 0; x < w; x++) {
+      const fx = (x / w) * cells;
+      const x0 = Math.floor(fx) % cells;
+      const x1 = (x0 + 1) % cells;
+      const tx = fx - Math.floor(fx);
+      const sx = tx * tx * (3 - 2 * tx);
+      const a = grid[y0 * cells + x0] + (grid[y0 * cells + x1] - grid[y0 * cells + x0]) * sx;
+      const b = grid[y1 * cells + x0] + (grid[y1 * cells + x1] - grid[y1 * cells + x0]) * sx;
+      const n = a + (b - a) * sy;
+      const k = n < 0.5 ? 1 - (0.5 - n) * 2 * dark : 1 + (n - 0.5) * 2 * light;
+      const i = (y * w + x) * 4;
+      d[i] = Math.min(255, d[i] * k);
+      d[i + 1] = Math.min(255, d[i + 1] * k);
+      d[i + 2] = Math.min(255, d[i + 2] * k);
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+
+/** Draw `fn` at (x, y) and at its wrapped copies, so marks crossing an edge tile cleanly. */
+function wrapped(w: number, h: number, x: number, y: number, fn: (x: number, y: number) => void) {
+  for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) fn(x + ox, y + oy);
+}
+
+/** A thin wandering crack. */
+function crack(g: CanvasRenderingContext2D, w: number, h: number, len: number): void {
+  const x0 = Math.random() * w;
+  const y0 = Math.random() * h;
+  wrapped(w, h, x0, y0, (x, y) => {
     g.beginPath();
-    g.moveTo(10, 0);
-    g.lineTo(14, 22);
-    g.lineTo(9, 40);
+    g.moveTo(x, y);
+    let cx = x;
+    let cy = y;
+    let ang = Math.random() * Math.PI * 2;
+    for (let i = 0; i < len; i++) {
+      ang += (Math.random() - 0.5) * 0.9;
+      cx += Math.cos(ang) * 4;
+      cy += Math.sin(ang) * 4;
+      g.lineTo(cx, cy);
+    }
     g.stroke();
   });
+}
 
-const bricks = () =>
-  canvasTexture(64, 64, (g) => {
-    g.fillStyle = '#3a2a22';
-    g.fillRect(0, 0, 64, 64);
-    for (let r = 0; r < 8; r++)
-      for (let c = -1; c < 4; c++) {
-        const x = c * 16 + (r % 2) * 8;
-        const v = 70 + Math.random() * 40;
-        g.fillStyle = `rgb(${v},${v * 0.6},${v * 0.45})`;
-        g.fillRect(x + 1, r * 8 + 1, 14, 6);
-      }
-    speckle(g, 64, 64, 300, 0.15);
-  });
+/** Damp streaks running down from the top edge. */
+function streaks(g: CanvasRenderingContext2D, w: number, h: number, n: number, a: number): void {
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * w;
+    const len = h * (0.3 + Math.random() * 0.7);
+    const grad = g.createLinearGradient(0, 0, 0, len);
+    grad.addColorStop(0, `rgba(18,14,10,${a})`);
+    grad.addColorStop(1, 'rgba(18,14,10,0)');
+    g.fillStyle = grad;
+    const wd = 2 + Math.random() * 6;
+    wrapped(w, h, x, 0, (xx) => g.fillRect(xx, 0, wd, len));
+  }
+}
 
-const tiles = () =>
-  canvasTexture(64, 64, (g) => {
-    for (let y = 0; y < 4; y++)
-      for (let x = 0; x < 4; x++) {
-        const v = 52 + ((x + y) % 2) * 14 + Math.random() * 8;
-        g.fillStyle = `rgb(${v},${v * 0.95},${v * 0.88})`;
-        g.fillRect(x * 16, y * 16, 16, 16);
-      }
-    g.strokeStyle = 'rgba(10,8,6,0.8)';
-    for (let i = 0; i <= 4; i++) {
-      g.beginPath();
-      g.moveTo(i * 16, 0);
-      g.lineTo(i * 16, 64);
-      g.moveTo(0, i * 16);
-      g.lineTo(64, i * 16);
-      g.stroke();
+/** Soft stains (water rings, rust, grime) as radial blots. */
+function stains(g: CanvasRenderingContext2D, w: number, h: number, n: number, rgb: string): void {
+  for (let i = 0; i < n; i++) {
+    const r = 6 + Math.random() * 30;
+    const a = 0.08 + Math.random() * 0.18;
+    wrapped(w, h, Math.random() * w, Math.random() * h, (x, y) => {
+      const grad = g.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, `rgba(${rgb},${a})`);
+      grad.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = grad;
+      g.fillRect(x - r, y - r, r * 2, r * 2);
+    });
+  }
+}
+
+const TEX = 256;
+
+const concrete = () => {
+  const t = canvasTexture(TEX, TEX, (g, w, h) => {
+    g.fillStyle = '#5c554c';
+    g.fillRect(0, 0, w, h);
+    noiseLayer(g, w, h, 6, 0.35, 0.18);
+    noiseLayer(g, w, h, 24, 0.16, 0.1);
+    stains(g, w, h, 14, '28,22,16');
+    streaks(g, w, h, 9, 0.35);
+    speckle(g, w, h, 5000, 0.14);
+    // Pitting: tiny dark holes with a light lip.
+    for (let i = 0; i < 160; i++) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      g.fillStyle = 'rgba(15,12,9,0.55)';
+      g.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+      g.fillStyle = 'rgba(200,190,170,0.12)';
+      g.fillRect(x + 1, y + 1, 1, 1);
     }
-    speckle(g, 64, 64, 400, 0.2);
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(16,12,9,0.55)';
+    for (let i = 0; i < 3; i++) crack(g, w, h, 18 + Math.floor(Math.random() * 20));
   });
+  return mipped(t);
+};
+
+const bricks = () => {
+  const t = canvasTexture(TEX, TEX, (g, w, h) => {
+    // Mortar.
+    g.fillStyle = '#2e241e';
+    g.fillRect(0, 0, w, h);
+    noiseLayer(g, w, h, 16, 0.3, 0.15);
+    const rows = 8;
+    const bh = h / rows;
+    const bw = w / 4;
+    for (let r = 0; r < rows; r++)
+      for (let c = -1; c < 5; c++) {
+        const x = c * bw + (r % 2) * (bw / 2);
+        const y = r * bh;
+        const v = 62 + Math.random() * 46;
+        const hue = Math.random();
+        g.fillStyle = `rgb(${v},${v * (0.5 + hue * 0.15)},${v * (0.38 + hue * 0.1)})`;
+        g.fillRect(x + 3, y + 3, bw - 6, bh - 6);
+        // Top-lit bevel and a shadowed lower lip.
+        g.fillStyle = 'rgba(255,220,190,0.08)';
+        g.fillRect(x + 3, y + 3, bw - 6, 2);
+        g.fillStyle = 'rgba(0,0,0,0.28)';
+        g.fillRect(x + 3, y + bh - 5, bw - 6, 2);
+        // Chipped corners.
+        g.fillStyle = '#2e241e';
+        if (Math.random() < 0.35) g.fillRect(x + 3, y + 3, 3 + Math.random() * 5, 3);
+        if (Math.random() < 0.35) g.fillRect(x + bw - 9, y + bh - 6, 6, 3);
+      }
+    noiseLayer(g, w, h, 8, 0.3, 0.12);
+    stains(g, w, h, 10, '20,14,10');
+    streaks(g, w, h, 6, 0.3);
+    speckle(g, w, h, 3000, 0.12);
+  });
+  return mipped(t);
+};
+
+const tiles = () => {
+  const t = canvasTexture(TEX, TEX, (g, w, h) => {
+    const n = 4;
+    const s = w / n;
+    g.fillStyle = '#16120e';
+    g.fillRect(0, 0, w, h);
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        const v = 50 + ((x + y) % 2) * 16 + Math.random() * 8;
+        g.fillStyle = `rgb(${v},${v * 0.95},${v * 0.86})`;
+        g.fillRect(x * s + 2, y * s + 2, s - 4, s - 4);
+        // Glaze highlight along the top-left edges.
+        g.fillStyle = 'rgba(255,240,220,0.07)';
+        g.fillRect(x * s + 2, y * s + 2, s - 4, 3);
+        g.fillRect(x * s + 2, y * s + 2, 3, s - 4);
+        // A chipped corner now and then.
+        if (Math.random() < 0.3) {
+          g.fillStyle = '#16120e';
+          g.beginPath();
+          const cx = x * s + (Math.random() < 0.5 ? 2 : s - 2);
+          const cy = y * s + (Math.random() < 0.5 ? 2 : s - 2);
+          g.arc(cx, cy, 4 + Math.random() * 6, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    noiseLayer(g, w, h, 5, 0.4, 0.15);
+    noiseLayer(g, w, h, 32, 0.12, 0.08);
+    stains(g, w, h, 18, '24,18,12');
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(8,6,4,0.6)';
+    for (let i = 0; i < 4; i++) crack(g, w, h, 10 + Math.floor(Math.random() * 10));
+    speckle(g, w, h, 4000, 0.16);
+  });
+  return mipped(t);
+};
+
+/** Close up the room keeps its chunky texels; far away it filters, so walls don't shimmer. */
+function mipped(t: THREE.CanvasTexture): THREE.CanvasTexture {
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 4;
+  return t;
+}
 
 /** A lit sign: amber pixel text between two red rules (nearest-filtered like the room). */
 const marqueeTexture = (label: string) =>
