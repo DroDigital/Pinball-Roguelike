@@ -22,12 +22,16 @@ import {
   SCORE,
   SECRET,
   TILT,
+  PLAYFIELD_X,
+  FRENZY,
+  MYSTERY,
+  ADD_A_BALL,
 } from '../content/balance';
 import { emptyBallStats, type BallStats } from '../content/jobs';
 import { ComboTracker, comboName } from './combo';
 import { BALL_HOOKS, type BallHooks, type BallRules } from './charm-hooks';
 import { bonusTotal } from './bonus';
-import { Lamp, type AwardId, type GameEvent, type GameEventSink } from './types';
+import { Lamp, type AwardId, type GameEvent, type GameEventSink, type MysteryId } from './types';
 import type { BallOutcome } from './run';
 
 export const SHOT_TYPES: ShotType[] = [
@@ -221,6 +225,17 @@ const JB_LAMP: Record<JailbreakShot, string> = {
   cellblock: 'arrowCell',
 };
 
+export const MYSTERY_NAMES: Record<MysteryId, string> = {
+  cash: 'SMUGGLED CASH',
+  bonusX: 'BONUS X',
+  ballSave: 'SECOND CHANCE',
+  frenzy: 'YARD BRAWL',
+  double: 'DOUBLE TIME',
+  lockup: 'LOCKUP LIT',
+  luck: 'RABBIT FOOT',
+};
+const MYSTERY_IDS = Object.keys(MYSTERY.weights) as MysteryId[];
+
 export const AWARD_NAMES: Record<AwardId, string> = {
   bonusX: 'BONUS X',
   kickback: 'KICKBACK',
@@ -295,6 +310,17 @@ export class TableGame implements BallRules {
   jbShots = 0;
   jbResult: 'none' | 'failed' | 'escaped' = 'none';
   private jbSaveLeft = 0;
+  /** DOUBLE TIME multiplier on every switch and shot payout, and its seconds left. */
+  playfieldX = 1;
+  playfieldLeft = 0;
+  /** YARD BRAWL seconds left, and the Yard hit count that starts the next one. */
+  frenzyLeft = 0;
+  private nextFrenzyAt = FRENZY.popsToStart;
+  /** CONTRABAND CRATE lit at the Perimeters; spins still needed to light it. */
+  crateLit = false;
+  private spinsToCrate = MYSTERY.spinsToLight;
+  /** Balls added to the current RIOT. */
+  private addedBalls = 0;
 
   constructor(
     readonly sim: PinballSim,
@@ -387,6 +413,17 @@ export class TableGame implements BallRules {
         this.refreshLamps();
       }
     }
+    if (this.playfieldLeft > 0) {
+      this.playfieldLeft -= dt;
+      if (this.playfieldLeft <= 0) {
+        this.playfieldX = 1;
+        this.emit({ t: 'playfieldX', mult: 1, on: false });
+      }
+    }
+    if (this.frenzyLeft > 0) {
+      this.frenzyLeft -= dt;
+      if (this.frenzyLeft <= 0) this.emit({ t: 'frenzy', on: false });
+    }
     for (const [id, left] of this.holeHolds) {
       if (left <= 1) {
         this.holeHolds.delete(id);
@@ -430,6 +467,10 @@ export class TableGame implements BallRules {
         this.stats.yardHits++;
         this.pay('yard', SCORE.pop, e.x, e.y, 1, e.id);
         this.endSkill();
+        if (this.stats.yardHits >= this.nextFrenzyAt) {
+          this.nextFrenzyAt = this.stats.yardHits + FRENZY.popsToStart;
+          this.startFrenzy();
+        }
         break;
       case 'sling':
         this.pay('sling', SCORE.sling, e.x, e.y);
@@ -446,6 +487,21 @@ export class TableGame implements BallRules {
       case 'spin':
         this.stats.spins += e.value;
         this.pay('searchlight', SCORE.searchlightSpin * e.value, e.x, e.y);
+        if (!this.crateLit && !this.jailbreak) {
+          this.spinsToCrate -= e.value;
+          if (this.spinsToCrate <= 0) {
+            this.spinsToCrate = MYSTERY.spinsToLight;
+            this.crateLit = true;
+            this.emit({ t: 'crateLit' });
+            this.emit({
+              t: 'callout',
+              text: 'CONTRABAND CRATE',
+              sub: 'SHOOT A PERIMETER',
+              priority: 5,
+            });
+            this.refreshLamps();
+          }
+        }
         break;
       case 'chuteMade':
         this.onChute(e);
@@ -571,6 +627,7 @@ export class TableGame implements BallRules {
     this.stats.laneSets++;
     this.pay('lanes', SCORE.laneSet, x, y);
     this.emit({ t: 'laneComplete' });
+    if (this.stats.laneSets % PLAYFIELD_X.laneSetsPer === 0) this.raisePlayfield();
     if (!this.ctx.deadLanes && this.bonusMult < this.ctx.bonusMaxMult) {
       this.bonusMult++;
       this.emit({ t: 'bonusMult', mult: this.bonusMult });
@@ -587,7 +644,8 @@ export class TableGame implements BallRules {
     this.stats.perimeters++;
     const mult = this.major();
     this.pay('perimeter', SCORE.perimeter * mult, e.x, e.y, mult);
-    if (mult === 1) this.emit({ t: 'callout', text: 'THE PERIMETER', priority: 2 });
+    if (this.crateLit && !this.jailbreak) this.openCrate(e.x, e.y);
+    else if (mult === 1) this.emit({ t: 'callout', text: 'THE PERIMETER', priority: 2 });
     if (side === 'L' && this.superArmed >= 0) {
       this.superArmed = -1;
       this.stats.superSkillShots++;
@@ -699,6 +757,7 @@ export class TableGame implements BallRules {
 
   private startRiot(): void {
     this.riot = true;
+    this.addedBalls = 0;
     this.stats.riots++;
     this.machine.locks = 0;
     this.machine.lockLit = false;
@@ -772,6 +831,82 @@ export class TableGame implements BallRules {
     this.emit({ t: 'callout', text: 'THE HOLE PAYS', sub, priority: 6 });
   }
 
+  /** DOUBLE TIME: one step up the playfield multiplier, and the clock restarts. */
+  private raisePlayfield(): void {
+    this.playfieldX = Math.min(PLAYFIELD_X.max, this.playfieldX + 1);
+    this.playfieldLeft = PLAYFIELD_X.seconds;
+    this.stats.maxPlayfieldX = Math.max(this.stats.maxPlayfieldX, this.playfieldX);
+    this.emit({ t: 'playfieldX', mult: this.playfieldX, on: true });
+    this.emit({
+      t: 'callout',
+      text: this.playfieldX >= 3 ? 'TRIPLE TIME' : 'DOUBLE TIME',
+      sub: `PLAYFIELD X${this.playfieldX}`,
+      priority: 6,
+    });
+  }
+
+  /** YARD BRAWL: every switch pays extra for a while (a running one restarts its clock). */
+  private startFrenzy(): void {
+    const was = this.frenzyLeft > 0;
+    this.frenzyLeft = FRENZY.seconds;
+    if (was) return;
+    this.stats.frenzies++;
+    this.emit({ t: 'frenzy', on: true });
+    this.emit({ t: 'callout', text: 'YARD BRAWL!', sub: 'EVERY SWITCH PAYS', priority: 6 });
+  }
+
+  /** CONTRABAND CRATE: roll a mystery award. */
+  private openCrate(x: number, y: number): void {
+    this.crateLit = false;
+    this.stats.crates++;
+    let award = this.rng.weighted(MYSTERY_IDS, (id) => MYSTERY.weights[id]);
+    // Awards that cannot apply right now fall back to cash.
+    if (award === 'bonusX' && this.bonusMult >= this.ctx.bonusMaxMult) award = 'cash';
+    if (award === 'lockup' && (this.riot || this.ctx.lockdown || this.machine.lockLit))
+      award = 'cash';
+    let amount = 0;
+    switch (award) {
+      case 'cash':
+        amount = this.shotValue(
+          'perimeter',
+          SCORE.perimeter * this.rng.int(MYSTERY.cashMin, MYSTERY.cashMax),
+        );
+        this.payRaw(amount, x, y);
+        break;
+      case 'bonusX':
+        this.bonusMult++;
+        this.emit({ t: 'bonusMult', mult: this.bonusMult });
+        break;
+      case 'ballSave':
+        this.saveStarted = true;
+        this.saved = false;
+        this.ballSaveLeft = Math.max(this.ballSaveLeft, MYSTERY.ballSave);
+        break;
+      case 'frenzy':
+        this.startFrenzy();
+        break;
+      case 'double':
+        this.raisePlayfield();
+        break;
+      case 'lockup':
+        this.machine.lockLit = true;
+        break;
+      case 'luck':
+        this.luck += MYSTERY.luck;
+        break;
+    }
+    this.emit({ t: 'mystery', award, amount });
+    this.emit({
+      t: 'callout',
+      text: 'CONTRABAND CRATE',
+      sub: amount > 0 ? `${MYSTERY_NAMES[award]} +${fmt(amount)}` : MYSTERY_NAMES[award],
+      priority: 6,
+      anim: 'crate',
+      duration: 2.2,
+    });
+    this.refreshLamps();
+  }
+
   /** The major shot made most this ball (else the Yard): levels go where you aim. */
   private favouriteShot(): ShotType {
     let best: ShotType = 'yard';
@@ -815,6 +950,12 @@ export class TableGame implements BallRules {
       if (!this.riot && !this.jailbreak && !this.ctx.lockdown && !this.machine.lockLit) {
         this.machine.lockLit = true;
         this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'LOCKUP IS LIT', priority: 4 });
+      } else if (this.riot && this.addedBalls < ADD_A_BALL.perRiot) {
+        this.addedBalls++;
+        this.sim.serveBall(true);
+        this.riotSaveLeft = Math.max(this.riotSaveLeft, ADD_A_BALL.save);
+        this.emit({ t: 'addABall' });
+        this.emit({ t: 'callout', text: 'REINFORCEMENTS', sub: 'ADD-A-BALL', priority: 6 });
       } else this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'CLEARED', priority: 3 });
       this.setComplete('cellblock');
     }
@@ -1171,6 +1312,9 @@ export class TableGame implements BallRules {
     let v = this.shotValue(shot, base);
     if (v <= 0) return;
     for (const h of this.hooks) if (h.hitMult) v *= h.hitMult(this, shot, source);
+    // YARD BRAWL: every switch pays a flat extra; DOUBLE TIME multiplies the lot.
+    if (this.frenzyLeft > 0) v += this.shotValue('yard', FRENZY.perSwitch);
+    v *= this.playfieldX;
     this.hitCounts[shot]++;
     for (const h of this.hooks) h.onHit?.(this, shot, source);
     this.bonus += (v / comboMult) * this.ctx.bonusShare;
@@ -1208,14 +1352,14 @@ export class TableGame implements BallRules {
           : Lamp.Slow
         : Lamp.Off;
     L.skill = this.skillArmed ? Lamp.Fast : Lamp.Off;
-    L.arrowPerimL = this.superArmed >= 0 ? Lamp.Fast : Lamp.Off;
+    L.arrowPerimL = this.superArmed >= 0 ? Lamp.Fast : this.crateLit ? Lamp.Slow : Lamp.Off;
     L.arrowChute = this.riot || this.hurryLeft > 0 ? Lamp.Fast : Lamp.Off;
     L.arrowHole = this.superLit
       ? Lamp.Fast
       : (this.machine.lockLit && !this.riot) || this.machine.awardLit
         ? Lamp.Slow
         : Lamp.Off;
-    L.arrowPerimR = Lamp.Off;
+    L.arrowPerimR = this.crateLit ? Lamp.Slow : Lamp.Off;
     L.arrowCell = !this.machine.lockLit && !this.riot && drops.some(Boolean) ? Lamp.Slow : Lamp.Off;
     if (this.jailbreak)
       for (const s of JAILBREAK_SHOTS) L[JB_LAMP[s]] = this.jbLit.has(s) ? Lamp.Fast : Lamp.Off;

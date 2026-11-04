@@ -234,6 +234,42 @@ export const HURRY = {
   end: 4,
 };
 
+/** DOUBLE TIME: every few top-lane sets raise a playfield multiplier for a while. */
+export const PLAYFIELD_X = {
+  /** Lane sets in one ball per +1 multiplier. */
+  laneSetsPer: 2,
+  max: 3,
+  /** Seconds the multiplier lasts; each new step restarts the clock. */
+  seconds: 20,
+};
+
+/** YARD BRAWL: enough pop hits in one ball start a frenzy where every switch pays extra. */
+export const FRENZY = {
+  popsToStart: 30,
+  seconds: 15,
+  /** Base value (before scale and levels) every switch adds during the frenzy. */
+  perSwitch: 0.6,
+};
+
+/** CONTRABAND CRATE: spinner spins light a mystery award at either Perimeter. */
+export const MYSTERY = {
+  spinsToLight: 40,
+  /** Weighted award table. */
+  weights: { cash: 4, bonusX: 2, ballSave: 2, frenzy: 2, double: 2, lockup: 2, luck: 2 },
+  /** Cash award: this many Perimeter base values, rolled between min and max. */
+  cashMin: 2,
+  cashMax: 6,
+  ballSave: 10,
+  luck: 3,
+};
+
+/** REINFORCEMENTS: clearing the Cell Block during a RIOT adds a ball. */
+export const ADD_A_BALL = {
+  perRiot: 1,
+  /** Seconds of RIOT ball save the new ball brings. */
+  save: 5,
+};
+
 export const LUCK = {
   /** Each luck point adds this to every chance (2 percentage points). */
   perPoint: 0.02,

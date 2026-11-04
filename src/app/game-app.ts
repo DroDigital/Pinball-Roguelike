@@ -77,7 +77,8 @@ import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
 import { attachBot, defaultSnapshot } from '../bot/autoplay';
-import { AWARD_NAMES } from '../rules/table-game';
+import { AWARD_NAMES, MYSTERY_NAMES } from '../rules/table-game';
+import { comboName } from '../rules/combo';
 import {
   newRun,
   buyBalls,
@@ -107,6 +108,8 @@ import { contrabandDef } from '../content/contraband';
 import { buyCharm, buyContraband, reroll, sellCharm, useContraband } from '../rules/shop';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
+import { ParticleField } from '../present/particles';
+import { CoinFlight } from './coin-flight';
 import { SaveDetector } from '../present/save-detector';
 import { ASSIST, BONUS, ECONOMY, NEIGHBOR } from '../content/balance';
 
@@ -148,6 +151,11 @@ export class GameApp {
   readonly world: World;
   readonly dmd = new Dmd(4);
   readonly pops = new NumberPops();
+  /** Sparks, coin flecks and embers over the table (the juice). */
+  readonly particles = new ParticleField();
+  private coinFlight!: CoinFlight;
+  /** YARD BRAWL: the next bumper flash in the running frenzy light show. */
+  private frenzyBlink = 0;
   readonly shows = new LampShowPlayer(TABLE.lamps);
   readonly input: Input;
   readonly ui: UI;
@@ -237,6 +245,9 @@ export class GameApp {
     this.renderer.settings.pixelHeight = this.save.settings.pixelHeight;
     this.world = new World(new Set(['outlanePosts']), this.renderer.env);
     this.world.scene.add(this.pops.group);
+    this.world.scene.add(this.particles.points);
+    this.coinFlight = new CoinFlight(document.body);
+    this.coinFlight.onLand = () => audio.coin(3);
     this.input = new Input(document.body);
     // Toasts, tips and captions share one notice slot per layout (see notices.ts).
     this.notices = new Notices(noticeRoot, () => this.ui.open);
@@ -326,6 +337,7 @@ export class GameApp {
     this.renderer.reducedFlashing = s.reducedFlashing;
     this.world.table.reducedFlashing = s.reducedFlashing;
     this.shows.reducedFlashing = s.reducedFlashing;
+    this.particles.reduced = s.reducedFlashing;
     this.input.vibration = s.vibration;
     if (s.bindings) {
       this.input.bindings = {
@@ -344,6 +356,7 @@ export class GameApp {
     this.world.aspect = this.renderer.aspect;
     // The cell keeps its wobbly low-res vertex snap even when the machine renders crisp.
     const { w, h } = this.renderer.lowSize;
+    this.particles.setViewHeight(h);
     ROOM_UNIFORMS.uSnap.value.set(Math.min(w / 2, 213), Math.min(h / 2, 120));
   }
 
@@ -495,6 +508,9 @@ export class GameApp {
     this.world.update(dt);
     this.updateCoins(dt);
     this.pops.update(dt);
+    this.particles.update(dt);
+    this.coinFlight.update(dt);
+    this.frenzyLights(shown, dt);
     this.dmd.update(dt);
     if (this.dmd.dirty) this.dmdTex.needsUpdate = true;
     this.updateHud(shown, dt);
@@ -595,6 +611,8 @@ export class GameApp {
         break;
       case 'pop':
         audio.pop(e.x);
+        this.world.table.flashPart('bumper', e.id);
+        this.particles.burst('spark', this.at(e.x, e.y, 1.1), 10, 0xffd48a, 9, 0.7);
         if (!quiet) {
           this.shake(0.25);
           this.world.swingBulb(0.05);
@@ -603,10 +621,14 @@ export class GameApp {
         break;
       case 'sling':
         audio.sling(e.x);
+        this.world.table.flashPart('sling', e.id.endsWith('R') ? 1 : 0);
+        this.particles.burst('spark', this.at(e.x, e.y, 0.6), 7, 0xfff0d0, 8, 0.5);
         if (!quiet) this.shake(0.15);
         break;
       case 'drop':
         audio.drop(e.x, e.value);
+        this.world.table.flashPart('target', e.value);
+        this.particles.burst('spark', this.at(e.x, e.y, 0.7), 6, 0xff9a40, 7, 0.6);
         break;
       case 'trigger':
         // Rollover switches: a light tick as the ball runs the lanes.
@@ -617,12 +639,16 @@ export class GameApp {
         break;
       case 'spin':
         audio.spin(e.value, 20);
+        this.world.table.flashPart('spinner', 0, 0.5 + 0.1 * e.value);
         break;
       case 'hit':
         audio.hit(e.id, e.value, e.x);
         break;
       case 'flipperHit':
         audio.flipperHit(e.value, e.x);
+        // A hard flip throws a few sparks off the rubber.
+        if (e.value > 28)
+          this.particles.burst('spark', this.at(e.x, e.y, 0.5), 4, 0xfff4e0, 6, 0.4);
         break;
       case 'launch':
         audio.launch(e.value / 45);
@@ -632,6 +658,8 @@ export class GameApp {
         break;
       case 'holeCapture':
         audio.hole();
+        this.world.table.fireFlasher('hole', 0.7);
+        this.particles.burst('glint', this.at(e.x, e.y, 0.8), 5, 0xffe2a0, 4, 0.9);
         if (!quiet) {
           this.hitStop = 0.05;
           this.shake(0.4);
@@ -682,6 +710,7 @@ export class GameApp {
           const jackpot = e.shot === 'jackpot';
           const big = e.amount >= 3 || jackpot;
           this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
+          if (e.amount >= 0.3 || jackpot) this.coinBurst(e.amount, e.x, e.y, big);
           // Coin clinks rise in pitch through combos; bigger payouts add a bell on the ladder.
           if (jackpot && !paydayNow) audio.jackpot(1);
           else audio.score(e.amount, combo, big);
@@ -704,16 +733,27 @@ export class GameApp {
         case 'skillShot':
           this.shows.play('skill');
           audio.skillShot(e.super);
+          this.lightBurst(0xfff2c0, e.super ? 1.2 : 0.8, 'white');
+          this.hud.banner(e.super ? 'Super skill shot' : 'Skill shot', { tone: 'gold' });
           this.flash(0.25);
           this.shake(0.6);
           break;
         case 'combo':
           audio.combo(e.count);
-          if (e.count >= 3) this.shake(0.15 * e.count);
+          if (e.count >= 3) {
+            this.shake(0.15 * e.count);
+            this.world.table.fireFlasher(e.count % 2 ? 'yellow' : 'red', 0.5 + 0.1 * e.count);
+            this.hud.banner(comboName(e.count), {
+              tone: 'gold',
+              sub: `Combo x${e.mult}`,
+              ms: 1200,
+            });
+          }
           break;
         case 'lock':
           audio.lock(e.locks);
           this.shake(0.5);
+          this.lightBurst(0xff5030, 0.6, 'red');
           break;
         case 'riot':
           if (e.on) {
@@ -721,6 +761,8 @@ export class GameApp {
             if (this.mode === 'play') this.hints.show('riot');
             this.shows.play('riot');
             audio.riot(true);
+            this.lightBurst(0xff3020, 1.2, 'red');
+            this.hud.banner('Riot!', { tone: 'red', sub: 'PAYDAY at the Chute', ms: 2200 });
             this.flash(0.4);
             this.shake(1);
             this.world.swingBulb(0.4);
@@ -738,6 +780,13 @@ export class GameApp {
           this.shows.play('payday');
           this.hitStop = e.super ? 0.06 : 0.04;
           audio.payday(e.super);
+          this.lightBurst(0xffc040, e.super ? 1.5 : 1.0);
+          this.particles.burst('ember', this.at(10, 18, 2.5), e.super ? 60 : 30, 0xffa830, 12, 0.9);
+          this.hud.banner(e.super ? 'Super payday' : 'Payday', {
+            tone: 'gold',
+            sub: `+${formatCoins(e.amount)} coins`,
+            ms: 2400,
+          });
           this.flash(e.super ? 0.5 : 0.3);
           this.shake(e.super ? 1.4 : 0.9);
           this.world.swingBulb(e.super ? 0.6 : 0.3);
@@ -745,6 +794,7 @@ export class GameApp {
           break;
         case 'extraBall':
           audio.extraBall();
+          this.lightBurst(0x60ff90, 1.0);
           this.hud.banner('Extra ball', { tone: 'green', sub: 'Shoot again' });
           break;
         case 'award':
@@ -777,12 +827,63 @@ export class GameApp {
           this.react('jobDone');
           audio.jobComplete();
           this.flash(0.2);
+          this.hud.banner('Job done', { tone: 'green', sub: 'Reward at the ATM' });
           break;
         case 'ballSaved':
           audio.save();
           break;
         case 'laneComplete':
           audio.chime(1);
+          this.particles.burst('glint', this.at(10, 35, 1.2), 14, 0xfff0b0, 6, 0.5);
+          this.world.table.giPulse(0xffe6a0, 0.4);
+          break;
+        case 'playfieldX':
+          if (e.on) {
+            audio.levelUp();
+            this.lightBurst(0x50e0ff, 0.9, 'white');
+            this.hud.banner(e.mult >= 3 ? 'Triple time' : 'Double time', {
+              tone: 'green',
+              sub: `Everything pays x${e.mult}`,
+              ms: 2000,
+            });
+          }
+          break;
+        case 'frenzy':
+          if (e.on) {
+            audio.banner('big', 6);
+            this.lightBurst(0xff8a20, 1.0, 'yellow');
+            this.shake(0.6);
+            this.hud.banner('Yard brawl!', { tone: 'red', sub: 'Every switch pays', ms: 2000 });
+          } else audio.banner('info', 3);
+          break;
+        case 'crateLit':
+          audio.banner('secret', 4);
+          this.world.table.flashLamp('arrowPerimL', 1);
+          this.world.table.flashLamp('arrowPerimR', 1);
+          this.hud.banner('Crate lit', { tone: 'plain', sub: 'Shoot a Perimeter', ms: 1600 });
+          break;
+        case 'mystery': {
+          audio.banner('secret', 6);
+          this.shows.play('skill');
+          // The DMD reel spins for a second; the banner lands with it.
+          const name = MYSTERY_NAMES[e.award];
+          const amount = e.amount;
+          window.setTimeout(() => {
+            this.lightBurst(0xffd060, 0.9, 'all');
+            if (amount > 0) audio.jackpot(1);
+            else audio.unlocked();
+            this.hud.banner(name, {
+              tone: 'gold',
+              sub: amount > 0 ? `+${formatCoins(amount)} coins` : 'From the crate',
+              ms: 2000,
+            });
+          }, 1100);
+          break;
+        }
+        case 'addABall':
+          audio.extraBall();
+          this.lightBurst(0xff5a30, 1.0, 'all');
+          this.hud.banner('Reinforcements', { tone: 'red', sub: 'Add-a-ball', ms: 1800 });
           break;
         case 'bonusMult':
           audio.bonusMult(e.mult);
@@ -797,6 +898,7 @@ export class GameApp {
         case 'tilt':
           this.react('tilt', true);
           audio.tilt();
+          this.hud.banner('Tilt', { tone: 'red', sub: 'The flippers are dead', ms: 2200 });
           this.flash(0.3);
           break;
         case 'drain':
@@ -811,6 +913,55 @@ export class GameApp {
           break;
       }
     }
+  }
+
+  /** World position over a table point (h: height above the playfield, in ball diameters). */
+  private at(x: number, y: number, h = 1): THREE.Vector3 {
+    return this.world.table.worldOf(x, y, h, this.tmpV);
+  }
+
+  /** Screen position (CSS px) of a table point, for DOM effects that start on the table. */
+  private screenOf(x: number, y: number): { x: number; y: number } {
+    const v = this.at(x, y, 1).project(this.world.camera);
+    const r = this.renderer.canvas.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  }
+
+  /** Coin flecks for a payout, and coins flying to the Pocket for the bigger ones. */
+  private coinBurst(amount: number, x: number, y: number, big: boolean): void {
+    const n = Math.min(26, Math.round(2 + Math.sqrt(amount) * (big ? 5 : 2)));
+    this.particles.burst(
+      'coin',
+      this.at(x, y, 1.4),
+      n,
+      0xffc83a,
+      big ? 12 : 7,
+      0.85,
+      big ? 1.2 : 0.9,
+    );
+    if (amount >= 1) {
+      const p = this.screenOf(x, y);
+      this.coinFlight.launch(p.x, p.y, Math.min(10, Math.ceil(Math.sqrt(amount) * 1.5)));
+    }
+  }
+
+  /** The machine's big-moment light show: flashers, GI tint, bloom kick, backglass blaze. */
+  private lightBurst(color: number, k: number, flashers = 'all'): void {
+    const t = this.world.table;
+    t.fireFlasher(flashers, k);
+    t.giPulse(color, k);
+    this.renderer.bloomPulse(k * 0.8);
+    this.world.backbox.pulseGlass(k);
+  }
+
+  /** YARD BRAWL keeps the bumper caps strobing in turn while it runs. */
+  private frenzyLights(shown: BallSession | null, dt: number): void {
+    const g = shown?.game;
+    if (!g || g.frenzyLeft <= 0 || this.mode !== 'play') return;
+    this.frenzyBlink -= dt;
+    if (this.frenzyBlink > 0) return;
+    this.frenzyBlink = this.save.settings.reducedFlashing ? 0.5 : 0.12;
+    this.world.table.flashPart('bumper', Math.floor(Math.random() * 4), 0.8);
   }
 
   shake(amount: number): void {

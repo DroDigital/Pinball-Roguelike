@@ -65,7 +65,8 @@ const S_METER = 18;
 const S_PLUNGER = 19;
 const S_MARK = 20;
 const S_CHARMS = 21;
-const SLOTS = 22;
+const S_MODES = 22;
+const SLOTS = 23;
 
 export class Hud {
   /** The combo meter's container: filled by `update`, free for a later pass to restyle. */
@@ -90,7 +91,22 @@ export class Hud {
   private readonly earnEl = h('span', { class: 'pocket-earn' });
   private readonly bonusChip = chip('', 'gold', { icon: 'star', class: 'chip-bonus' });
   private readonly luckChip = chip('', 'good', { icon: 'bolt', class: 'chip-luck' });
-  private readonly chips = h('div', { class: 'hc-chips' }, this.bonusChip, this.luckChip);
+  // Timed table modes: DOUBLE TIME, YARD BRAWL and a lit CONTRABAND CRATE.
+  private readonly pfxChip = chip('', 'info', { icon: 'star', class: 'chip-mode chip-pfx' });
+  private readonly frenzyChip = chip('', 'warn', { icon: 'bolt', class: 'chip-mode chip-frenzy' });
+  private readonly crateChip = chip(' Crate lit: Perimeter', 'gold', {
+    icon: 'box',
+    class: 'chip-mode chip-crate',
+  });
+  private readonly chips = h(
+    'div',
+    { class: 'hc-chips' },
+    this.bonusChip,
+    this.luckChip,
+    this.pfxChip,
+    this.frenzyChip,
+    this.crateChip,
+  );
   private readonly comboName = h('span', { class: 'combo-name' });
   private readonly comboMult = h('span', { class: 'combo-mult' });
   private readonly comboFill = h('span', { class: 'combo-fill' });
@@ -407,12 +423,27 @@ export class Hud {
       if (luck > 0) this.luckChip.lastChild!.textContent = ` Luck ${luck}`;
     }
 
+    this.updateModes(g);
     this.updateCombo(g);
     this.updateJob(r, g);
     this.updateJailbreak(r, g);
     this.updateActives(g);
     this.updateCharms(r);
     this.updateResources(r, g);
+  }
+
+  /** Timed table modes, with whole seconds left. */
+  private updateModes(g: TableGame | null): void {
+    const pfx = g && g.playfieldX > 1 ? g.playfieldX : 0;
+    const pfxS = pfx ? Math.ceil(g!.playfieldLeft) : 0;
+    const fz = g && g.frenzyLeft > 0 ? Math.ceil(g.frenzyLeft) : 0;
+    const crate = g && g.crateLit ? 1 : 0;
+    if (!this.changed(S_MODES, pfx * 1000 + pfxS, fz, crate)) return;
+    this.pfxChip.hidden = !pfx;
+    if (pfx) this.pfxChip.lastChild!.textContent = ` Playfield x${pfx}  ${pfxS}s`;
+    this.frenzyChip.hidden = !fz;
+    if (fz) this.frenzyChip.lastChild!.textContent = ` Yard Brawl  ${fz}s`;
+    this.crateChip.hidden = !crate;
   }
 
   /** The Debt meter and its numbers. */
