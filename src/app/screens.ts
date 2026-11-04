@@ -420,10 +420,37 @@ function charmRack(r: RunState): HTMLElement {
     h(
       'div',
       { class: 'cell-rack-shelf' },
-      ...(items.length
-        ? items
-        : [h('span', { class: 'dim' }, 'Empty rack: buy charms at the vending cabinet.')]),
+      ...items,
+      ...Array.from({ length: Math.max(0, r.mods.charmSlots - items.length) }, () =>
+        h('span', { class: 'cell-slot-empty', title: 'Buy charms at the vending cabinet.' }),
+      ),
     ),
+    items.length
+      ? null
+      : h('div', { class: 'cell-rack-hint' }, 'Empty rack: buy charms at the vending cabinet.'),
+  );
+}
+
+/** One plate per shot, its upgrade level as a number and a row of pips. */
+function shotPlates(r: RunState): HTMLElement {
+  const plates = (Object.entries(r.shotLevels) as [ShotType, number][]).map(([k, v]) =>
+    h(
+      'div',
+      { class: `cell-plate${v > 1 ? ' up' : ''}`, title: `${shotName(k)} level ${v}` },
+      h('small', null, shotName(k)),
+      h('b', null, String(v)),
+      h(
+        'span',
+        { class: 'cell-plate-pips' },
+        ...Array.from({ length: 5 }, (_, i) => h('i', { class: i < v ? 'on' : '' })),
+      ),
+    ),
+  );
+  return h(
+    'div',
+    { class: 'cell-plates-wrap' },
+    h('div', { class: 'cell-rack-hdr' }, 'Shot upgrades'),
+    h('div', { class: 'cell-plates' }, ...plates),
   );
 }
 
@@ -481,9 +508,6 @@ function stash(r: RunState, on: CellHandlers): HTMLElement | null {
 export function cellPanel(r: RunState, on: CellHandlers): HTMLElement {
   const left = ballsLeft(r);
   const pips = '● '.repeat(Math.min(5, left)) + '○ '.repeat(Math.max(0, 5 - left));
-  const levels = (Object.entries(r.shotLevels) as [ShotType, number][])
-    .map(([k, v]) => `${shotName(k)} ${v}`)
-    .join(' · ');
   return h(
     'div',
     { class: 'panel', 'data-skin': 'cell', 'data-screen': 'cell' },
@@ -531,14 +555,15 @@ export function cellPanel(r: RunState, on: CellHandlers): HTMLElement {
           )
         : null,
       charmRack(r),
-      h('div', { class: 'cell-levels' }, `SHOT UPGRADES: ${levels}`),
+      shotPlates(r),
       stash(r, on),
       sentenceActive(r)
         ? h('div', { class: 'cell-warning-strip' }, `⚠ SENTENCE IN FORCE: ${sentenceNames(r)}`)
         : h(
             'div',
-            { class: 'cell-levels' },
-            `SENTENCE IN ROUND ${roundsIn(r)}: ${sentenceNames(r)}`,
+            { class: 'cell-sentence-tag' },
+            h('span', null, `Sentence in round ${roundsIn(r)}`),
+            h('b', null, sentenceNames(r)),
           ),
       h(
         'div',
