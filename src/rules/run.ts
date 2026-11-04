@@ -11,11 +11,14 @@ import {
   CONTRABAND_FX,
   ECONOMY,
   ENDLESS,
+  FRENZY,
   JAILBREAK,
   JOBS,
   LUCK,
+  MYSTERY,
   NEIGHBOR,
   PHONE,
+  PLAYFIELD_X,
   SENTENCE,
 } from '../content/balance';
 import { CONTRABAND } from '../content/contraband';
@@ -583,6 +586,9 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     paydayCarry: owns(s, 'hoarderSack') ? s.paydayCarry : 0,
     sparkMult: f.sparkMult,
     holeHoldAdd: f.holeHoldAdd,
+    frenzyPops: Math.max(5, FRENZY.popsToStart + f.frenzyPopsAdd),
+    playfieldSeconds: PLAYFIELD_X.seconds + f.playfieldSecondsAdd,
+    crateSpins: Math.max(5, MYSTERY.spinsToLight + f.crateSpinsAdd),
     noKickback: m.noKickback,
     charms: [...s.charms],
     actives: s.charms.flatMap((id, i) => {

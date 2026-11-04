@@ -106,6 +106,10 @@ export interface BallContext {
   actives: ActiveSlot[];
   /** Seconds added to the Hole's hold (Feeding Bowl -1). */
   holeHoldAdd: number;
+  /** Pop hits per YARD BRAWL, DOUBLE TIME seconds and spins per CONTRABAND CRATE. */
+  frenzyPops: number;
+  playfieldSeconds: number;
+  crateSpins: number;
   /** Chalk: the top lanes start complete. */
   chalk: boolean;
   /** Moonshine: the camera sways (presentation). */
@@ -195,6 +199,9 @@ export function defaultBallContext(): BallContext {
     charms: [],
     actives: [],
     holeHoldAdd: 0,
+    frenzyPops: FRENZY.popsToStart,
+    playfieldSeconds: PLAYFIELD_X.seconds,
+    crateSpins: MYSTERY.spinsToLight,
     chalk: false,
     moonshine: false,
     tunnel: false,
@@ -315,10 +322,10 @@ export class TableGame implements BallRules {
   playfieldLeft = 0;
   /** YARD BRAWL seconds left, and the Yard hit count that starts the next one. */
   frenzyLeft = 0;
-  private nextFrenzyAt = FRENZY.popsToStart;
+  private nextFrenzyAt = 0;
   /** CONTRABAND CRATE lit at the Perimeters; spins still needed to light it. */
   crateLit = false;
-  private spinsToCrate = MYSTERY.spinsToLight;
+  private spinsToCrate = 0;
   /** Balls added to the current RIOT. */
   private addedBalls = 0;
 
@@ -343,6 +350,8 @@ export class TableGame implements BallRules {
       ? Math.max(start, Math.min(machine.bonusMult, ctx.bonusMaxMult))
       : start;
     this.combo = new ComboTracker(ctx.comboWindow, ctx.comboStart, ctx.comboStep);
+    this.nextFrenzyAt = ctx.frenzyPops;
+    this.spinsToCrate = ctx.crateSpins;
     this.payday = ctx.paydayCarry > 0 ? ctx.paydayCarry : RIOT.paydayBase;
     if (ctx.lockdown) machine.lockLit = false;
     this.dropSeq = machine.drops.every(Boolean) ? [] : null;
@@ -468,7 +477,7 @@ export class TableGame implements BallRules {
         this.pay('yard', SCORE.pop, e.x, e.y, 1, e.id);
         this.endSkill();
         if (this.stats.yardHits >= this.nextFrenzyAt) {
-          this.nextFrenzyAt = this.stats.yardHits + FRENZY.popsToStart;
+          this.nextFrenzyAt = this.stats.yardHits + this.ctx.frenzyPops;
           this.startFrenzy();
         }
         break;
@@ -490,7 +499,7 @@ export class TableGame implements BallRules {
         if (!this.crateLit && !this.jailbreak) {
           this.spinsToCrate -= e.value;
           if (this.spinsToCrate <= 0) {
-            this.spinsToCrate = MYSTERY.spinsToLight;
+            this.spinsToCrate = this.ctx.crateSpins;
             this.crateLit = true;
             this.emit({ t: 'crateLit' });
             this.emit({
@@ -834,7 +843,7 @@ export class TableGame implements BallRules {
   /** DOUBLE TIME: one step up the playfield multiplier, and the clock restarts. */
   private raisePlayfield(): void {
     this.playfieldX = Math.min(PLAYFIELD_X.max, this.playfieldX + 1);
-    this.playfieldLeft = PLAYFIELD_X.seconds;
+    this.playfieldLeft = this.ctx.playfieldSeconds;
     this.stats.maxPlayfieldX = Math.max(this.stats.maxPlayfieldX, this.playfieldX);
     this.emit({ t: 'playfieldX', mult: this.playfieldX, on: true });
     this.emit({
