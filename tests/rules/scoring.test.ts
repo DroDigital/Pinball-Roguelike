@@ -95,7 +95,11 @@ describe('bonus', () => {
     ] as const) {
       const h = harness({ bonusKeep: keep });
       h.serve();
-      for (let i = 0; i < 10; i++) h.fire('pop', 'pop0');
+      // Spaced out so the Yard never heats into a BRAWL.
+      for (let i = 0; i < 10; i++) {
+        h.fire('pop', 'pop0');
+        h.wait(3);
+      }
       if (tilt) for (let i = 0; i < 8; i++) h.fire('nudge');
       h.sim.clearBalls();
       h.wait(1 / 240);

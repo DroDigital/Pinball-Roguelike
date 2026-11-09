@@ -40,7 +40,7 @@ interface BallVis {
   seen: boolean;
 }
 
-const TRAIL = 10;
+const TRAIL = 16;
 
 export class TableView {
   readonly root = new THREE.Group();
@@ -54,7 +54,7 @@ export class TableView {
   private goldPop = '';
   private readonly slings: THREE.MeshStandardMaterial[] = [];
   private readonly drops: THREE.Mesh[] = [];
-  private spinner: THREE.Mesh | null = null;
+  private readonly spinners: THREE.Mesh[] = [];
   private readonly lamps = new Map<string, LampMesh>();
   private readonly balls = new Map<number, BallVis>();
   private readonly ballGeo = new THREE.SphereGeometry(0.5, 24, 16);
@@ -72,7 +72,7 @@ export class TableView {
   private readonly trailMat = new THREE.LineBasicMaterial({
     color: 0xfff0d0,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.7,
   });
   private plunger: THREE.Mesh | null = null;
   private time = 0;
@@ -277,7 +277,7 @@ export class TableView {
       spin.add(plate);
       holder.add(spin);
       this.root.add(holder);
-      this.spinner = plate;
+      this.spinners.push(plate);
     }
 
     const flipMat = new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.45 });
@@ -359,7 +359,7 @@ export class TableView {
     m.rotation.z = (l.rot * Math.PI) / 180;
     m.position.set(wx(l.x), 0.015, wz(l.y));
     const glow = new THREE.Mesh(
-      new THREE.CircleGeometry(l.size * 1.3, 16),
+      new THREE.CircleGeometry(l.size * 1.7, 16),
       new THREE.MeshBasicMaterial({
         color: on,
         transparent: true,
@@ -453,8 +453,10 @@ export class TableView {
       const target = d.up ? 0.45 : -0.5;
       m.position.y += (target - m.position.y) * Math.min(1, dt * 25);
     });
-    if (this.spinner && sim.spinners[0])
-      this.spinner.parent!.rotation.x = sim.spinners[0].angle * Math.PI * 2;
+    for (let i = 0; i < this.spinners.length; i++) {
+      const sp = sim.spinners[i];
+      if (sp) this.spinners[i].parent!.rotation.x = sp.angle * Math.PI * 2;
+    }
     if (this.plunger)
       this.plunger.position.z = wz(sim.table.plunger.y - 1.5) + sim.plungerPull * 1.1;
 
@@ -468,7 +470,7 @@ export class TableView {
           !this.blackout &&
           (mode === Lamp.On || (mode === Lamp.Slow && slow) || (mode === Lamp.Fast && fast));
         lm.mat.color.copy(lit ? lm.on : lm.off);
-        (lm.glow.material as THREE.MeshBasicMaterial).opacity = lit ? 0.35 : 0;
+        (lm.glow.material as THREE.MeshBasicMaterial).opacity = lit ? 0.55 : 0;
       }
     }
 

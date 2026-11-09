@@ -226,7 +226,10 @@ function paintHudStatus(g: Ctx, w: number, h: number): void {
   hazardSlot(g, [w * 0.16, outer[1] + outer[3] - 32 * u, w * 0.68, 16 * u], u);
 }
 
-export const HUD_PAINTERS: Record<'hud/score-panel' | 'hud/ledger-panel' | 'hud/status-panel', Painter> = {
+export const HUD_PAINTERS: Record<
+  'hud/score-panel' | 'hud/ledger-panel' | 'hud/status-panel',
+  Painter
+> = {
   'hud/score-panel': paintHudScore,
   'hud/ledger-panel': paintHudLedger,
   'hud/status-panel': paintHudStatus,

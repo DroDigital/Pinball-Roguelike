@@ -204,7 +204,9 @@ export type ShotType =
   | 'chute'
   | 'perimeter'
   | 'searchlight'
-  | 'hole';
+  | 'hole'
+  /** The upper deck: BAIL targets and the tower rollover. */
+  | 'tower';
 
 export interface TableDef {
   name: string;

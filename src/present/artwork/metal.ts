@@ -199,7 +199,14 @@ export function paintFrame(g: Ctx, w: number, h: number, s: FrameSpec): void {
     } else {
       // A dark display window with a warm rim light.
       recess(g, hb, rr(hb, 10 * u), ['#0a0d11', '#12171c'], 1);
-      const lit = g.createRadialGradient(hb[0] + hb[2] / 2, hb[1] + hb[3] / 2, 0, hb[0] + hb[2] / 2, hb[1] + hb[3] / 2, hb[2] * 0.55);
+      const lit = g.createRadialGradient(
+        hb[0] + hb[2] / 2,
+        hb[1] + hb[3] / 2,
+        0,
+        hb[0] + hb[2] / 2,
+        hb[1] + hb[3] / 2,
+        hb[2] * 0.55,
+      );
       lit.addColorStop(0, 'rgba(255,170,70,0.2)');
       lit.addColorStop(1, 'rgba(255,170,70,0)');
       g.save();
@@ -252,7 +259,14 @@ function crtGlass(g: Ctx, b: Box, u: number): void {
   g.save();
   rr(b, 44 * u)(g);
   g.clip();
-  const bloom = g.createRadialGradient(x + w / 2, y + h * 0.45, 0, x + w / 2, y + h * 0.45, Math.max(w, h) * 0.65);
+  const bloom = g.createRadialGradient(
+    x + w / 2,
+    y + h * 0.45,
+    0,
+    x + w / 2,
+    y + h * 0.45,
+    Math.max(w, h) * 0.65,
+  );
   bloom.addColorStop(0, 'rgba(60,200,110,0.22)');
   bloom.addColorStop(0.6, 'rgba(30,120,70,0.08)');
   bloom.addColorStop(1, 'rgba(0,0,0,0.6)');
@@ -376,7 +390,13 @@ const shopSpec: FrameSpec = {
     ventSlats(g, w * 0.04, h * 0.26, w * 0.05, h * 0.46, u);
     ventSlats(g, w * 0.91, h * 0.26, w * 0.05, h * 0.22, u);
     const lockC: [number, number] = [w * 0.935, h * 0.6];
-    plate(g, [lockC[0] - 20 * u, lockC[1] - 30 * u, 40 * u, 60 * u], rr([lockC[0] - 20 * u, lockC[1] - 30 * u, 40 * u, 60 * u], 8 * u), { ...BRASS, seed: 'lock' }, 1.5 * u);
+    plate(
+      g,
+      [lockC[0] - 20 * u, lockC[1] - 30 * u, 40 * u, 60 * u],
+      rr([lockC[0] - 20 * u, lockC[1] - 30 * u, 40 * u, 60 * u], 8 * u),
+      { ...BRASS, seed: 'lock' },
+      1.5 * u,
+    );
     g.fillStyle = '#0b0705';
     g.beginPath();
     g.arc(lockC[0], lockC[1] - 6 * u, 7 * u, 0, Math.PI * 2);
@@ -503,7 +523,13 @@ const atmSpec: FrameSpec = {
       void col;
       void row;
       const b: Box = [kx + c2 * (keyW + gap), ky + r2 * (keyH + gap), keyW, keyH];
-      plate(g, b, rr(b, 7 * u), { ...STEEL, fill: ['#56626e', '#37424c', '#232b33'], seed: `key${i}` }, 1.5 * u);
+      plate(
+        g,
+        b,
+        rr(b, 7 * u),
+        { ...STEEL, fill: ['#56626e', '#37424c', '#232b33'], seed: `key${i}` },
+        1.5 * u,
+      );
       text(g, l, b[0] + keyW / 2, b[1] + keyH * 0.7, {
         font: `${26 * u}px ${FONT.mono}`,
         fill: 'rgba(240,244,248,0.85)',
@@ -540,7 +566,10 @@ const specs: Partial<Record<ArtId, FrameSpec>> = {
 };
 
 export const METAL_PAINTERS = Object.fromEntries(
-  Object.entries(specs).map(([id, spec]) => [id, ((g, w, h) => paintFrame(g, w, h, spec)) as Painter]),
+  Object.entries(specs).map(([id, spec]) => [
+    id,
+    ((g, w, h) => paintFrame(g, w, h, spec)) as Painter,
+  ]),
 ) as Record<
   | 'menus/title-panel'
   | 'menus/cell-hub-panel'

@@ -29,6 +29,7 @@ uniform float uLevels;
 uniform float uFlash;
 uniform vec3 uTint;
 uniform float uExposure;
+uniform float uPunch;
 varying vec2 vUv;
 
 float bayer4(vec2 p) {
@@ -46,8 +47,16 @@ float bayer4(vec2 p) {
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void main() {
-  vec2 px = floor(vUv * uLowRes);
-  vec3 c = texture2D(tScene, (px + 0.5) / uLowRes).rgb * uExposure;
+  // A big hit punches the picture in and splits its colours for a few frames.
+  vec2 off = vUv - 0.5;
+  vec2 uv = vUv - off * uPunch * 0.035;
+  vec2 px = floor(uv * uLowRes);
+  vec2 ca = off * (0.0012 * uCrt + 0.012 * uPunch);
+  vec3 c;
+  c.r = texture2D(tScene, (floor((uv + ca) * uLowRes) + 0.5) / uLowRes).r;
+  c.g = texture2D(tScene, (px + 0.5) / uLowRes).g;
+  c.b = texture2D(tScene, (floor((uv - ca) * uLowRes) + 0.5) / uLowRes).b;
+  c *= uExposure;
   // ACES filmic tone map, then linear -> sRGB (render target holds linear HDR).
   c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
   c = pow(c, vec3(1.0 / 2.2));
@@ -59,6 +68,8 @@ void main() {
   // Film grain.
   float g = hash(px + fract(uTime) * 91.7) - 0.5;
   c += g * 0.06 * uCrt;
+  // Scanlines: every other low-res row sits a touch darker.
+  c *= 1.0 - 0.07 * uCrt * step(0.5, fract(px.y * 0.5));
   // Vignette.
   vec2 q = vUv - 0.5;
   c *= 1.0 - dot(q, q) * 1.15 * uCrt;
@@ -77,6 +88,8 @@ export class RetroRenderer {
   /** Adaptive scale multiplier (performance governor). */
   scale = 1;
   flash = 0;
+  /** 0..1 zoom punch and colour split (decays in the app loop). */
+  punch = 0;
   exposure = 1.1;
   readonly tint = new THREE.Vector3(1, 1, 1);
   private lowW = 426;
@@ -110,6 +123,7 @@ export class RetroRenderer {
         uFlash: { value: 0 },
         uTint: { value: this.tint },
         uExposure: { value: 1.1 },
+        uPunch: { value: 0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -148,6 +162,7 @@ export class RetroRenderer {
     u.uLevels.value = this.settings.levels;
     u.uFlash.value = this.flash;
     u.uExposure.value = this.exposure;
+    u.uPunch.value = this.punch;
     r.render(this.postScene, this.postCam);
   }
 }

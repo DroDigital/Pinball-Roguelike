@@ -6,16 +6,18 @@
  */
 import * as THREE from 'three';
 
-const POOL = 140;
-const HW = 2.7; // tray inner half-width (x)
-const HD = 1.35; // tray inner half-depth (z)
+const POOL = 220;
+const HW = 4.4; // tray inner half-width (x)
+const HD = 1.9; // tray inner half-depth (z)
 const WALL = 1.1;
-const COIN_R = 0.42;
-const COIN_H = 0.09;
-const GRAVITY = -32;
-const GRID_X = 9;
-const GRID_Z = 4;
-const SPAWN_RATE = 30; // coins per second at most
+const COIN_R = 0.5;
+const COIN_H = 0.11;
+const GRAVITY = -38;
+const GRID_X = 12;
+const GRID_Z = 5;
+/** Height of the chute's lip above the tray floor. */
+const SPOUT_Y = 2.5;
+const SPAWN_RATE = 26; // coins per second at most
 const BOUNCE_VY = 3;
 
 const enum State {
@@ -72,13 +74,29 @@ export class CoinTray {
     box(HW * 2, WALL * 0.7, T, 0, WALL * 0.35, HD + T / 2);
     // The coin return: a dark mouth in a chrome bezel on the cabinet face.
     // The cabinet face leans back with the tilt, so the bezel sits a little proud of the tray.
-    box(2.2, 1.2, 0.2, 0, 1.75, -HD + 0.2);
+    box(2.8, 1.5, 0.3, 0, SPOUT_Y + 0.1, -HD + 0.1);
     const mouth = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 0.5, 0.1),
+      new THREE.BoxGeometry(2, 0.6, 0.1),
       new THREE.MeshBasicMaterial({ color: 0x050403 }),
     );
-    mouth.position.set(0, 1.65, -HD + 0.32);
+    mouth.position.set(0, SPOUT_Y, -HD + 0.3);
     this.group.add(mouth);
+    // The chute: a brass tongue the coins slide down before they drop.
+    const brass = new THREE.MeshStandardMaterial({
+      color: 0xb98a3a,
+      metalness: 0.85,
+      roughness: 0.35,
+    });
+    const tongue = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 1.5), brass);
+    tongue.position.set(0, SPOUT_Y - 0.5, -HD + 0.95);
+    tongue.rotation.x = 0.42;
+    this.group.add(tongue);
+    for (const side of [-1, 1]) {
+      const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 1.5), brass);
+      cheek.position.set(side * 0.95, SPOUT_Y - 0.32, -HD + 0.95);
+      cheek.rotation.x = 0.42;
+      this.group.add(cheek);
+    }
     const gold = new THREE.MeshStandardMaterial({
       color: 0xd8a83a,
       metalness: 0.85,
@@ -180,11 +198,12 @@ export class CoinTray {
       if (c.y <= floor + COIN_H / 2 && c.vy < 0) {
         landed++;
         if (c.vy < -BOUNCE_VY * 2) {
+          // A coin skips two or three times, kicked sideways off whatever it landed on.
           c.y = floor + COIN_H / 2;
-          c.vy *= -0.28;
-          c.vx *= 0.5;
-          c.vz *= 0.5;
-          c.spin *= 0.5;
+          c.vy *= -0.42;
+          c.vx = c.vx * 0.6 + (Math.random() - 0.5) * 3;
+          c.vz = c.vz * 0.6 + (Math.random() - 0.5) * 2;
+          c.spin = -c.spin * 0.6;
         } else this.settle(c);
       }
     }
@@ -202,16 +221,16 @@ export class CoinTray {
     if (c.s !== State.Hidden) return;
     this.next = (this.next + 1) % POOL;
     c.s = State.Flying;
-    c.x = (Math.random() - 0.5) * 0.9;
-    c.y = 1.65;
-    c.z = -HD + 0.5;
-    c.vx = (Math.random() - 0.5) * 6;
-    c.vy = 2 + Math.random() * 4;
-    c.vz = 0.8 + Math.random() * 3.2;
+    c.x = (Math.random() - 0.5) * 1.5;
+    c.y = SPOUT_Y - 0.35;
+    c.z = -HD + 0.7;
+    c.vx = (Math.random() - 0.5) * 9;
+    c.vy = 3 + Math.random() * 7;
+    c.vz = 2 + Math.random() * 5;
     c.rx = Math.random() * Math.PI;
     c.rz = (Math.random() - 0.5) * 0.6;
     c.ry = Math.random() * Math.PI * 2;
-    c.spin = (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 14);
+    c.spin = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 18);
   }
 
   private cell(x: number, z: number): number {

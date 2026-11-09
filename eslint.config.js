@@ -19,6 +19,21 @@ export default tseslint.config(
     },
   },
   {
+    // Node scripts (some also carry code that runs inside a Playwright page).
+    files: ['tools/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
+      },
+    },
+  },
+  {
     ignores: [
       'dist',
       'node_modules',

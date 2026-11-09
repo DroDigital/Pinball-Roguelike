@@ -8,6 +8,7 @@ import { TW, TH } from './coords';
 import { CellRoom, PROPS } from './cell';
 import { ROOM_UNIFORMS } from './retro-material';
 import { CoinTray } from './coins';
+import { RelicShelf } from './relics';
 import { ART, CABINET_ART } from '../content/art';
 
 export type CamMode =
@@ -39,6 +40,8 @@ export class World {
   readonly bulbMesh: THREE.Mesh;
   readonly cell: CellRoom;
   readonly coins = new CoinTray();
+  /** Owned charms and contraband, standing on planks bolted to the cabinet's flanks. */
+  readonly shelf = new RelicShelf({ halfW: BODY_W / 2, length: TH });
   /** World position of the coin tray (camera target). */
   private readonly trayPos = new THREE.Vector3();
   /** Seconds into the trapdoor fall (mode 'fall'). */
@@ -100,10 +103,14 @@ export class World {
     this.scene.add(this.cabinet);
     // Coin tray hung on the cabinet front, under the lockbar and right of centre.
     this.cabinet.updateMatrixWorld(true);
-    this.table.root.localToWorld(this.trayPos.set(TW / 2 - 4.2, -3.8, TH / 2 + 2));
-    this.trayPos.z += 1.5;
+    // Centred and well proud of the lockbar, so the payout is in view from the play camera.
+    this.table.root.localToWorld(this.trayPos.set(0, -2.6, TH / 2 + 2));
+    this.trayPos.z += 4.3;
     this.coins.group.position.copy(this.trayPos);
     this.scene.add(this.coins.group);
+
+    this.shelf.group.position.y = 0.4;
+    this.cabinet.add(this.shelf.group);
 
     // The cell around the machine.
     this.cell = new CellRoom();
@@ -128,13 +135,16 @@ export class World {
     this.key = key;
     // GI strings down both side rails plus the backbox spill.
     for (const [x, z, c, i] of [
-      [-9, 14, 0xffc890, 40],
-      [9, 14, 0xffc890, 40],
-      [-9, 4, 0xffc080, 40],
-      [9, 4, 0xffc080, 40],
-      [-8, -7, 0xff9a70, 40],
-      [8, -7, 0x90b8ff, 40],
-      [0, -17, 0xffd0a0, 60],
+      [-9, 17, 0xffc890, 40],
+      [9, 17, 0xffc890, 40],
+      [-9, 6, 0xffc080, 40],
+      [9, 6, 0xffc080, 40],
+      [-8, -5, 0xff9a70, 40],
+      [8, -5, 0x90b8ff, 40],
+      // The upper deck and the arch.
+      [-6, -14, 0xa0ffc0, 40],
+      [6, -14, 0xffc890, 40],
+      [0, -20, 0xffd0a0, 50],
     ] as const) {
       const l = new THREE.PointLight(c, i, 22, 1.6);
       l.position.set(x, 3.2, z);
@@ -168,6 +178,7 @@ export class World {
     this.key.intensity = 2.2 * k;
     for (const l of this.gi) l.intensity = (l.userData.base ??= l.intensity) * k;
     this.bulb.visible = !on;
+    this.shelf.setLit(!on);
   }
 
   /** JAILBREAK: the machine's lights are dying (GI stutters and sags). */
@@ -191,11 +202,13 @@ export class World {
         // portrait phones show the full table; portrait also leaves headroom for the DMD.
         const portrait = this.aspect < 1.2;
         const half = (this.camera.fov * Math.PI) / 360;
-        const fitH = TH * 0.62 + (portrait ? 3 : 0);
+        // The taller table is seen from steeper up so the upper deck is not foreshortened away.
+        const fitH = TH * 0.6 + (portrait ? 3 : 0);
         const fitW = TW * 0.56;
-        const dist = Math.max(fitH / Math.tan(half), fitW / (Math.tan(half) * this.aspect)) * 0.9;
-        const pitch = 62 * (Math.PI / 180);
-        l.set(0, 0, portrait ? -0.6 : 1.6);
+        const dist = Math.max(fitH / Math.tan(half), fitW / (Math.tan(half) * this.aspect)) * 1.04;
+        const pitch = 70 * (Math.PI / 180);
+        // Looking a little below centre keeps the coin tray on screen under the lockbar.
+        l.set(0, 0, portrait ? 0.4 : 3.2);
         p.set(0, Math.sin(pitch) * dist, l.z + Math.cos(pitch) * dist);
         break;
       }
@@ -245,8 +258,8 @@ export class World {
       }
       case 'tray':
         // Looking down past the lockbar at the coins.
-        l.copy(this.trayPos).add(this.tmpOff.set(-4.5, 1.5, -3));
-        p.copy(this.trayPos).add(this.tmpOff.set(-7, 10.5, 11));
+        l.copy(this.trayPos).add(this.tmpOff.set(0, 1, -2));
+        p.copy(this.trayPos).add(this.tmpOff.set(-6, 11, 11));
         break;
       case 'title':
         p.set(9, 16, TH / 2 + 16);
@@ -350,6 +363,7 @@ export class World {
       for (const l of this.gi)
         l.intensity = (l.userData.base ??= l.intensity) * (Math.random() < 0.15 ? 0.05 : 0.35);
     this.cell.update(dt);
+    this.shelf.update(dt);
     if (this.mode === 'fall') {
       this.fallT += dt;
       this.cell.openTrapdoor(Math.min(1, this.fallT * 3));

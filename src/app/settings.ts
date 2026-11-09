@@ -5,7 +5,7 @@ export interface Settings {
   shake: number;
   /** CRT / grain / dither strength 0..1. */
   crt: number;
-  /** Internal render height (240 authentic .. 0 native). */
+  /** Internal render height (240 authentic, 360 default .. 0 native). */
   pixelHeight: number;
   reducedFlashing: boolean;
   /** UI text scale. */
@@ -25,7 +25,7 @@ export function defaultSettings(): Settings {
     volume: { master: 0.8, sfx: 0.9, music: 0.6, ambience: 0.7 },
     shake: 1,
     crt: 0.7,
-    pixelHeight: 240,
+    pixelHeight: 360,
     reducedFlashing: false,
     textSize: 1,
     camera: 'play',

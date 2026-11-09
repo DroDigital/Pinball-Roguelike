@@ -42,6 +42,12 @@ export type GameEvent =
   /** Presentation slows real time (Pocket Watch); the sim is unaffected. */
   /** The neighbor's secret shot. */
   | { t: 'tunnel'; amount: number }
+  /** A timed table mode started or ended (Searchlight SWEEP, Yard BRAWL, DOUBLE SHIFT). */
+  | { t: 'mode'; mode: 'sweep' | 'brawl' | 'shift'; on: boolean }
+  /** SHAKEDOWN: the mystery lit at the inlanes, or was collected. */
+  | { t: 'mystery'; award: MysteryAward | null }
+  /** A charm's behaviour fired (its relic reacts). */
+  | { t: 'charm'; id: string }
   /**
    * JAILBREAK: started, a lit shot made (n so far), the machine falling apart (posts, lights,
    * glass), escaped, or failed (every ball drained).
@@ -49,6 +55,15 @@ export type GameEvent =
   | { t: 'jailbreak'; phase: JailbreakPhase; n: number };
 
 export type JailbreakPhase = 'start' | 'shot' | 'posts' | 'lights' | 'glass' | 'escaped' | 'failed';
+
+export type MysteryAward =
+  | 'coins'
+  | 'bigCoins'
+  | 'bonusX'
+  | 'ballSave'
+  | 'luck'
+  | 'kickback'
+  | 'lockup';
 
 export type AwardId = 'bonusX' | 'kickback' | 'hurryUp' | 'shotLevel' | 'extraBall';
 

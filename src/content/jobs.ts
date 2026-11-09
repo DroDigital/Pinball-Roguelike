@@ -29,6 +29,12 @@ export interface BallStats {
   /** The neighbor's secret shot. */
   tunnels: number;
   jailbreakShots: number;
+  /** Searchlight sweeps, Yard brawls and Shakedown awards. */
+  sweeps: number;
+  brawls: number;
+  shakedowns: number;
+  /** Completed BAIL sets on the upper deck. */
+  bails: number;
 }
 
 export function emptyBallStats(): BallStats {
@@ -54,6 +60,10 @@ export function emptyBallStats(): BallStats {
     luckyBounces: 0,
     tunnels: 0,
     jailbreakShots: 0,
+    sweeps: 0,
+    brawls: 0,
+    shakedowns: 0,
+    bails: 0,
   };
 }
 

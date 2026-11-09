@@ -309,7 +309,7 @@ describe('Hardware', () => {
         expect(h.of('score')[0].amount).toBeCloseTo(SCORE.pop * SCORE.scale * 10);
       }
       if (id === 'thirdArm') expect(h.sim.flippers.some((f) => f.def.id === 'U')).toBe(true);
-      if (id === 'spareBumper') expect(h.sim.pops.length).toBe(4);
+      if (id === 'spareBumper') expect(h.sim.pops.some((p) => p.id === 'pop3')).toBe(true);
     });
 });
 

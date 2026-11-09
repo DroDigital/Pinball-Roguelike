@@ -118,7 +118,12 @@ function noiseTile(): HTMLCanvasElement {
 }
 
 /** Fine grain over the current clip (or the given box). */
-export function grain(g: Ctx, box: Box, alpha = 0.07, mode: GlobalCompositeOperation = 'overlay'): void {
+export function grain(
+  g: Ctx,
+  box: Box,
+  alpha = 0.07,
+  mode: GlobalCompositeOperation = 'overlay',
+): void {
   const pat = g.createPattern(noiseTile(), 'repeat')!;
   g.save();
   g.globalCompositeOperation = mode;
@@ -147,13 +152,23 @@ export function brushed(g: Ctx, [x, y, w, h]: Box, seed: string, alpha = 0.05): 
   g.restore();
 }
 
-export function vgrad(g: Ctx, y0: number, y1: number, stops: readonly [number, string][]): CanvasGradient {
+export function vgrad(
+  g: Ctx,
+  y0: number,
+  y1: number,
+  stops: readonly [number, string][],
+): CanvasGradient {
   const gr = g.createLinearGradient(0, y0, 0, y1);
   for (const [t, c] of stops) gr.addColorStop(t, c);
   return gr;
 }
 
-export function hgrad(g: Ctx, x0: number, x1: number, stops: readonly [number, string][]): CanvasGradient {
+export function hgrad(
+  g: Ctx,
+  x0: number,
+  x1: number,
+  stops: readonly [number, string][],
+): CanvasGradient {
   const gr = g.createLinearGradient(x0, 0, x1, 0);
   for (const [t, c] of stops) gr.addColorStop(t, c);
   return gr;
@@ -489,8 +504,10 @@ export function chain(
 /** A hanging catenary: from (x0, y0) to (x1, y1) with a sag in px. */
 export const sagPath =
   (x0: number, y0: number, x1: number, y1: number, sag: number) =>
-  (t: number): readonly [number, number] =>
-    [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * sag];
+  (t: number): readonly [number, number] => [
+    x0 + (x1 - x0) * t,
+    y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * sag,
+  ];
 
 // ---- paper ----------------------------------------------------------------------------------
 
@@ -530,7 +547,14 @@ export function paper(g: Ctx, box: Box, shape: Shape, s: PaperStyle): void {
   }
   grain(g, box, 0.05, 'multiply');
   // Soft darkening toward the edges.
-  const v = g.createRadialGradient(x + w / 2, y + h / 2, Math.min(w, h) * 0.35, x + w / 2, y + h / 2, Math.max(w, h) * 0.75);
+  const v = g.createRadialGradient(
+    x + w / 2,
+    y + h / 2,
+    Math.min(w, h) * 0.35,
+    x + w / 2,
+    y + h / 2,
+    Math.max(w, h) * 0.75,
+  );
   v.addColorStop(0, 'rgba(120,80,30,0)');
   v.addColorStop(1, 'rgba(120,80,30,0.22)');
   g.fillStyle = v;
@@ -608,7 +632,13 @@ export function stamp(
   for (let i = 0; i < 40; i++) {
     l.globalAlpha = rng.range(0.25, 0.8);
     l.beginPath();
-    l.arc(rng.range(-w / 2, w / 2), rng.range(-size * 0.8, size * 0.8), rng.range(0.6, size * 0.07), 0, Math.PI * 2);
+    l.arc(
+      rng.range(-w / 2, w / 2),
+      rng.range(-size * 0.8, size * 0.8),
+      rng.range(0.6, size * 0.07),
+      0,
+      Math.PI * 2,
+    );
     l.fill();
   }
   g.save();
