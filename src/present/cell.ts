@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { ROOM_UNIFORMS, canvasTexture, retroMaterial } from './retro-material';
+import { CellProps } from './cell-props';
 
 /** Room bounds (world units, 1 = one ball diameter). */
 export const ROOM = { x0: -46, x1: 46, z0: -46, z1: 62, floor: -12, ceil: 50 } as const;
@@ -104,6 +105,8 @@ export class CellRoom {
   private readonly doorPivot = new THREE.Group();
   readonly leftWall = new THREE.Group();
   decay = 0;
+  /** Set dressing: window, pipes, chains, cot, camera, dust. */
+  readonly props: CellProps;
   private time = 0;
 
   constructor() {
@@ -311,6 +314,8 @@ export class CellRoom {
     this.puddle.position.set(-22, R.floor + 0.04, -12);
     this.leak.add(this.puddle);
     this.group.add(this.leak);
+    this.props = new CellProps(ROOM);
+    this.group.add(this.props.group);
     this.setTallies(0);
     this.setDecay(0);
   }
@@ -391,6 +396,7 @@ export class CellRoom {
     this.time += dt;
     ROOM_UNIFORMS.uTime.value = this.time;
     this.doorGlow.visible = true;
+    this.props.update(dt);
     if (this.leak.visible) {
       for (const d of this.drops) {
         d.v += 40 * dt;

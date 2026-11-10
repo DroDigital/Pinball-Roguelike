@@ -102,11 +102,11 @@ export const PLUNGER = {
     [1, 32.4],
   ] as [number, number][],
   /** Height the ball climbs from the plunger to the shooter lane exit. */
-  climb: 25.75,
+  climb: 33.75,
   /** Compensation for rolling losses on the way up. */
-  lossComp: 1.015,
+  lossComp: 1.03,
   /** Pull centred on each top lane's window (A, B, C) for the Roll Call skill shot. */
-  lanePull: [0.805, 0.715, 0.605] as [number, number, number],
+  lanePull: [0.82, 0.735, 0.625] as [number, number, number],
   /** Pull used for auto-launches (ball save, multiball): a full orbit to the right flipper. */
   autoPull: 0.92,
   /** Ball counts as resting in the shooter lane below this speed. */
@@ -167,7 +167,7 @@ export const SCORE = {
    * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
    * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
    */
-  scale: 0.175,
+  scale: 0.156,
   pop: 0.6,
   sling: 0.15,
   lane: 0.4,
@@ -182,6 +182,10 @@ export const SCORE = {
   hole: 1.8,
   skillShot: 4,
   superSkillShot: 10,
+  /** The Tower: each BAIL target, the completed set and the tower rollover. */
+  bail: 1,
+  bailSet: 8,
+  towerTop: 0.8,
   /** Each shot level adds this fraction of base value. */
   levelStep: 0.5,
 };
@@ -244,6 +248,42 @@ export const LUCK = {
   sparkLuck: 3,
 };
 
+/** Searchlight SWEEP: spinner turns fill a meter; a full meter makes every switch pay extra. */
+export const SWEEP = {
+  /** Half-turns of the Searchlight to fill the meter. */
+  spins: 9,
+  seconds: 12,
+  /** Extra base value paid on every other hit while the sweep runs (Searchlight level). */
+  perHit: 0.45,
+};
+
+/** Yard BRAWL: bumper hits build heat that cools off; full heat makes the Yard pay more. */
+export const BRAWL = {
+  heatToStart: 3,
+  /** Heat lost per second. */
+  decay: 0.4,
+  seconds: 10,
+  popMult: 3,
+};
+
+/** SHAKEDOWN: slingshot hits light a mystery award at both inlanes. */
+export const SHAKEDOWN = {
+  slings: 9,
+  /** Base coin values (Lanes level) of the small and big cash awards. */
+  coins: 7,
+  bigCoins: 18,
+  saveSeconds: 8,
+  luck: 3,
+  /** Relative odds of each award. */
+  weights: { coins: 4, bigCoins: 1, bonusX: 2, ballSave: 2, luck: 2, kickback: 2, lockup: 1 },
+};
+
+/** DOUBLE SHIFT: completing BAIL on the upper deck doubles every hit for a while. */
+export const SHIFT = {
+  seconds: 15,
+  mult: 2,
+};
+
 /** Round Jobs posted by the ATM. */
 export const JOBS = {
   offers: 3,
@@ -273,7 +313,7 @@ export const ECONOMY = {
    * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
    * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
    */
-  payGrowth: 1.53,
+  payGrowth: 1.48,
 };
 
 /** Sentences. */

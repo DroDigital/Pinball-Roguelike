@@ -1,0 +1,701 @@
+/*
+ * Menus, in the HUD's language (hud.css): black steel plates, the heading as a stencilled
+ * rust tab on the top edge, bone lettering, rust rules, sodium yellow for what is selected
+ * and for the one main action, blood red for what you can't do. Terminals glow amber.
+ */
+:root {
+  --plate: #0a0807;
+  --plate-2: #16120f;
+  --bone: #f1e8d2;
+  --sodium: #ffc21a;
+  --rust: #e8642a;
+  --yard: #79c37f;
+  --blood: #e6362a;
+  --dim: #8c7d66;
+}
+
+/* The cell drops back behind a screen. */
+#ui::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s steps(3);
+  background: rgba(4, 3, 2, 0.6);
+}
+#ui:has(.panel)::before {
+  opacity: 1;
+}
+
+/* ---- the plate */
+.panel,
+.panel.atm,
+.panel.atm:not(.bc-skin),
+.panel.red,
+.panel.bc-light {
+  --pad: 22px;
+  position: relative;
+  padding: 30px var(--pad) var(--pad);
+  max-width: min(620px, 94vw);
+  max-height: calc(100% - 24px);
+  margin-top: 12px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--bone);
+  background: var(--plate);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.5);
+  text-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rust) var(--plate);
+  overflow-x: hidden;
+}
+.panel.shop,
+.panel[data-skin='cell'],
+.panel.lineup,
+.panel.rapsheet,
+.panel.settings {
+  max-width: min(900px, 96vw);
+}
+.panel.title {
+  max-width: min(640px, 94vw);
+  text-align: center;
+}
+@keyframes ui-in {
+  0% {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+.panel.fade {
+  animation: ui-in 0.16s steps(4);
+}
+
+/* ---- headings: a stencilled tab */
+.panel h1,
+.panel h2,
+.panel.atm h2,
+.panel.red h2,
+.panel.bc-light h1,
+.panel.bc-light h2 {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: -30px 0 18px calc(var(--pad) * -1);
+  padding: 8px 18px 6px var(--pad);
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-weight: normal;
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-align: left;
+  color: var(--plate);
+  background: var(--rust);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+.panel.red h2 {
+  background: var(--blood);
+}
+.panel h1.logo {
+  margin: 0 auto 10px;
+  padding: 0;
+  background: none;
+  width: auto;
+}
+.panel h1.logo img {
+  display: block;
+  width: min(100%, 460px);
+  margin: 0 auto;
+}
+.panel h3 {
+  margin: 16px 0 6px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-weight: normal;
+  font-size: 1.15rem;
+  letter-spacing: 0.1em;
+  color: var(--rust);
+}
+.panel p,
+.panel.bc-light p,
+.panel.atm p {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.05rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.panel .dim,
+.panel.bc-light .dim {
+  color: var(--dim);
+}
+.panel b {
+  font-weight: normal;
+}
+.panel .warden,
+.panel .neighbor {
+  color: var(--rust);
+}
+
+/* ---- keys: lettering; the selected one is boxed in yellow, the main one is a yellow block */
+.panel button,
+.panel.bc-light button,
+.panel.atm button:not([data-skin]) {
+  position: relative;
+  min-height: 44px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+  color: var(--bone);
+  background: var(--plate-2);
+  border: 3px solid transparent;
+  border-radius: 0;
+  padding: 8px 16px 6px;
+  box-shadow: none;
+  text-shadow: none;
+  transition: none;
+  filter: none;
+  transform: none;
+}
+.panel button:hover,
+.panel button:focus-visible,
+.panel.bc-light button:hover,
+.panel.bc-light button:focus-visible,
+.panel.atm button:not([data-skin]):hover,
+.panel.atm button:not([data-skin]):focus-visible {
+  color: var(--bone);
+  background: var(--plate-2);
+  border-color: var(--sodium);
+  outline: 0;
+  filter: none;
+}
+.panel button.primary,
+.panel.bc-light button.primary,
+.panel.atm button.primary:not([data-skin]) {
+  color: var(--plate);
+  background: var(--sodium);
+  border-color: var(--sodium);
+  font-size: 1.3rem;
+  padding: 10px 24px 8px;
+}
+.panel button.primary:hover,
+.panel button.primary:focus-visible,
+.panel.atm button.primary:not([data-skin]):hover,
+.panel.atm button.primary:not([data-skin]):focus-visible {
+  color: var(--plate);
+  background: var(--sodium);
+  border-color: var(--bone);
+}
+.panel button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+.panel button:disabled,
+.panel.bc-light button:disabled,
+.panel.atm button:not([data-skin]):disabled {
+  opacity: 1;
+  color: #4d4336;
+  background: var(--plate);
+  border: 3px solid transparent;
+}
+.panel .row button:not(.primary),
+.panel .cell-dock button:not(.primary) {
+  background: var(--plate-2);
+  color: var(--bone);
+}
+
+/* ---- the action row: a rust rule, then the keys */
+.panel .row,
+.panel .cell-dock,
+.panel.bc-light .row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 3px solid var(--rust);
+  background: none;
+}
+.panel .row::before,
+.panel .cell-dock::before {
+  display: none;
+}
+.panel.title .row {
+  justify-content: center;
+}
+.panel .row.seed {
+  padding-top: 0;
+  margin-top: 8px;
+  border: 0;
+}
+/* The last row of keys rides the bottom of a long screen. */
+.panel .bc-skin__content > .row:last-child,
+.panel > .row:last-child,
+.panel .cell-dock {
+  position: sticky;
+  bottom: calc(var(--pad) * -1);
+  z-index: 4;
+  margin-bottom: calc(var(--pad) * -1);
+  padding-bottom: var(--pad);
+  background: var(--plate);
+}
+
+/* ---- read-outs: a rust label over a big number */
+.panel .cell-gauge-box,
+.panel .atm-readout-box,
+.panel.atm .atm-readout-box {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: left;
+}
+.panel .cell-gauge-val,
+.panel .atm-readout-val,
+.panel.atm .atm-readout-val {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 2.6rem;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: none;
+}
+.panel .cell-gauge-label,
+.panel .atm-readout-label,
+.panel.atm .atm-readout-label,
+.panel .cell-rack-hdr,
+.panel .shop-section-label {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  color: var(--rust);
+}
+.panel .cell-gauges-grid,
+.panel .atm-readouts {
+  gap: 10px 28px;
+  margin: 4px 0 16px;
+}
+.panel .shop-counters-bar,
+.panel .cell-order-banner,
+.panel .cell-contraband-shelf,
+.panel .cell-equipment-rack,
+.panel .shop-pawn-drawer,
+.panel .atm-credit-facility,
+.panel.atm .atm-credit-facility {
+  padding: 10px 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.panel .cell-cockpit-bar {
+  border: 0;
+  margin: -30px calc(var(--pad) * -1) 14px;
+  padding: 0 var(--pad) 0 0;
+}
+.panel .cell-cockpit-bar h2,
+.panel .cell-cockpit-title {
+  margin: 0;
+  padding: 8px 18px 6px var(--pad);
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 1.35rem;
+  letter-spacing: 0.14em;
+  color: var(--plate);
+  background: var(--rust);
+  text-shadow: none;
+}
+.panel .cell-cockpit-prog {
+  color: var(--dim);
+}
+.panel .cell-order-banner {
+  font-size: 1.2rem;
+}
+.panel .cell-order-status {
+  border: 0;
+  background: none;
+  color: var(--sodium);
+  font-size: 1.2rem;
+}
+.panel .cell-levels,
+.panel .cell-rack-hdr,
+.panel .cell-gauge-pips,
+.panel .atm-header-sub,
+.panel .shop-card-tier,
+.panel .shop-synergy-tag {
+  display: none;
+}
+.panel .cell-token {
+  border: 0;
+  padding: 0 14px 0 0;
+  background: none;
+  box-shadow: none;
+  color: var(--bone);
+}
+.panel .cell-token .icon.relic {
+  font-size: 1.5em;
+}
+.panel .cell-warning-strip {
+  background: var(--blood);
+  color: var(--plate);
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---- shop: the thing, its name, what it does, what it costs */
+.panel .shop-card-tile,
+.panel button.shop-card-tile {
+  text-align: left;
+  background: var(--plate-2);
+  border: 3px solid transparent !important;
+  border-radius: 0;
+  padding: 10px 12px;
+  box-shadow: none;
+  text-transform: uppercase;
+}
+.panel .shop-card-tile:hover,
+.panel .shop-card-tile:focus-visible,
+.panel button.shop-card-tile:hover,
+.panel button.shop-card-tile:focus-visible {
+  background: var(--plate-2);
+  border-color: var(--sodium) !important;
+  transform: none;
+}
+.panel .shop-card-tile:disabled > *:not(.shop-card-body),
+.panel .shop-card-tile:disabled .shop-card-body > div {
+  opacity: 0.8;
+}
+.panel .shop-card-tile:disabled .shop-card-price {
+  color: var(--blood);
+}
+.panel .shop-card-heading {
+  font-size: 1.4rem;
+  color: var(--sodium);
+}
+.panel .shop-card-lore {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.panel .shop-card-price {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.15rem;
+  color: var(--bone);
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.panel .synergy-glow {
+  box-shadow: inset 4px 0 0 var(--yard);
+}
+
+/* ---- terminals: amber lettering on black glass */
+.panel.atm,
+.panel.atm:not(.bc-skin) {
+  color: #ffb238;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 4px), #0c0806;
+}
+.panel.atm p,
+.panel.atm .atm-readout-label {
+  color: #ffb238;
+}
+.panel.atm .row {
+  border-top-color: var(--rust);
+}
+
+/* ---- Job tickets: work orders on the terminal */
+.panel.atm button[data-skin='jobs'] {
+  display: block;
+  text-align: left;
+  padding: 12px 14px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bone);
+  background: var(--plate-2);
+  border: 3px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+.panel.atm button[data-skin='jobs']:hover,
+.panel.atm button[data-skin='jobs']:focus-visible {
+  border-color: var(--sodium);
+  background: var(--plate-2);
+  transform: none;
+  outline: 0;
+}
+.panel.atm button[data-skin='jobs'] .ticket-head {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+  border: 0;
+  padding: 0;
+  margin-bottom: 6px;
+}
+.panel.atm button[data-skin='jobs'] .ticket-task {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  color: var(--sodium);
+  margin-bottom: 8px;
+}
+.panel.atm button[data-skin='jobs'] .ticket-seal {
+  display: block;
+  padding: 0;
+  font-size: 1rem;
+  color: var(--rust);
+  border: 0;
+  background: none;
+  transform: none;
+}
+
+/* ---- documents keep the plate; only their parts change */
+.panel.bc-light::before {
+  display: none;
+}
+.panel.bc-light span:not(.icon):not([class*='stamp']),
+.panel.bc-light .grid,
+.panel.bc-light li,
+.panel.bc-light label,
+.panel.bc-light .receipt-row-label,
+.panel.bc-light .receipt-row-val,
+.panel.bc-light .receipt-title,
+.panel.bc-light .receipt-sub,
+.panel.bc-light .receipt-header {
+  color: var(--bone);
+}
+.panel .receipt-row-dots {
+  border-color: #3a3026;
+}
+.receipt-stamp,
+.panel.bc-light .receipt-stamp {
+  border-radius: 0;
+  background: none;
+  mix-blend-mode: normal;
+}
+.receipt-stamp.settled,
+.panel.bc-light .receipt-stamp.settled {
+  border-color: var(--yard);
+  color: var(--yard);
+}
+.receipt-stamp.tilted,
+.panel.bc-light .receipt-stamp.tilted {
+  border-color: var(--blood);
+  color: var(--blood);
+}
+.panel.bc-light button.mugcard,
+.panel button.mugcard {
+  background: var(--plate-2);
+  border: 3px solid transparent;
+  color: var(--bone);
+  box-shadow: none;
+}
+.panel.bc-light button.mugcard.sel,
+.panel button.mugcard.sel {
+  border-color: var(--sodium);
+  box-shadow: none;
+  transform: none;
+  background: var(--plate-2);
+}
+.panel.bc-light button.mugcard b,
+.panel.bc-light button.mugcard small {
+  color: var(--bone);
+}
+.panel .inmate {
+  background: none !important;
+  border: 0 !important;
+  border-left: 3px solid var(--rust) !important;
+  padding: 2px 12px !important;
+}
+.panel .inmate > div {
+  color: var(--sodium) !important;
+}
+.panel .inmate p {
+  color: var(--bone) !important;
+}
+
+/* ---- inputs, toast, hint notes and subtitles */
+.panel input[type='text'],
+.panel.bc-light input[type='text'] {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.2rem;
+  color: var(--sodium);
+  background: var(--plate-2);
+  border: 0;
+  border-bottom: 3px solid var(--rust);
+  border-radius: 0;
+  box-shadow: none;
+}
+.panel .grid b,
+.panel .amber-badge {
+  color: var(--sodium);
+  background: none;
+  border: 0;
+}
+.tally {
+  color: var(--bone);
+}
+#toast {
+  padding: 10px 18px 8px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  color: var(--sodium);
+  background: var(--plate);
+  text-shadow: none;
+  transition: opacity 0.15s steps(3);
+}
+#hint {
+  left: 16px;
+  bottom: 18px;
+  max-width: min(400px, 60vw);
+  padding: 12px 16px 10px;
+  background: var(--plate);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+  transform: translateY(8px);
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: calc(1.05rem * var(--text-scale, 1));
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--bone);
+  text-shadow: none;
+  transition:
+    opacity 0.15s steps(3),
+    transform 0.15s steps(3);
+}
+#hint.on {
+  transform: none;
+}
+#hint b {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 0.7em;
+  letter-spacing: 0.16em;
+  color: var(--rust);
+}
+/* With a screen up, the note sits under it as one line. */
+body:has(#ui .panel) #hint {
+  left: 50%;
+  bottom: 6px;
+  width: max-content;
+  max-width: 96vw;
+  padding: 6px 12px 4px;
+  font-size: calc(0.9rem * var(--text-scale, 1));
+  transform: translate(-50%, 8px);
+}
+body:has(#ui .panel) #hint.on {
+  transform: translate(-50%, 0);
+}
+body:has(#ui .panel) #hint b {
+  display: inline;
+  margin-right: 0.6em;
+}
+body:has(#hint.on) #ui:has(.panel) {
+  padding-bottom: calc(2.8rem * var(--text-scale, 1));
+}
+#subtitle {
+  padding: 10px 16px 8px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-style: normal;
+  font-size: calc(1.3rem * var(--text-scale, 1));
+  letter-spacing: 0.05em;
+  color: var(--bone);
+  background: var(--plate);
+  text-shadow: none;
+}
+#subtitle b {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 0.8em;
+  color: var(--rust);
+}
+
+/* ---- phones */
+@media (max-height: 520px), (max-width: 520px) {
+  .panel,
+  .panel.atm,
+  .panel.red,
+  .panel.bc-light {
+    --pad: 12px;
+    padding-top: 24px;
+    font-size: 0.95rem;
+  }
+  .panel h1,
+  .panel h2,
+  .panel .cell-cockpit-title {
+    margin-top: -24px;
+    font-size: 1rem;
+    padding: 6px 12px 4px var(--pad);
+  }
+  .panel .cell-cockpit-bar {
+    margin-top: -24px;
+  }
+  .panel button {
+    padding: 6px 10px 4px;
+    font-size: 0.95rem;
+  }
+  .panel .cell-gauge-val,
+  .panel .atm-readout-val,
+  .panel.atm .atm-readout-val {
+    font-size: 1.6rem;
+  }
+  .panel .cell-gauges-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  #hint {
+    max-width: 70vw;
+    font-size: calc(0.85rem * var(--text-scale, 1));
+  }
+}
+
+/* ---- the plaque wrapper some screens put round their heading is just the tab */
+.panel .plaque {
+  margin: 0;
+  padding: 0;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.panel .plaque h2,
+.panel .plaque h1 {
+  color: var(--plate) !important;
+  text-shadow: none !important;
+}
+.panel.atm button[data-skin='jobs'] .ticket-task,
+.panel.atm button[data-skin='jobs'] .ticket-seal,
+.panel.atm button[data-skin='jobs'] .ticket-head {
+  font-family: var(--bc-head, Impact, sans-serif) !important;
+  text-transform: uppercase;
+}
+.panel.atm > div:not(.plaque):not(.col):not(.cell-dock):not(.row) {
+  font-family: var(--bc-head, Impact, sans-serif) !important;
+  color: var(--dim) !important;
+  text-shadow: none !important;
+}
+@media (max-aspect-ratio: 6/5) {
+  #hint {
+    left: 8px;
+    right: 8px;
+    bottom: 64px;
+    max-width: none;
+  }
+}

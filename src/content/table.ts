@@ -19,7 +19,9 @@ import type {
 
 const MX = 18.4; // main field right edge (shooter wall, field side)
 const OUT = 19.9; // cabinet right wall
-const ARCH_C: P2 = [9.95, 29];
+/** The upper deck (The Tower) adds this much playfield above the Yard. */
+const DECK_H = 8;
+const ARCH_C: P2 = [9.95, 29 + DECK_H];
 const ARCH_R = 9.95;
 const BOTTOM = -0.5;
 
@@ -95,6 +97,9 @@ function laneWall(
 }
 
 // ---------------------------------------------------------------- flippers
+const DECK_FLIP_LX = 6.6;
+const DECK_FLIP_Y = 34.2;
+const DECK_FLIP_LEN = 2.0;
 const FLIP_Y = 5.2;
 const FLIP_LX = 5.86;
 const FLIP_LEN = 2.6;
@@ -142,6 +147,31 @@ const flippers: FlipperDef[] = [
     side: 'right',
     button: 'right',
     tag: 'mount:thirdArm',
+  },
+  // The Tower: a pair of short flippers on the upper deck, on the same buttons.
+  {
+    id: 'TL',
+    x: DECK_FLIP_LX,
+    y: DECK_FLIP_Y,
+    len: DECK_FLIP_LEN,
+    r0: 0.38,
+    r1: 0.2,
+    restDeg: -28,
+    upDeg: 22,
+    side: 'left',
+    button: 'left',
+  },
+  {
+    id: 'TR',
+    x: MX - DECK_FLIP_LX,
+    y: DECK_FLIP_Y,
+    len: DECK_FLIP_LEN,
+    r0: 0.38,
+    r1: 0.2,
+    restDeg: -28,
+    upDeg: 22,
+    side: 'right',
+    button: 'right',
   },
 ];
 
@@ -230,13 +260,13 @@ const slings: SlingDef[] = [
 
 // ---------------------------------------------------------------- orbits (The Perimeter)
 const LANE_HALF = 0.85;
-const ORBIT_L = { x: 0.87, top: 30.5, bend: 22.2, exit: -54, r: 5, straight: 1.2 };
+const ORBIT_L = { x: 0.87, top: 30.5 + DECK_H, bend: 22.2, exit: -54, r: 5, straight: 1.2 };
 // The right Perimeter is the shooter column: the plunger lane runs up into it through a
 // one-way gate, and orbit shots enter through a funnel on the column's lower left, then
 // bend once into the column and meet the arch tangentially (like classic machines).
 const SHOOTER_TOP = 21.0;
 const COL_WALL_X = 18.45; // centreline of the column's left wall
-const COL_WALL_TOP = 30.2;
+const COL_WALL_TOP = 30.2 + DECK_H;
 const PERIM_R_DIR = 59; // shot direction from the left flipper
 const funnelPerp: P2 = [Math.cos((PERIM_R_DIR - 90) * DEG), Math.sin((PERIM_R_DIR - 90) * DEG)];
 const FUNNEL_W = 2.45;
@@ -374,6 +404,44 @@ const dlen = Math.hypot(DROP_B[0] - DROP_A[0], DROP_B[1] - DROP_A[1]);
 const dnx = -(DROP_B[1] - DROP_A[1]) / dlen; // left normal of A->B (front face, toward flippers)
 const dny = (DROP_B[0] - DROP_A[0]) / dlen;
 
+// ---------------------------------------------------------------- The Tower (upper deck)
+// Two floor blocks slope down to the deck flippers; the gap between the flippers drops the
+// ball onto the Yard, and a side passage along the shooter column lets lane traffic past.
+const DECK_FLOOR_L: P2[] = [
+  [1.85, 36.45],
+  [DECK_FLIP_LX - 0.55, 34.8],
+  [DECK_FLIP_LX - 0.55, 33.4],
+  [1.85, 33.4],
+];
+const DECK_FLOOR_R: P2[] = [
+  [16.55, 36.45],
+  [16.55, 33.4],
+  [MX - DECK_FLIP_LX + 0.55, 33.4],
+  [MX - DECK_FLIP_LX + 0.55, 34.8],
+];
+// BAIL: four stand-up targets on a bank facing the deck's right flipper.
+const BAIL_A: P2 = [3.6, 40.6];
+const BAIL_B: P2 = [7.4, 43.2];
+const bailLen = Math.hypot(BAIL_B[0] - BAIL_A[0], BAIL_B[1] - BAIL_A[1]);
+const bailDir: P2 = [(BAIL_B[0] - BAIL_A[0]) / bailLen, (BAIL_B[1] - BAIL_A[1]) / bailLen];
+// Front normal: toward the deck (down-right).
+const bailN: P2 = [bailDir[1], -bailDir[0]];
+const bailAt = (s: number, off: number): P2 =>
+  rp([BAIL_A[0] + bailDir[0] * s + bailN[0] * off, BAIL_A[1] + bailDir[1] * s + bailN[1] * off]);
+const BAIL_BANK: P2[] = [
+  bailAt(0, 0),
+  bailAt(bailLen, 0),
+  bailAt(bailLen, -0.55),
+  bailAt(0, -0.55),
+];
+const BAIL_SLOT = bailLen / 4;
+const bailTriggers: TriggerDef[] = [0, 1, 2, 3].map((i) => ({
+  id: `bail${i}`,
+  // Oriented so a ball arriving from the deck crosses with dir = +1.
+  a: bailAt(BAIL_SLOT * (i + 0.1), 0.62),
+  b: bailAt(BAIL_SLOT * (i + 0.9), 0.62),
+}));
+
 // ---------------------------------------------------------------- walls
 const cabinet: P2[] = [
   [0, BOTTOM],
@@ -466,6 +534,9 @@ const walls: WallDef[] = [
     h: 1.2,
   },
 
+  { id: 'deckFloorL', pts: DECK_FLOOR_L, loop: true, mat: 'wood', look: 'block', h: 1.1 },
+  { id: 'deckFloorR', pts: DECK_FLOOR_R, loop: true, mat: 'wood', look: 'block', h: 1.1 },
+  { id: 'bailBank', pts: BAIL_BANK, loop: true, mat: 'rubber', look: 'block', h: 1.3 },
   { id: 'holeBlock', pts: holeBlock, loop: true, mat: 'wood', look: 'block', h: 1.4 },
   {
     id: 'holeBolt',
@@ -553,6 +624,14 @@ const posts: PostDef[] = [
   { id: 'holeLipR', x: HOLE_X + HOLE_HW + 0.14, y: 24.35, r: 0.16, mat: 'post' },
   { id: 'orbitLTop', x: orbitLInner[0][0] + 0.1, y: orbitLInner[0][1], r: 0.12, mat: 'metal' },
   { id: 'orbitRTop', x: COL_WALL_X - 0.09, y: COL_WALL_TOP, r: 0.12, mat: 'metal' },
+  { id: 'bailCapA', x: bailAt(0, -0.27)[0], y: bailAt(0, -0.27)[1], r: 0.3, mat: 'post' },
+  {
+    id: 'bailCapB',
+    x: bailAt(bailLen, -0.27)[0],
+    y: bailAt(bailLen, -0.27)[1],
+    r: 0.3,
+    mat: 'post',
+  },
   // Bent Nail hardware mount: narrows the left outlane entrance.
   { id: 'bentNail', x: 0.05, y: 12.3, r: 0.27, mat: 'metal', tag: 'mount:bentNail' },
 ];
@@ -585,7 +664,9 @@ const triggers: TriggerDef[] = [
       funnelLow[1] + 0.55 * Math.sin(PERIM_R_DIR * DEG),
     ],
   ),
-  tr('archTop', [ARCH_C[0], 35.6], [ARCH_C[0], ARCH_C[1] + ARCH_R]),
+  tr('archTop', [ARCH_C[0], ARCH_C[1] + 6.6], [ARCH_C[0], ARCH_C[1] + ARCH_R]),
+  ...bailTriggers,
+  tr('towerTop', [10.7, 42.9], [8.7, 42.9]),
   tr('shooterExit', [MX + 0.2, 20.0], [OUT, 20.0]),
 ];
 
@@ -716,6 +797,34 @@ const lamps: LampDef[] = [
     color: 'red',
     label: 'LOCK',
   },
+  // BAIL letters in front of the bank, the Tower arrow, DOUBLE SHIFT and the tower rollover.
+  ...[0, 1, 2, 3].map(
+    (i): LampDef => ({
+      id: `bail${i}`,
+      x: bailAt(BAIL_SLOT * (i + 0.5), 1.35)[0],
+      y: bailAt(BAIL_SLOT * (i + 0.5), 1.35)[1],
+      shape: 'rect',
+      size: 0.36,
+      rot: 34,
+      color: 'green',
+      label: 'BAIL'[i],
+    }),
+  ),
+  { id: 'arrowTower', x: 8.6, y: 37.6, shape: 'arrow', size: 0.8, rot: 130, color: 'green' },
+  {
+    id: 'doubleShift',
+    x: 9.2,
+    y: 36.0,
+    shape: 'circle',
+    size: 0.5,
+    rot: 0,
+    color: 'orange',
+    label: '2X',
+  },
+  { id: 'towerTop', x: 9.7, y: 42.9, shape: 'star', size: 0.45, rot: 0, color: 'white' },
+  // SHAKEDOWN mystery inserts in both inlanes.
+  { id: 'mysteryL', x: 2.51, y: 10.3, shape: 'star', size: 0.42, rot: 0, color: 'violet' },
+  { id: 'mysteryR', x: 15.89, y: 10.3, shape: 'star', size: 0.42, rot: 0, color: 'violet' },
   { id: 'kickback', x: 0.75, y: 7.4, shape: 'triangle', size: 0.45, rot: 90, color: 'orange' },
   { id: 'shootAgain', x: 9.2, y: 1.6, shape: 'star', size: 0.55, rot: 0, color: 'red' },
   { id: 'ballSave', x: 9.2, y: 3.0, shape: 'circle', size: 0.38, rot: 0, color: 'white' },
@@ -750,6 +859,7 @@ const lamps: LampDef[] = [
   ...levelLadder('perimeter', [3.3, 17.6], 127),
   ...levelLadder('hole', [HOLE_X, 22.6], 90),
   ...levelLadder('cellblock', [11.9, 18.6], 65),
+  ...levelLadder('tower', [8.6, 37.6], 130),
 ];
 
 function levelLadder(shot: string, at: readonly number[], rot: number): LampDef[] {
@@ -782,10 +892,17 @@ export const TABLE: TableDef = {
     { id: 'pop1', x: 14.4, y: 30.4, r: 1.1 },
     { id: 'pop2', x: 12.7, y: 27.5, r: 1.1 },
     { id: 'pop3', x: 7.9, y: 30.8, r: 1.1, tag: 'mount:spareBumper' },
+    // The Mess Hall: two more on the upper deck, under the top lanes.
+    { id: 'pop4', x: 13.7, y: 37.9, r: 0.95 },
+    { id: 'pop5', x: 9.7, y: 40.0, r: 0.95 },
   ],
   slings,
   dropBanks: [{ id: 'cellBlock', targets: dropTargets }],
-  spinners: [{ id: 'searchlight', a: [COL_WALL_X + 0.1, 26.5], b: [OUT, 26.5] }],
+  spinners: [
+    { id: 'searchlight', a: [COL_WALL_X + 0.1, 26.5], b: [OUT, 26.5] },
+    // The Turnstile: across the left Perimeter where it climbs past the upper deck.
+    { id: 'turnstile', a: [0.05, 34.6], b: [ORBIT_L.x + LANE_HALF - 0.2, 34.6] },
+  ],
   triggers,
   transports,
   chute: {
@@ -832,6 +949,8 @@ export const TABLE: TableDef = {
     { x: 19.25, y: 2.1, r: 0.6 },
     { x: GUIDE_END[0] + 0.3, y: GUIDE_END[1] + 0.6, r: 1.2 },
     { x: mx(GUIDE_END[0] + 0.3), y: GUIDE_END[1] + 0.6, r: 1.2 },
+    { x: DECK_FLIP_LX, y: DECK_FLIP_Y + 0.9, r: 1.3 },
+    { x: MX - DECK_FLIP_LX, y: DECK_FLIP_Y + 0.9, r: 1.3 },
   ],
 };
 

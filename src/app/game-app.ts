@@ -12,9 +12,13 @@ import { audio } from '../present/audio';
 import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
-import { hudLayout, refitTree, skinTree, titleLogo } from './skin';
+import { titleLogo } from './skin';
+import { Hud } from './hud';
+import { relicStage } from '../present/relics';
+import { Sparks } from '../present/sparks';
+import { CHARMS } from '../content/charms';
 import { loadArt } from '../present/art';
-import { itemIcon, itemIconHtml, keysIcon, keysIconHtml } from './icons';
+import { itemIcon, keysIcon, relicLive } from './icons';
 import { LampShowPlayer } from '../present/lampshow';
 import { TABLE } from '../content/table';
 import { Input, type Action } from './input';
@@ -44,13 +48,14 @@ import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
 import { dailySeed, dayKey, recordDaily, shareLink } from '../rules/daily';
 import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
-import { Lamp, type GameEvent } from '../rules/types';
+import { Lamp, type GameEvent, type MysteryAward } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
 import { attachBot, defaultSnapshot } from '../bot/autoplay';
 import { jobDef, jobText, type JobDef } from '../content/jobs';
 import { AWARD_NAMES } from '../rules/table-game';
+import { comboName } from '../rules/combo';
 import {
   newRun,
   buyBalls,
@@ -79,7 +84,6 @@ import {
   hangUp,
   answerKnock,
   canHelp,
-  jailbreakLit,
   lastCall,
   type BallOutcome,
   type RunKind,
@@ -105,7 +109,7 @@ import { perkDef, bargainDef } from '../content/phone';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
 import { SaveDetector } from '../present/save-detector';
-import { ASSIST, BONUS, ECONOMY, JAILBREAK, NEIGHBOR } from '../content/balance';
+import { ASSIST, BONUS, ECONOMY, NEIGHBOR } from '../content/balance';
 
 const STEP = 1 / 240;
 const STEP_MS = 1000 / 240;
@@ -176,6 +180,11 @@ export class GameApp {
   private readonly saves = new SaveDetector();
   /** Coins the tray shows (poured or piled); follows the pocket between balls. */
   private trayCoins = 0;
+  /** Whole coins already paid into the tray for the ball in play. */
+  private livePaid = 0;
+  private readonly sparks = new Sparks();
+  private readonly tmpS = new THREE.Vector3();
+  private relicHopAt = 0;
   private clatterAt = 0;
   readonly endings: EndingDirector;
   private ending: EndingKind | null = null;
@@ -206,14 +215,7 @@ export class GameApp {
   private tally: { k: number; bonus: number; mult: number; total: number; ticks: number } | null =
     null;
   private outcome: BallOutcome | null = null;
-  private hud: HTMLElement;
-  private hudStats: HTMLElement;
-  private hudScore: HTMLElement;
-  private hudRight: HTMLElement;
-  private hudLedger: HTMLElement;
-  private hudStatus: HTMLElement;
-  private hudStatusHead: HTMLElement;
-  private hudPlunger: HTMLElement;
+  private hud: Hud;
   private readonly tmpV = new THREE.Vector3();
   private fallT = 0;
   private dmdTex: THREE.CanvasTexture;
@@ -234,19 +236,12 @@ export class GameApp {
     this.renderer.settings.pixelHeight = this.save.settings.pixelHeight;
     this.world = new World(new Set(['outlanePosts']));
     this.world.scene.add(this.pops.group);
+    this.world.scene.add(this.sparks.group);
     this.input = new Input(document.body);
     this.ui = new UI(uiRoot, toast);
     this.ui.onClick = () => audio.atmBeep();
     this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
     this.subs.voice = this.save.settings.voice;
-    this.hud = hud;
-    this.hudStats = h('div', { class: 'stats' });
-    this.hudScore = h('div', { class: 'score' });
-    this.hudRight = h('div', { class: 'right' });
-    this.hudStatusHead = h('h3', { class: 'hud-head', 'data-slot': 'head' }, 'Status');
-    this.hudPlunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
-    const dmdCanvas = this.dmd.canvas;
-    dmdCanvas.className = 'dmd';
     // Touch: the lockbar button (active charms) and pause, under the table.
     const hold = (a: Action) => ({
       onpointerdown: (e: PointerEvent) => {
@@ -256,29 +251,9 @@ export class GameApp {
       onpointerup: () => this.input.release(a, performance.now()),
       onpointerleave: () => this.input.release(a, performance.now()),
     });
-    // Score and DMD, the ledger of coins and the status rack: each sits on its art-pack frame
-    // when the screen has room (see skin.ts), and is plain text otherwise.
-    const score = h(
-      'div',
-      { class: 'hud-frame hud-score', 'data-skin': 'hudScore' },
-      dmdCanvas,
-      this.hudScore,
-    );
-    this.hudLedger = h(
-      'div',
-      { class: 'hud-frame hud-ledger', 'data-skin': 'hudLedger' },
-      this.hudStats,
-    );
-    this.hudStatus = h(
-      'div',
-      { class: 'hud-frame hud-status', 'data-skin': 'hudStatus' },
-      this.hudStatusHead,
-      this.hudRight,
-    );
-    hud.append(
-      h('div', { class: 'left' }, score, this.hudLedger),
-      h('div', { class: 'hud-rightcol' }, this.hudStatus),
-      this.hudPlunger,
+    this.hud = new Hud(
+      hud,
+      this.dmd.canvas,
       h(
         'div',
         { class: 'touch-lockbar' },
@@ -286,13 +261,7 @@ export class GameApp {
         h('button', { class: 'touch-btn', ...hold('pause') }, 'II'),
       ),
     );
-    const layoutHud = (): void => {
-      hud.dataset.layout = hudLayout();
-      refitTree(hud);
-    };
-    skinTree(hud);
-    layoutHud();
-    window.addEventListener('resize', layoutHud);
+    this.hud.onCoinLand = () => audio.coin(2 + Math.floor(Math.random() * 3));
     // DMD on the backbox too.
     this.dmdTex = new THREE.CanvasTexture(this.dmd.canvas);
     this.dmdTex.colorSpace = THREE.SRGBColorSpace;
@@ -321,9 +290,8 @@ export class GameApp {
       void loadArt('machine/backglass').then(() => this.paintGlass(this.glassLevels));
     }
     // The machine's printed art replaces the procedural decoration as it arrives.
-    void loadArt('machine/playfield-illustration').then(
-      (img) => img && this.world.table.setIllustration(img),
-    );
+    // The playfield print uses the UI's display faces: repaint once they have loaded.
+    void document.fonts?.ready.then(() => this.world.table.repaint());
     void loadArt('machine/cabinet-side-art').then((img) => img && this.world.setCabinetArt(img));
     this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
     this.hints.enabled = this.save.settings.hints;
@@ -522,10 +490,25 @@ export class GameApp {
         dt,
       );
     this.flushGameEvents();
+    // The machine pays as you earn: whole coins drop into the tray while the ball is alive.
+    if (this.mode === 'play' && this.session && !this.session.game.tilted) {
+      const whole = Math.floor(this.session.game.earned);
+      if (whole > this.livePaid) {
+        this.pourCoins(whole - this.livePaid);
+        this.livePaid = whole;
+      }
+    }
+    this.sparks.update(dt);
+    // The Warden's camera follows the ball (or stares at the stool between balls).
+    const eye = shown?.sim.balls.find((b) => b.state === 'field');
+    if (eye && this.mode === 'play') this.world.table.worldOf(eye.x, eye.y, 0.5, this.tmpV);
+    else this.tmpV.set(0, 6, 38);
+    this.world.cell.props.watch(this.tmpV);
     this.updateCamera(dt);
     this.world.update(dt);
     this.updateCoins(dt);
     this.pops.update(dt);
+    relicStage.update(dt);
     this.dmd.update(dt);
     this.dmdTex.needsUpdate = true;
     this.updateHud(shown);
@@ -539,6 +522,7 @@ export class GameApp {
       audio.roll(this.mode === 'play' ? maxV : maxV * 0.4, ramp);
     }
     this.renderer.flash = Math.max(0, this.renderer.flash - dt * 4);
+    this.renderer.punch = Math.max(0, this.renderer.punch - dt * 3.5);
     this.onFrame?.(dt);
     this.renderer.render(this.world.scene, this.world.camera, this.time);
   }
@@ -619,6 +603,9 @@ export class GameApp {
       case 'pop':
         audio.pop(e.x);
         if (!quiet) {
+          this.world.table.worldOf(e.x, e.y, 1.1, this.tmpS);
+          this.sparks.burst(this.tmpS, 0xff5030, 9, 9);
+          this.sparks.ring(this.tmpS, 0xff7040, 2.6);
           this.shake(0.25);
           this.world.swingBulb(0.05);
           this.input.rumble(0.3, 0.2, 50);
@@ -626,10 +613,15 @@ export class GameApp {
         break;
       case 'sling':
         audio.sling(e.x);
-        if (!quiet) this.shake(0.15);
+        if (!quiet) {
+          this.sparks.burst(this.world.table.worldOf(e.x, e.y, 0.8, this.tmpS), 0xffe0a0, 6, 7);
+          this.shake(0.15);
+        }
         break;
       case 'drop':
         audio.drop(e.x);
+        if (!quiet)
+          this.sparks.burst(this.world.table.worldOf(e.x, e.y, 0.8, this.tmpS), 0x60ff80, 8, 6);
         break;
       case 'dropsReset':
         audio.dropReset();
@@ -642,6 +634,8 @@ export class GameApp {
         break;
       case 'flipperHit':
         audio.flipperHit(e.value, e.x);
+        if (!quiet && e.value > 22)
+          this.sparks.burst(this.world.table.worldOf(e.x, e.y, 0.7, this.tmpS), 0xfff0d0, 4, 5, 3);
         break;
       case 'launch':
         audio.launch(e.value / 45);
@@ -652,6 +646,8 @@ export class GameApp {
       case 'holeCapture':
         audio.hole();
         if (!quiet) {
+          this.world.table.worldOf(e.x, e.y, 0.6, this.tmpS);
+          this.sparks.ring(this.tmpS, 0xff4030, 3.4, 0.5);
           this.hitStop = 0.05;
           this.shake(0.4);
         }
@@ -695,6 +691,19 @@ export class GameApp {
           this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
           // Coin clinks rise in pitch through combos.
           if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount) + combo));
+          if (this.mode === 'play') {
+            if (e.amount >= 2) {
+              // Real money: gold sparks, and coins fly off the table into the ledger.
+              this.sparks.burst(p, 0xffc83a, Math.min(26, 6 + Math.floor(e.amount * 2)), 10, 8);
+              this.screenOf(p);
+              this.hud.coins(this.tmpS.x, this.tmpS.y, Math.min(10, 1 + Math.floor(e.amount / 2)));
+            }
+            if (e.amount >= 8) {
+              this.sparks.ring(p, 0xffd060, 5, 0.5);
+              this.punch(Math.min(1, e.amount / 30));
+            }
+            this.hopRelics(e.shot);
+          }
           break;
         }
         case 'callout':
@@ -709,6 +718,8 @@ export class GameApp {
           audio.callout(e.priority);
           break;
         case 'skillShot':
+          this.hud.banner(e.super ? 'SUPER SKILL' : 'SKILL SHOT', '', 'bone');
+          this.punch(0.5);
           this.shows.play('skill');
           audio.knocker();
           this.flash(0.25);
@@ -716,16 +727,60 @@ export class GameApp {
           break;
         case 'combo':
           if (e.count >= 3) this.shake(0.15 * e.count);
+          this.hud.banner(`COMBO X${e.mult}`, comboName(e.count), e.count >= 4 ? 'red' : 'gold');
+          this.punch(Math.min(0.8, 0.15 * e.count));
+          break;
+        case 'mode':
+          if (e.on) {
+            const [text, sub, kind] =
+              e.mode === 'sweep'
+                ? (['SEARCHLIGHT SWEEP', 'EVERY SWITCH PAYS', 'bone'] as const)
+                : e.mode === 'brawl'
+                  ? (['YARD BRAWL', 'BUMPERS PAY TRIPLE', 'red'] as const)
+                  : (['DOUBLE SHIFT', 'EVERYTHING PAYS DOUBLE', 'violet'] as const);
+            this.hud.banner(text, sub, kind, e.mode === 'shift');
+            this.shows.play(e.mode === 'brawl' ? 'riot' : 'skill');
+            audio.knocker();
+            this.flash(0.25);
+            this.punch(0.6);
+            this.shake(0.7);
+            this.hud.swing(1.5);
+          }
+          break;
+        case 'mystery':
+          if (e.award === null) audio.creak();
+          else {
+            this.hud.banner('SHAKEDOWN', MYSTERY_NAMES[e.award], 'violet');
+            audio.knocker();
+            this.flash(0.2);
+            this.punch(0.4);
+          }
+          break;
+        case 'charm':
+          this.world.shelf.trigger(e.id);
+          this.hud.pulseRelic(e.id);
+          break;
+        case 'bonusMult':
+          this.hud.banner(`BONUS X${e.mult}`, '', 'gold');
+          break;
+        case 'laneComplete':
+          this.sparks.ring(this.world.table.worldOf(14.7, 41, 1, this.tmpS), 0xffb020, 6, 0.6);
           break;
         case 'lock':
           audio.kick();
           this.shake(0.5);
+          if (e.locks < e.needed)
+            this.hud.banner('LOCKED UP', `BALL ${e.locks} OF ${e.needed}`, 'red');
           break;
         case 'riot':
           if (e.on) {
             this.react('riot');
             if (this.mode === 'play') this.hints.show('riot');
             this.shows.play('riot');
+            this.hud.banner('RIOT!', 'PAYDAY AT THE CHUTE', 'red', true);
+            this.punch(1);
+            this.hud.swing(3);
+            this.world.shelf.cheer(1);
             audio.knocker();
             this.flash(0.4);
             this.shake(1);
@@ -742,7 +797,16 @@ export class GameApp {
           if (e.super || (this.run && e.amount >= BIG_PAYDAY_SHARE * this.run.debt))
             this.react('bigPayday');
           this.shows.play('payday');
-          this.hitStop = e.super ? 0.06 : 0.04;
+          this.hud.banner(
+            e.super ? 'SUPER PAYDAY' : 'PAYDAY',
+            `+${formatCoins(e.amount)}`,
+            'green',
+            true,
+          );
+          this.punch(1);
+          this.hud.swing(e.super ? -3 : 2);
+          this.world.shelf.cheer(e.super ? 1.4 : 1);
+          this.hitStop = e.super ? 0.09 : 0.06;
           audio.knocker();
           this.flash(e.super ? 0.5 : 0.3);
           this.shake(e.super ? 1.4 : 0.9);
@@ -751,7 +815,7 @@ export class GameApp {
           break;
         case 'extraBall':
           audio.knocker();
-          this.ui.toast('EXTRA BALL');
+          this.hud.banner('EXTRA BALL', '', 'green');
           break;
         case 'award':
           if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
@@ -766,6 +830,8 @@ export class GameApp {
           }
           break;
         case 'tunnel':
+          this.hud.banner('THE TUNNEL', `+${formatCoins(e.amount)}`, 'green', true);
+          this.punch(1);
           audio.clang();
           this.shake(0.8);
           this.flash(0.3);
@@ -776,14 +842,18 @@ export class GameApp {
           break;
         case 'active':
           audio.kick();
-          this.ui.toast(`${charmDef(e.id).name} (${e.charges} left)`);
+          this.hud.banner(charmDef(e.id).name.toUpperCase(), `${e.charges} LEFT`, 'bone');
+          this.world.shelf.trigger(e.id, 1.5);
+          this.hud.pulseRelic(e.id);
           break;
         case 'jobDone':
           this.react('jobDone');
+          this.hud.banner('JOB DONE', 'COLLECT AT THE ATM', 'green');
           audio.knocker();
           this.flash(0.2);
           break;
         case 'ballSaved':
+          this.hud.banner('BALL SAVED', '', 'green');
           audio.knocker();
           break;
         case 'tiltWarning':
@@ -794,6 +864,13 @@ export class GameApp {
           this.react('tilt', true);
           audio.tilt();
           this.flash(0.3);
+          this.hud.banner('TILT', 'THE BALL IS FORFEIT', 'red', true);
+          // The machine takes back what it paid out this ball.
+          if (this.livePaid > 0 && this.run) {
+            this.world.coins.setPile(this.run.pocket);
+            this.trayCoins = this.run.pocket;
+            this.livePaid = 0;
+          }
           break;
         case 'drain':
           if (this.session && this.session.sim.ballsInPlay() === 0) {
@@ -810,6 +887,7 @@ export class GameApp {
   }
 
   shake(amount: number): void {
+    this.world.cell.props.rattle(amount * 0.25);
     const s = this.save.settings.shake * amount;
     if (s > 0)
       this.world.kick(
@@ -825,6 +903,31 @@ export class GameApp {
   flash(amount: number): void {
     if (this.save.settings.reducedFlashing) return;
     this.renderer.flash = Math.max(this.renderer.flash, amount);
+  }
+
+  /** Zoom punch and colour split for a few frames (off with reduced flashing). */
+  punch(amount: number): void {
+    if (this.save.settings.reducedFlashing) return;
+    this.renderer.punch = Math.max(this.renderer.punch, amount);
+  }
+
+  /** World point -> CSS pixels, into tmpS. */
+  private screenOf(p: THREE.Vector3): void {
+    this.tmpS.copy(p).project(this.world.camera);
+    this.tmpS.set(((this.tmpS.x + 1) / 2) * innerWidth, ((1 - this.tmpS.y) / 2) * innerHeight, 0);
+  }
+
+  /** Relics whose charm boosts this shot hop when it pays (rate-limited). */
+  private hopRelics(shot: string): void {
+    const r = this.run;
+    if (!r || this.time - this.relicHopAt < 0.35) return;
+    for (const id of r.charms) {
+      const m = SHOT_BOOST.get(id);
+      if (!m || !m.has(shot)) continue;
+      this.relicHopAt = this.time;
+      this.world.shelf.trigger(id, 0.4);
+      this.hud.pulseRelic(id);
+    }
   }
 
   // ------------------------------------------------------------------ input
@@ -872,9 +975,40 @@ export class GameApp {
         'div',
         { class: 'panel title', 'data-skin': 'title' },
         titleLogo(),
-        h('p', { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '1.05em', color: '#ffb24a', margin: '4px 0', textShadow: '0 0 8px rgba(255, 178, 74, 0.4)' } }, '“You owe the Warden. The machine is the only way out.”'),
-        h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.1em', letterSpacing: '0.1em', color: '#a49477', margin: '4px 0' } }, `RUNS ON THE CELL WALL: ${this.save.tallies}`),
-        h('p', { class: 'tally', style: { letterSpacing: '0.15em', fontSize: '1.3em', color: '#ffb24a' } }, tallyMarks(this.save.tallies)),
+        h(
+          'p',
+          {
+            style: {
+              fontFamily: 'var(--bc-typewriter)',
+              fontSize: '1.05em',
+              color: '#ffb24a',
+              margin: '4px 0',
+              textShadow: '0 0 8px rgba(255, 178, 74, 0.4)',
+            },
+          },
+          '“You owe the Warden. The machine is the only way out.”',
+        ),
+        h(
+          'div',
+          {
+            style: {
+              fontFamily: 'var(--bc-head)',
+              fontSize: '1.1em',
+              letterSpacing: '0.1em',
+              color: '#a49477',
+              margin: '4px 0',
+            },
+          },
+          `RUNS ON THE CELL WALL: ${this.save.tallies}`,
+        ),
+        h(
+          'p',
+          {
+            class: 'tally',
+            style: { letterSpacing: '0.15em', fontSize: '1.3em', color: '#ffb24a' },
+          },
+          tallyMarks(this.save.tallies),
+        ),
         h(
           'div',
           { class: 'cell-dock', style: { flexWrap: 'wrap', gap: '10px' } },
@@ -892,7 +1026,15 @@ export class GameApp {
         ),
         h(
           'div',
-          { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.05em', color: '#a49477', marginTop: '10px', letterSpacing: '0.06em' } },
+          {
+            style: {
+              fontFamily: 'var(--bc-crt)',
+              fontSize: '1.05em',
+              color: '#a49477',
+              marginTop: '10px',
+              letterSpacing: '0.06em',
+            },
+          },
           'CONTROLS: [Z / /] FLIPPERS · [SPACE] PLUNGER · [X] NUDGE TABLE',
         ),
       ),
@@ -1266,7 +1408,14 @@ export class GameApp {
         h(
           'div',
           { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line}”`),
+          h(
+            'p',
+            {
+              class: 'warden',
+              style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' },
+            },
+            `“${line}”`,
+          ),
           r.deadline > 0
             ? h(
                 'div',
@@ -1305,7 +1454,11 @@ export class GameApp {
           h(
             'div',
             { class: 'cell-dock' },
-            h('button', { class: 'primary', onclick: () => this.enterJobs() }, 'Proceed To The ATM'),
+            h(
+              'button',
+              { class: 'primary', onclick: () => this.enterJobs() },
+              'Proceed To The ATM',
+            ),
           ),
         ),
       ),
@@ -1344,8 +1497,17 @@ export class GameApp {
           'div',
           { class: 'panel', 'data-skin': 'phone' },
           h('h2', { 'data-slot': 'head' }, 'The phone rings'),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-            h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' } }, `“${line} Pick one. It is yours for the rest of your stay.”`),
+          h(
+            'div',
+            { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+            h(
+              'p',
+              {
+                class: 'warden',
+                style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', margin: '4px 0' },
+              },
+              `“${line} Pick one. It is yours for the rest of your stay.”`,
+            ),
             h('div', { class: 'col' }, ...cards),
           ),
         ),
@@ -1365,7 +1527,11 @@ export class GameApp {
           { class: 'red-bargain-box', onclick: () => this.answerPhone(() => acceptBargain(r, i)) },
           h('div', { class: 'red-bargain-name' }, `⛧ ${c.name} (DEVIL CHARM)`),
           h('div', { class: 'red-bargain-gain' }, `Gain: ${c.text}`),
-          h('div', { class: 'red-bargain-cost' }, 'Blood Price: Permanently binds to charm slot. Cannot be sold.'),
+          h(
+            'div',
+            { class: 'red-bargain-cost' },
+            'Blood Price: Permanently binds to charm slot. Cannot be sold.',
+          ),
         );
       }
       const b = bargainDef(id);
@@ -1382,8 +1548,22 @@ export class GameApp {
         'div',
         { class: 'panel red', 'data-skin': 'redCall' },
         h('h2', { 'data-slot': 'head' }, 'The red phone rings'),
-        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h('p', { class: 'warden', style: { fontFamily: 'var(--bc-typewriter)', fontStyle: 'italic', color: '#ff9a88', margin: '4px 0' } }, `“${line}”`),
+        h(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          h(
+            'p',
+            {
+              class: 'warden',
+              style: {
+                fontFamily: 'var(--bc-typewriter)',
+                fontStyle: 'italic',
+                color: '#ff9a88',
+                margin: '4px 0',
+              },
+            },
+            `“${line}”`,
+          ),
           h('div', { class: 'col' }, ...cards),
           h(
             'div',
@@ -1440,7 +1620,7 @@ export class GameApp {
     audio.atmBeep();
     const cards = r.jobOffers.map((o, i) => {
       const def = jobDef(o.id);
-      const serial = `PRISON LABOR DEPT // WORK ORDER #${String(Math.abs(o.id.charCodeAt(0) * 17 + o.target * 3 + r.round * 7) % 900 + 100).padStart(3, '0')}`;
+      const serial = `PRISON LABOR DEPT // WORK ORDER #${String((Math.abs(o.id.charCodeAt(0) * 17 + o.target * 3 + r.round * 7) % 900) + 100).padStart(3, '0')}`;
       return h(
         'button',
         {
@@ -1461,11 +1641,25 @@ export class GameApp {
         sentenceActive(r)
           ? h(
               'div',
-              { class: 'cell-warning-strip', style: { textAlign: 'center', margin: '4px auto', maxWidth: '600px' } },
+              {
+                class: 'cell-warning-strip',
+                style: { textAlign: 'center', margin: '4px auto', maxWidth: '600px' },
+              },
               `⚠️ SENTENCE ROUND: ${r.sentences.map((id) => sentenceDef(id).name.toUpperCase()).join(' + ')}`,
             )
           : null,
-        h('p', { style: { fontFamily: 'var(--bc-crt)', fontSize: '1.2em', letterSpacing: '0.08em', color: 'var(--bc-crt-green)' } }, 'SELECT ONE WORK ORDER FROM THE TERMINAL DISPENSER:'),
+        h(
+          'p',
+          {
+            style: {
+              fontFamily: 'var(--bc-crt)',
+              fontSize: '1.2em',
+              letterSpacing: '0.08em',
+              color: 'var(--bc-crt-green)',
+            },
+          },
+          'SELECT ONE WORK ORDER FROM THE TERMINAL DISPENSER:',
+        ),
         h('div', { class: 'col' }, ...cards),
         canPayEarly(r)
           ? h(
@@ -1530,10 +1724,51 @@ export class GameApp {
         { class: 'panel knock', 'data-skin': 'knock' },
         h(
           'div',
-          { style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px 10px', fontFamily: 'var(--bc-typewriter)' } },
-          h('div', { style: { fontFamily: 'var(--bc-head)', fontSize: '1.4em', letterSpacing: '0.1em', color: '#84261a', borderBottom: '1px dashed rgba(132, 38, 26, 0.4)', paddingBottom: '2px' } }, 'SMUGGLED NOTE THROUGH THE BRICKS'),
-          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#291c12', margin: '4px 0' } }, `“${ask}”`),
-          h('p', { class: 'neighbor', style: { fontSize: '1.05em', fontStyle: 'italic', color: '#84261a', fontWeight: 'bold', margin: '4px 0' } }, `“${offer}”`),
+          {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              padding: '6px 10px',
+              fontFamily: 'var(--bc-typewriter)',
+            },
+          },
+          h(
+            'div',
+            {
+              style: {
+                fontFamily: 'var(--bc-head)',
+                fontSize: '1.4em',
+                letterSpacing: '0.1em',
+                color: '#84261a',
+                borderBottom: '1px dashed rgba(132, 38, 26, 0.4)',
+                paddingBottom: '2px',
+              },
+            },
+            'SMUGGLED NOTE THROUGH THE BRICKS',
+          ),
+          h(
+            'p',
+            {
+              class: 'neighbor',
+              style: { fontSize: '1.05em', fontStyle: 'italic', color: '#291c12', margin: '4px 0' },
+            },
+            `“${ask}”`,
+          ),
+          h(
+            'p',
+            {
+              class: 'neighbor',
+              style: {
+                fontSize: '1.05em',
+                fontStyle: 'italic',
+                color: '#84261a',
+                fontWeight: 'bold',
+                margin: '4px 0',
+              },
+            },
+            `“${offer}”`,
+          ),
           h(
             'div',
             { class: 'cell-dock', style: { marginTop: '10px' } },
@@ -1554,7 +1789,9 @@ export class GameApp {
           ),
           h(
             'div',
-            { style: { fontSize: '0.8em', color: '#6a5640', textAlign: 'center', marginTop: '4px' } },
+            {
+              style: { fontSize: '0.8em', color: '#6a5640', textAlign: 'center', marginTop: '4px' },
+            },
             `The neighbor has knocked ${r.neighbor.asked} time(s) · You assisted ${r.neighbor.helped} time(s)`,
           ),
         ),
@@ -1649,7 +1886,18 @@ export class GameApp {
                 lineHeight: '1.35',
               },
             },
-            h('b', { style: { color: '#84261a', textTransform: 'uppercase', display: 'block', marginBottom: '2px' } }, 'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY'),
+            h(
+              'b',
+              {
+                style: {
+                  color: '#84261a',
+                  textTransform: 'uppercase',
+                  display: 'block',
+                  marginBottom: '2px',
+                },
+              },
+              'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY',
+            ),
             'Extra balls give you more attempts to shoot bank targets and complete your Work Order. Unspent coins stay in your pocket to deposit at the ATM for 10% round compound interest.',
           ),
         ),
@@ -1732,11 +1980,7 @@ export class GameApp {
               )
             : null,
           this.charmBar(r),
-          h(
-            'div',
-            { style: { fontFamily: 'var(--bc-crt)', fontSize: '0.95em', color: '#a49477', margin: '2px 0' } },
-            `SHOT UPGRADES: ${levelsText(r)}`,
-          ),
+          h('div', { class: 'cell-levels' }, `SHOT UPGRADES: ${levelsText(r)}`),
           this.stash(r, () => this.enterCell()),
           sentenceActive(r)
             ? h(
@@ -1866,7 +2110,11 @@ export class GameApp {
   private loanRow(r: RunState, back: 'cell' | 'deadline'): HTMLElement | null {
     const avail = loanAvailable(r);
     const owed = r.loanDue
-      ? h('div', { class: 'atm-credit-hdr', style: { color: 'var(--bc-red)' } }, `LOAN SURCHARGE ADDED TO NEXT DEBT: ${r.loanDue}c`)
+      ? h(
+          'div',
+          { class: 'atm-credit-hdr', style: { color: 'var(--bc-red)' } },
+          `LOAN SURCHARGE ADDED TO NEXT DEBT: ${r.loanDue}c`,
+        )
       : null;
     if (avail <= 0)
       return (
@@ -1877,7 +2125,9 @@ export class GameApp {
           h(
             'div',
             { class: 'atm-credit-hdr' },
-            r.deadline >= r.deadlines - 1 ? 'CREDIT LINE: NO LOANS ON LAST CALL' : 'CREDIT LINE: LIMIT REACHED',
+            r.deadline >= r.deadlines - 1
+              ? 'CREDIT LINE: NO LOANS ON LAST CALL'
+              : 'CREDIT LINE: LIMIT REACHED',
           ),
         )
       );
@@ -1901,7 +2151,11 @@ export class GameApp {
         'div',
         { class: 'atm-credit-btns' },
         h('button', { onclick: () => take(half) }, `Borrow ${half}c (Owe ${loanCost(r, half)}c)`),
-        h('button', { onclick: () => take(avail) }, `Borrow ${avail}c (Owe ${loanCost(r, avail)}c)`),
+        h(
+          'button',
+          { onclick: () => take(avail) },
+          `Borrow ${avail}c (Owe ${loanCost(r, avail)}c)`,
+        ),
       ),
     );
   }
@@ -1957,8 +2211,8 @@ export class GameApp {
           'div',
           { class: 'cell-contraband-row' },
           h('span', { class: 'dim' }, itemIcon(id), `${d.name}:`),
-          ...(['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'] as const).map((shot) =>
-            h('button', { onclick: () => use(i, { shot }) }, shot),
+          ...(['chute', 'perimeter', 'hole', 'cellblock', 'tower', 'yard', 'lanes'] as const).map(
+            (shot) => h('button', { onclick: () => use(i, { shot }) }, shot),
           ),
         );
       if (d.target === 'charm')
@@ -1994,7 +2248,7 @@ export class GameApp {
     const charmCards = r.shop.charms.map((id, i) => {
       const c = charmDef(id);
       const synergy = c.tags.some((t) => tags.has(t));
-      const icon = itemIcon(id);
+      const icon = relicLive(id);
       return h(
         'button',
         {
@@ -2009,8 +2263,16 @@ export class GameApp {
         h(
           'div',
           { class: 'shop-card-meta' },
-          h('span', { class: 'shop-card-tier', style: { color: RARITY_COLORS[c.rarity] } }, c.rarity),
-          h('span', { class: 'shop-card-price' }, `🎟️ ${c.cost} ${c.cost === 1 ? 'ticket' : 'tickets'}`),
+          h(
+            'span',
+            { class: 'shop-card-tier', style: { color: RARITY_COLORS[c.rarity] } },
+            c.rarity,
+          ),
+          h(
+            'span',
+            { class: 'shop-card-price' },
+            `🎟️ ${c.cost} ${c.cost === 1 ? 'ticket' : 'tickets'}`,
+          ),
         ),
         h(
           'div',
@@ -2033,7 +2295,7 @@ export class GameApp {
     const cbCards = r.shop.contraband.map((id, i) => {
       const d = contrabandDef(id);
       const price = contrabandPrice(r, id);
-      const icon = itemIcon(id);
+      const icon = relicLive(id);
       return h(
         'button',
         {
@@ -2093,11 +2355,18 @@ export class GameApp {
             h('div', null, 'TICKETS: ', h('b', { class: 'amber-badge' }, `${r.tickets} 🎟️`)),
             h('div', null, 'POCKET: ', h('b', { class: 'amber-badge' }, `${r.pocket}c 🪙`)),
             h('div', null, 'SLOTS: ', h('b', null, `${r.charms.length}/${r.mods.charmSlots}`)),
-            h('div', null, 'CONTRABAND: ', h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`)),
+            h(
+              'div',
+              null,
+              'CONTRABAND: ',
+              h('b', null, `${r.contraband.length}/${contrabandSlots(r)}`),
+            ),
           ),
           h('div', { class: 'shop-section-label' }, 'LUCKY CHARMS (TICKETS)'),
           h('div', { class: 'shop-charms-grid' }, ...charmCards),
-          cbCards.length ? h('div', { class: 'shop-section-label' }, 'CONTRABAND CACHE (COINS)') : null,
+          cbCards.length
+            ? h('div', { class: 'shop-section-label' }, 'CONTRABAND CACHE (COINS)')
+            : null,
           cbCards.length ? h('div', { class: 'shop-charms-grid' }, ...cbCards) : null,
           sells.length
             ? h(
@@ -2158,6 +2427,7 @@ export class GameApp {
     this.acc = 0;
     this.input.events.length = 0;
     this.simInput = emptyInput();
+    this.livePaid = 0;
     this.mode = 'play';
     this.world.setMode(this.save.settings.camera === 'seated' ? 'seated' : 'play');
   }
@@ -2169,7 +2439,8 @@ export class GameApp {
     this.world.sway = 0;
     const g = this.session!.game;
     this.outcome = g.outcome();
-    if (!g.tilted) this.pourCoins(Math.floor(this.outcome.earned));
+    if (!g.tilted) this.pourCoins(Math.floor(this.outcome.earned) - this.livePaid);
+    this.livePaid = 0;
     if (!g.tilted && g.bonusPaid > 0) {
       this.mode = 'tally';
       this.tally = { k: 0, bonus: g.bonus, mult: g.bonusMult, total: g.bonusPaid, ticks: 0 };
@@ -2247,7 +2518,11 @@ export class GameApp {
         'div',
         { class: 'receipt-header' },
         h('h2', { class: 'receipt-title' }, 'PENITENTIARY LABOR LOG'),
-        h('div', { class: 'receipt-sub' }, `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1} · BALL RECONCILIATION`),
+        h(
+          'div',
+          { class: 'receipt-sub' },
+          `DEADLINE ${r.deadline + 1} · ROUND ${r.round + 1} · BALL RECONCILIATION`,
+        ),
       ),
       h(
         'div',
@@ -2295,9 +2570,17 @@ export class GameApp {
       ),
     ];
     if (o.extraBalls)
-      lines.push(h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`));
+      lines.push(
+        h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`),
+      );
     for (const l of o.levelUps)
-      lines.push(h('div', { class: 'receipt-alert-box' }, `▲ SHOT UPGRADE: ${l.toUpperCase()} NOW LVL ${r.shotLevels[l]}`));
+      lines.push(
+        h(
+          'div',
+          { class: 'receipt-alert-box' },
+          `▲ SHOT UPGRADE: ${l.toUpperCase()} NOW LVL ${r.shotLevels[l]}`,
+        ),
+      );
     if (res.jobDone)
       lines.push(
         h(
@@ -2510,7 +2793,11 @@ export class GameApp {
               'Make Final Deposit',
             ),
             canPay
-              ? h('button', { class: 'primary', onclick: () => this.payDeadline() }, 'Pay Debt & Settle')
+              ? h(
+                  'button',
+                  { class: 'primary', onclick: () => this.payDeadline() },
+                  'Pay Debt & Settle',
+                )
               : h(
                   'button',
                   { class: couldPay ? '' : 'primary', onclick: () => this.payDeadline() },
@@ -2624,7 +2911,7 @@ export class GameApp {
       cellmate: 'Paid in full. The wall came down.',
     };
     const drains = Object.entries(r.stats.drains)
-      .map(([k, v]) => `${k} ${v}`)
+      .map(([k, v]) => `${k}\u00a0${v}`)
       .join(', ');
     this.ui.show(
       h(
@@ -2796,7 +3083,6 @@ export class GameApp {
     d.text(`DEBT ${r.debt}`, 126, 26, { font: FONT_SMALL, v: 10, align: 'right' });
   }
 
-  private hudCache = new Map<HTMLElement, string>();
   private glassCanvas: HTMLCanvasElement | null = null;
   private glassTex: THREE.CanvasTexture | null = null;
   private glassKey = '';
@@ -2811,71 +3097,26 @@ export class GameApp {
     this.glassTex.needsUpdate = true;
   }
 
-  /** Set innerHTML only when it changed (the HUD updates every frame). */
-  private setHtml(el: HTMLElement, html: string): void {
-    if (this.hudCache.get(el) === html) return;
-    this.hudCache.set(el, html);
-    el.innerHTML = html;
-  }
-
   private updateHud(shown: BallSession | null): void {
     const r = this.run;
     const playing = this.mode === 'play' || this.mode === 'tally';
     const m = this.mode;
-    this.hud.style.display = m === 'title' || m === 'meta' || m === 'lineup' ? 'none' : '';
-    this.hud.classList.toggle('playing', m === 'play');
-    // Endings keep the DMD (it shows the title) but drop the run's numbers; a replay keeps
-    // only the status rack, which says what is being replayed.
     const replaying = m === 'replay';
     const ending = m === 'ending' || (m === 'rapsheet' && this.ending !== null);
-    const quiet = ending || replaying;
-    this.hudLedger.style.display = this.hudScore.style.display = quiet ? 'none' : '';
-    this.hudStatus.style.display = ending ? 'none' : '';
-    this.hudStatusHead.textContent = replaying ? 'Replay' : 'Status';
-    if (replaying) {
-      this.setHtml(
-        this.hudRight,
-        `INSTANT REPLAY<br><b>${this.replay?.label ?? ''}</b><div class="job"><small>Plunger or Enter skips</small></div>`,
-      );
-    } else if (r) {
-      const g = shown && playing ? shown.game : null;
-      const earn = g ? ` <span class="earn">+${formatCoins(g.earned)}</span>` : '';
-      this.setHtml(
-        this.hudStats,
-        `Pocket <b>${r.pocket}c</b>${earn}<br>Bank <b>${r.bank}c</b><br><span class="debt">Debt <b>${r.phase === 'phone' ? 'paid' : `${r.debt}c`}</b></span>`,
-      );
-      // This ball's live numbers sit under the DMD.
-      this.setHtml(
-        this.hudScore,
-        g
-          ? `This ball <b class="earn">+${formatCoins(g.earned)}c</b> · Bonus <b>${formatCoins(g.bonus)}</b> x${g.bonusMult}${g.luck > 0 ? ` · Luck <b>${g.luck}</b>` : ''}`
-          : '',
-      );
-      let right = `Deadline ${r.deadline + 1}${r.endless ? '' : `/${r.deadlines}`}<br>Round ${r.round + 1}/${roundsIn(r)}<br>Ball ${Math.min(r.ballsThisRound, r.ballsPlayed + (playing ? 1 : 0))}/${r.ballsThisRound}`;
-      if (g?.jailbreak)
-        right += `<div class="job jb">JAILBREAK<br><b>${g.jbShots}/${JAILBREAK.shotsToEscape}</b></div>`;
-      else if (jailbreakLit(r)) right += `<div class="job jb">JAILBREAK LIT<br>AT THE HOLE</div>`;
-      if (r.job) {
-        const def = jobDef(r.job.id);
-        const prog = g ? g.jobProgress() : r.job.progress;
-        const done = r.job.done || (g?.jobDone ?? false);
-        right += `<div class="job${done ? ' done' : ''}">${jobText(def, r.job.target)}<br><b>${done ? 'DONE' : `${formatCoins(Math.min(prog, r.job.target))}/${r.job.target}`}</b></div>`;
-      }
+    const g = shown && (playing || replaying) ? shown.game : null;
+    this.hud.reducedMotion = this.save.settings.reducedFlashing;
+    this.hud.update(r, g, {
+      mode: m,
+      playing,
+      replay: replaying ? (this.replay?.label ?? '') : null,
+      ending,
+      menu: this.ui.open,
+    });
+    this.world.shelf.sync(r ? r.charms : [], r ? r.contraband : []);
+    this.world.setCounter(g && playing ? formatCoins(g.earned) : r ? String(r.pocket) : '0');
+    if (r) {
       if (r.keys) this.hints.show('keys');
-      if (g && g.stats.seconds > 25) this.hints.show('nudge');
-      if (r.tickets || r.keys)
-        right += `<br>Tickets <b>${r.tickets}</b>${r.keys ? ` · ${keysIconHtml()}Keys <b>${r.keys}</b>` : ''}`;
-      if (r.neighbor.tip && !g?.jailbreak)
-        right += `<br><small>Tunnel: Cell Block top to bottom</small>`;
-      const actives = g ? g.ctx.actives : [];
-      if (actives.length)
-        right += `<div class="actives">${actives
-          .map(
-            (a) =>
-              `[${a.slot}] ${itemIconHtml(a.id)}${charmDef(a.id).name} ${'●'.repeat(a.charges)}${'○'.repeat(a.max - a.charges)}`,
-          )
-          .join('<br>')}<br><small>B fires the first charged</small></div>`;
-      this.setHtml(this.hudRight, right);
+      if (g && playing && g.stats.seconds > 25) this.hints.show('nudge');
       // Backglass ladders and the ATM's LCD follow the run.
       const lv = JSON.stringify(r.shotLevels);
       if (lv !== this.glassKey) {
@@ -2889,19 +3130,50 @@ export class GameApp {
       }
     }
     const pull = shown ? shown.sim.plungerPull : 0;
-    this.hudPlunger.style.display =
+    // The bottom prompt says what to do next.
+    const inShooter =
+      playing && shown ? shown.sim.balls.some((b) => b.inShooter && b.state === 'field') : false;
+    const touch = matchMedia('(pointer: coarse)').matches;
+    this.hud.prompt(
+      m === 'tally'
+        ? touch
+          ? 'HOLD BOTH SIDES TO COUNT FASTER'
+          : 'HOLD BOTH FLIPPERS TO COUNT FASTER'
+        : inShooter && !this.ui.open
+          ? touch
+            ? 'DRAG DOWN ON THE RIGHT, RELEASE TO PLUNGE'
+            : 'HOLD SPACE, RELEASE TO PLUNGE'
+          : '',
+    );
+    const plunger = this.hud.plunger;
+    plunger.style.display =
       playing && shown && shown.sim.balls.some((b) => b.inShooter && b.state === 'field')
         ? ''
         : 'none';
-    (this.hudPlunger.firstChild as HTMLElement).style.height = `${Math.round(pull * 100)}%`;
+    (plunger.firstChild as HTMLElement).style.height = `${Math.round(pull * 100)}%`;
     // Mark the pull that drops into the lit Roll Call lane.
-    const mark = this.hudPlunger.lastChild as HTMLElement;
+    const mark = plunger.lastChild as HTMLElement;
     const armed = shown ? shown.game.lamps.skill !== Lamp.Off : false;
     mark.style.display = armed ? '' : 'none';
     if (shown && armed)
       mark.style.bottom = `${Math.round(shown.sim.cfg.plunger.lanePull[shown.game.machine.skillLane] * 100)}%`;
   }
 }
+
+const MYSTERY_NAMES: Record<MysteryAward, string> = {
+  coins: 'LOOSE CHANGE',
+  bigCoins: 'A HIDDEN ROLL',
+  bonusX: 'BONUS X',
+  ballSave: 'BALL SAVE',
+  luck: 'LUCK',
+  kickback: 'KICKBACK LIT',
+  lockup: 'LOCKUP IS LIT',
+};
+
+/** Charm id -> the shots its static effect multiplies (its relic hops when they pay). */
+const SHOT_BOOST = new Map<string, Set<string>>(
+  CHARMS.filter((c) => c.fx?.shotMult).map((c) => [c.id, new Set(Object.keys(c.fx!.shotMult!))]),
+);
 
 /** Where the camera looks for each screen: the cell's props are the menus. */
 const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
@@ -2939,7 +3211,7 @@ function rewardText(def: JobDef, deadline: number): string {
 
 function levelsText(r: RunState): string {
   return (Object.entries(r.shotLevels) as [string, number][])
-    .map(([k, v]) => `${k} ${v}`)
+    .map(([k, v]) => `${k}\u00a0${v}`)
     .join(' · ');
 }
 

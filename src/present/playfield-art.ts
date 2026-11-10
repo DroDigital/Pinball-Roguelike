@@ -1,153 +1,478 @@
 /**
- * Procedural playfield artwork for DEBTOR'S PRISON, painted on a 2D canvas: grimy wood,
- * occult-prison motifs (a chained devil, eyes, keys, guards), shot labels and insert sockets.
- * Deliberately crude and a little wrong, like a cheap 70s screen print.
+ * The playfield print for DEBTOR'S PRISON, painted on a 2D canvas from the table's own
+ * geometry: flat zone fields in a five-ink palette, cream key-lines, painted shot roads from
+ * the flippers to every major shot, starbursts under the bumpers, searchlight beams across the
+ * upper deck and a night sky in the arch. A late-70s screen print: bold, a little off-register.
  */
-import { PLAYFIELD_ART } from '../content/art';
 import { TABLE } from '../content/table';
 import { Rng } from '../core/rng';
 import type { LampDef } from '../sim/table-def';
 
-export const ART_PX = 32; // pixels per table unit
+export const ART_PX = 48; // pixels per table unit
 
 type Ctx = CanvasRenderingContext2D;
 
+const INK = {
+  black: '#120c0a',
+  ox: '#5e1410',
+  red: '#b3261a',
+  mustard: '#d59a2a',
+  cream: '#ecdcb4',
+  teal: '#1f5a55',
+  navy: '#141c38',
+  asphalt: '#2c3038',
+  rust: '#7a3a18',
+};
+const HEAD = '"Saira Stencil One", "Bebas Neue", Impact, sans-serif';
+const BODY = '"Bebas Neue", "Oswald", Impact, sans-serif';
+
+/** The image argument is the old illustration: the print no longer uses it. */
 export function paintPlayfield(
   canvas: HTMLCanvasElement,
-  art: HTMLImageElement | null = null,
+  _art: HTMLImageElement | null = null,
 ): void {
   const W = Math.ceil(TABLE.width * ART_PX);
   const H = Math.ceil(TABLE.height * ART_PX);
   canvas.width = W;
   canvas.height = H;
   const g = canvas.getContext('2d')!;
-  const rng = new Rng('playfield-art');
-  const X = (x: number) => x * ART_PX;
-  const Y = (y: number) => H - y * ART_PX;
-
-  // Base: stained wood with streaks.
-  g.fillStyle = '#3a2618';
-  g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 260; i++) {
-    const x = rng.range(0, W);
-    g.strokeStyle = `rgba(${rng.int(20, 60)},${rng.int(10, 30)},${rng.int(5, 15)},${rng.range(0.05, 0.2)})`;
-    g.lineWidth = rng.range(1, 4);
+  const rng = new Rng('playfield-print');
+  const U = ART_PX;
+  const X = (x: number) => x * U;
+  const Y = (y: number) => H - y * U;
+  const poly = (pts: readonly (readonly number[])[]) => {
     g.beginPath();
-    g.moveTo(x, 0);
-    g.bezierCurveTo(
-      x + rng.range(-30, 30),
-      H * 0.3,
-      x + rng.range(-30, 30),
-      H * 0.6,
-      x + rng.range(-20, 20),
-      H,
-    );
+    pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))));
+    g.closePath();
+  };
+  const band = (y0: number, y1: number, color: string) => {
+    g.fillStyle = color;
+    g.fillRect(0, Y(y1), W, Y(y0) - Y(y1));
+  };
+
+  // ---- zone fields, bottom to top
+  band(-1, 14, INK.black);
+  band(14, 23.4, INK.ox);
+  band(23.4, 33.4, INK.asphalt);
+  band(33.4, 41.5, INK.teal);
+  band(41.5, 48, INK.navy);
+
+  // The Pit: a sunburst rising from the drain between the flippers.
+  g.save();
+  g.beginPath();
+  g.rect(0, Y(14), W, Y(-1) - Y(14));
+  g.clip();
+  for (let i = 0; i < 22; i++) {
+    const a0 = Math.PI + (i / 22) * Math.PI;
+    const a1 = Math.PI + ((i + 0.5) / 22) * Math.PI;
+    g.fillStyle = i % 2 ? INK.ox : INK.red;
+    g.beginPath();
+    g.moveTo(X(9.2), Y(1.2));
+    g.lineTo(X(9.2) + Math.cos(a0) * U * 22, Y(1.2) + Math.sin(a0) * U * 22);
+    g.lineTo(X(9.2) + Math.cos(a1) * U * 22, Y(1.2) + Math.sin(a1) * U * 22);
+    g.closePath();
+    g.fill();
+  }
+  const pit = g.createRadialGradient(X(9.2), Y(1.2), U, X(9.2), Y(1.2), U * 14);
+  pit.addColorStop(0, 'rgba(0,0,0,0.85)');
+  pit.addColorStop(0.45, 'rgba(0,0,0,0.25)');
+  pit.addColorStop(1, 'rgba(0,0,0,0.75)');
+  g.fillStyle = pit;
+  g.fillRect(0, Y(14), W, Y(-1) - Y(14));
+  g.restore();
+
+  // Cell block floor: mustard tiles laid diagonally over the oxblood.
+  g.save();
+  g.beginPath();
+  g.rect(0, Y(23.4), W, Y(14) - Y(23.4));
+  g.clip();
+  g.translate(X(9.2), Y(18.7));
+  g.rotate(Math.PI / 4);
+  for (let i = -14; i <= 14; i++)
+    for (let j = -14; j <= 14; j++) {
+      if ((i + j) & 1) continue;
+      g.fillStyle = 'rgba(213,154,42,0.16)';
+      g.fillRect(i * U * 1.1, j * U * 1.1, U * 1.1, U * 1.1);
+    }
+  g.restore();
+
+  // ---- shot roads: painted lanes from each flipper to the shots it makes
+  const road = (pts: [number, number][], color: string, w = 0.8) => {
+    const line = (lw: number, style: string, dash: number[] = []) => {
+      g.strokeStyle = style;
+      g.lineWidth = lw * U;
+      g.setLineDash(dash.map((d) => d * U));
+      g.lineCap = 'butt';
+      g.lineJoin = 'round';
+      g.beginPath();
+      pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))));
+      g.stroke();
+    };
+    line(w + 0.22, INK.black);
+    line(w, color);
+    line(0.07, INK.black, [0.5, 0.42]);
+    g.setLineDash([]);
+  };
+  road(
+    [
+      [9.0, 13.2],
+      [5.6, 20.2],
+    ],
+    INK.mustard,
+  );
+  road(
+    [
+      [7.7, 14.2],
+      [7.9, 23.0],
+    ],
+    INK.red,
+  );
+  road(
+    [
+      [11.2, 13.6],
+      [15.9, 19.6],
+    ],
+    INK.teal,
+  );
+  road(
+    [
+      [7.2, 13.8],
+      [2.3, 19.8],
+    ],
+    INK.teal,
+  );
+  road(
+    [
+      [9.8, 13.8],
+      [12.6, 19.4],
+    ],
+    '#3c8a48',
+  );
+
+  // The panopticon: rings, cell wings and an eye that never shuts.
+  g.save();
+  g.translate(X(9.2), Y(17.6));
+  for (const [r, c] of [
+    [3.3, INK.black],
+    [3.05, INK.mustard],
+    [2.55, INK.black],
+    [2.3, INK.ox],
+  ] as const) {
+    g.fillStyle = c;
+    g.beginPath();
+    g.arc(0, 0, r * U, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.strokeStyle = INK.cream;
+  g.lineWidth = U * 0.07;
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(Math.cos(a) * U * 1.15, Math.sin(a) * U * 1.15);
+    g.lineTo(Math.cos(a) * U * 2.28, Math.sin(a) * U * 2.28);
     g.stroke();
   }
+  g.fillStyle = INK.cream;
+  g.beginPath();
+  g.moveTo(-U * 1.25, 0);
+  g.quadraticCurveTo(0, -U * 0.95, U * 1.25, 0);
+  g.quadraticCurveTo(0, U * 0.95, -U * 1.25, 0);
+  g.fill();
+  g.fillStyle = INK.red;
+  g.beginPath();
+  g.arc(0, 0, U * 0.55, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = INK.black;
+  g.beginPath();
+  g.arc(0, 0, U * 0.26, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
 
-  // Painted fields: a dark central band, rust-red lower area, sickly green top.
-  const grad = g.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, 'rgba(40,70,40,0.55)');
-  grad.addColorStop(0.35, 'rgba(25,20,30,0.6)');
-  grad.addColorStop(0.7, 'rgba(90,20,15,0.55)');
-  grad.addColorStop(1, 'rgba(60,15,10,0.7)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, W, H);
+  // The Hole: a hazard-striped rim around the scoop.
+  const hole = TABLE.hole;
+  g.save();
+  g.translate(X(hole.x), Y(hole.y - 0.6));
+  g.beginPath();
+  g.arc(0, 0, U * 2.1, 0, Math.PI * 2);
+  g.clip();
+  g.fillStyle = INK.mustard;
+  g.fillRect(-U * 3, -U * 3, U * 6, U * 6);
+  g.fillStyle = INK.black;
+  for (let i = -8; i < 8; i++) {
+    g.beginPath();
+    g.moveTo(i * U * 0.7, -U * 3);
+    g.lineTo(i * U * 0.7 + U * 0.35, -U * 3);
+    g.lineTo(i * U * 0.7 + U * 0.35 + U * 3, U * 3);
+    g.lineTo(i * U * 0.7 + U * 3, U * 3);
+    g.fill();
+  }
+  g.restore();
+  g.fillStyle = INK.black;
+  g.beginPath();
+  g.arc(X(hole.x), Y(hole.y - 0.6), U * 1.45, 0, Math.PI * 2);
+  g.fill();
 
-  if (art) {
-    // The printed illustration: native aspect ratio, centred on the pack's suggested spot.
-    const w = PLAYFIELD_ART.width * ART_PX;
-    const h = (w * art.naturalHeight) / art.naturalWidth;
+  // The Yard: court markings and a starburst under every bumper.
+  g.strokeStyle = 'rgba(236,220,180,0.5)';
+  g.lineWidth = U * 0.09;
+  g.strokeRect(X(9.6), Y(32.6), X(17.6) - X(9.6), Y(25.6) - Y(32.6));
+  g.beginPath();
+  g.arc(X(12.7), Y(29.4), U * 3.4, 0, Math.PI * 2);
+  g.stroke();
+  for (const b of TABLE.bumpers) {
     g.save();
-    g.globalAlpha = PLAYFIELD_ART.alpha;
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(art, X(PLAYFIELD_ART.centerX) - w / 2, Y(PLAYFIELD_ART.centerY) - h / 2, w, h);
-    g.restore();
-  } else {
-    // Prison bars motif behind the Yard.
-    g.strokeStyle = 'rgba(10,8,8,0.55)';
-    g.lineWidth = 6;
-    for (let x = 9.8; x < 17; x += 0.9) {
+    g.translate(X(b.x), Y(b.y));
+    const n = 14;
+    for (const [r0, r1, c] of [
+      [b.r * 2.05, b.r * 1.45, INK.black],
+      [b.r * 1.9, b.r * 1.35, b.y > 33 ? INK.cream : INK.mustard],
+      [b.r * 1.45, b.r * 1.1, INK.red],
+    ] as const) {
+      g.fillStyle = c;
       g.beginPath();
-      g.moveTo(X(x), Y(25));
-      g.lineTo(X(x), Y(35.5));
+      for (let i = 0; i < n * 2; i++) {
+        const a = (i / (n * 2)) * Math.PI * 2;
+        const r = (i % 2 ? r1 : r0) * U;
+        if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        else g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      g.closePath();
+      g.fill();
+    }
+    g.restore();
+  }
+
+  // Cell Block: numbered doors behind the drop targets.
+  for (const [i, d] of TABLE.dropBanks[0].targets.entries()) {
+    const cx = (d.a[0] + d.b[0]) / 2;
+    const cy = (d.a[1] + d.b[1]) / 2;
+    g.save();
+    g.translate(X(cx - 0.75), Y(cy - 1.25));
+    g.rotate(0.53);
+    g.fillStyle = INK.black;
+    g.fillRect(-U * 0.5, -U * 0.75, U, U * 1.5);
+    g.strokeStyle = INK.cream;
+    g.lineWidth = U * 0.06;
+    g.strokeRect(-U * 0.5, -U * 0.75, U, U * 1.5);
+    g.fillStyle = INK.cream;
+    g.font = `${Math.round(U * 0.8)}px ${HEAD}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(i + 1), 0, U * 0.05);
+    g.restore();
+  }
+
+  // ---- The Tower: searchlight beams sweep down the deck from the watchtower
+  g.save();
+  g.beginPath();
+  g.rect(0, Y(46.5), W, Y(33.4) - Y(46.5));
+  g.clip();
+  for (const [a, w] of [
+    [-2.25, 0.2],
+    [-1.6, 0.16],
+    [-0.95, 0.2],
+  ] as const) {
+    const grad = g.createRadialGradient(X(9.7), Y(44.4), U, X(9.7), Y(44.4), U * 13);
+    grad.addColorStop(0, 'rgba(255,240,170,0.5)');
+    grad.addColorStop(1, 'rgba(255,240,170,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.moveTo(X(9.7), Y(44.4));
+    g.arc(X(9.7), Y(44.4), U * 13, -a - w, -a + w);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
+  // The watchtower itself, squat and black against the sky.
+  g.fillStyle = INK.black;
+  poly([
+    [8.9, 43.6],
+    [10.5, 43.6],
+    [10.9, 45.2],
+    [8.5, 45.2],
+  ]);
+  g.fill();
+  g.fillRect(X(8.3), Y(45.7), X(11.1) - X(8.3), Y(45.2) - Y(45.7));
+  g.fillStyle = INK.mustard;
+  g.fillRect(X(9.2), Y(44.9), U * 0.4, U * 0.5);
+  g.fillRect(X(9.9), Y(44.9), U * 0.4, U * 0.5);
+  // Night sky in the arch: stars and a thin moon.
+  for (let i = 0; i < 70; i++) {
+    const x = rng.range(0, TABLE.width);
+    const y = rng.range(41.8, 47);
+    g.fillStyle = `rgba(236,220,180,${rng.range(0.25, 0.9)})`;
+    const r = rng.range(0.03, 0.08) * U;
+    g.fillRect(X(x) - r, Y(y) - r, r * 2, r * 2);
+  }
+  g.fillStyle = INK.cream;
+  g.beginPath();
+  g.arc(X(4.6), Y(44.6), U * 0.8, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = INK.navy;
+  g.beginPath();
+  g.arc(X(4.95), Y(44.8), U * 0.7, 0, Math.PI * 2);
+  g.fill();
+  // Barbed wire where the deck meets the Yard, and where the sky meets the deck.
+  const wire = (y: number) => {
+    g.strokeStyle = INK.black;
+    g.lineWidth = U * 0.16;
+    g.beginPath();
+    g.moveTo(0, Y(y));
+    g.lineTo(W, Y(y));
+    g.stroke();
+    g.strokeStyle = INK.cream;
+    g.lineWidth = U * 0.06;
+    g.beginPath();
+    for (let x = 0; x <= TABLE.width; x += 0.25) g.lineTo(X(x), Y(y + Math.sin(x * 9) * 0.12));
+    g.stroke();
+    for (let x = 0.4; x < TABLE.width; x += 0.8) {
+      g.beginPath();
+      g.moveTo(X(x - 0.14), Y(y - 0.2));
+      g.lineTo(X(x + 0.14), Y(y + 0.2));
+      g.moveTo(X(x + 0.14), Y(y - 0.2));
+      g.lineTo(X(x - 0.14), Y(y + 0.2));
       g.stroke();
     }
-    // The chained devil in the lower centre (between slings), crude and staring.
-    drawDevil(g, X(9.2), Y(15.8), ART_PX * 2.6);
-    // Chains across the lower playfield.
-    drawChain(g, X(3.6), Y(14.2), X(14.8), Y(14.2), rng);
-  }
-  // Eyes watching from the upper left and around the Hole.
-  drawEye(g, X(4.2), Y(31.5), 26);
-  drawEye(g, X(6.2), Y(33.4), 18);
-  drawEye(g, X(3.4), Y(34.6), 14);
-  // Keys near the Hole and in the lanes area (the illustration has its own).
-  if (!art) {
-    drawKey(g, X(5.0), Y(19.6), 0.6);
-    drawKey(g, X(13.5), Y(17.2), -0.5);
-  }
-  // Guards' silhouettes on the flanks.
-  drawGuard(g, X(1.4), Y(26.0), 46);
-  drawGuard(g, X(16.2), Y(26.5), 46);
+  };
+  wire(33.4);
+  wire(41.5);
+  wire(23.4);
 
-  // Shot labels.
+  // The Perimeter: chain-link fence down both orbit lanes.
+  const fence = (x0: number, x1: number, y0: number, y1: number) => {
+    g.save();
+    g.beginPath();
+    g.rect(X(x0), Y(y1), X(x1) - X(x0), Y(y0) - Y(y1));
+    g.clip();
+    g.fillStyle = INK.black;
+    g.fillRect(X(x0), Y(y1), X(x1) - X(x0), Y(y0) - Y(y1));
+    g.strokeStyle = 'rgba(236,220,180,0.4)';
+    g.lineWidth = U * 0.04;
+    for (let k = -60; k < 60; k++) {
+      g.beginPath();
+      g.moveTo(X(x0) + k * U * 0.4, Y(y1));
+      g.lineTo(X(x0) + k * U * 0.4 + (Y(y0) - Y(y1)), Y(y0));
+      g.moveTo(X(x0) + k * U * 0.4, Y(y0));
+      g.lineTo(X(x0) + k * U * 0.4 + (Y(y0) - Y(y1)), Y(y1));
+      g.stroke();
+    }
+    g.restore();
+  };
+  fence(0, 1.75, 22, 40);
+  fence(18.45, TABLE.width, 0, 40);
+
+  // Outlanes run red; inlanes carry a cream chevron ladder down to the flippers.
+  for (const side of [0, 1]) {
+    const m = (x: number) => (side ? 18.4 - x : x);
+    g.fillStyle = INK.red;
+    poly([
+      [m(0), 13],
+      [m(1.55), 13],
+      [m(1.55), 4],
+      [m(0), 4],
+    ]);
+    g.fill();
+    g.fillStyle = INK.cream;
+    for (let k = 0; k < 4; k++) {
+      const y = 12.2 - k * 0.75;
+      poly([
+        [m(1.95), y],
+        [m(2.51), y - 0.35],
+        [m(3.07), y],
+        [m(3.07), y - 0.3],
+        [m(2.51), y - 0.65],
+        [m(1.95), y - 0.3],
+      ]);
+      g.fill();
+    }
+  }
+
+  // ---- lettering
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  label(g, 'THE CHUTE', X(3.2), Y(20.5), -1.2, 15);
-  label(g, 'THE HOLE', X(7.9), Y(21.3), 0, 15);
-  label(g, 'CELL BLOCK', X(12.6), Y(18.0), -0.52, 14);
-  label(g, 'PERIMETER', X(15.6), Y(16.6), 1.0, 13);
-  label(g, 'PERIMETER', X(3.4), Y(16.2), -0.95, 13);
-  label(g, 'THE YARD', X(12.8), Y(24.4), 0, 14);
-  label(g, 'ROLL CALL', X(14.4), Y(31.6), 0.45, 12);
+  const banner = (
+    text: string,
+    x: number,
+    y: number,
+    rot: number,
+    size: number,
+    bg = INK.cream,
+    fg = INK.black,
+  ) => {
+    g.save();
+    g.translate(X(x), Y(y));
+    g.rotate(rot);
+    g.font = `${Math.round(size * U)}px ${HEAD}`;
+    const w = g.measureText(text).width + size * U * 0.7;
+    const h = size * U * 1.25;
+    g.fillStyle = INK.black;
+    g.fillRect(-w / 2 - U * 0.08, -h / 2 - U * 0.08, w + U * 0.16, h + U * 0.16);
+    g.fillStyle = bg;
+    g.fillRect(-w / 2, -h / 2, w, h);
+    g.fillStyle = fg;
+    g.fillText(text, 0, size * U * 0.06);
+    g.restore();
+  };
+  banner('THE CHUTE', 3.5, 20.6, -1.2, 0.62, INK.mustard);
+  banner('THE HOLE', 7.9, 21.6, 0, 0.62, INK.red, INK.cream);
+  banner('CELL BLOCK', 13.9, 18.3, -0.53, 0.56, '#3c8a48', INK.cream);
+  banner('PERIMETER', 15.9, 16.3, 1.03, 0.5, INK.teal, INK.cream);
+  banner('PERIMETER', 3.2, 16.6, -0.95, 0.5, INK.teal, INK.cream);
+  banner('THE YARD', 13.6, 25.0, 0, 0.7);
+  banner('ROLL CALL', 14.8, 39.0, 0.42, 0.5, INK.mustard);
+  banner('THE TOWER', 9.2, 38.7, 0, 0.8, INK.black, INK.cream);
+  banner('MESS HALL', 13.6, 35.8, 0, 0.5);
+  banner('TURNSTILE', 2.75, 36.6, -Math.PI / 2, 0.42, INK.teal, INK.cream);
+  banner('POST BAIL', 6.9, 39.6, -0.6, 0.5, '#3c8a48', INK.cream);
+  banner('SHAKEDOWN', 9.2, 12.6, 0, 0.45, '#7a3ab0', INK.cream);
 
-  // Apron title.
-  g.font = `bold ${Math.round(ART_PX * 0.95)}px Georgia, serif`;
-  g.fillStyle = 'rgba(210,170,90,0.9)';
-  g.strokeStyle = 'rgba(0,0,0,0.8)';
-  g.lineWidth = 4;
-  g.strokeText("DEBTOR'S PRISON", X(9.2), Y(10.6));
-  g.fillText("DEBTOR'S PRISON", X(9.2), Y(10.6));
-  g.font = `${Math.round(ART_PX * 0.42)}px Georgia, serif`;
-  g.fillStyle = 'rgba(200,150,80,0.8)';
-  g.fillText('PAY OR FALL', X(9.2), Y(9.7));
+  // The title ribbon across the pit.
+  g.save();
+  g.translate(X(9.2), Y(10.5));
+  g.fillStyle = INK.black;
+  g.fillRect(-U * 5.3, -U * 0.95, U * 10.6, U * 1.9);
+  g.fillStyle = INK.cream;
+  g.fillRect(-U * 5.15, -U * 0.8, U * 10.3, U * 1.6);
+  g.fillStyle = INK.red;
+  g.fillRect(-U * 5.15, U * 0.5, U * 10.3, U * 0.3);
+  g.fillStyle = INK.black;
+  g.font = `${Math.round(U * 1.12)}px ${HEAD}`;
+  g.fillText("DEBTOR'S PRISON", 0, -U * 0.1);
+  g.fillStyle = INK.cream;
+  g.font = `${Math.round(U * 0.3)}px ${BODY}`;
+  g.fillText('P A Y   O R   F A L L', 0, U * 0.66);
+  g.restore();
 
-  // Insert sockets: dark holes the lamp meshes sit in.
-  for (const l of TABLE.lamps) socket(g, l, X(l.x), Y(l.y));
+  // Key-lines between the zones' art and the wood: a cream pinstripe inside the rails.
+  g.strokeStyle = 'rgba(236,220,180,0.55)';
+  g.lineWidth = U * 0.06;
+  g.strokeRect(X(1.95), Y(46.4), X(18.2) - X(1.95), Y(13.2) - Y(46.4));
 
-  // Grime: scuffs, ball trails around the flippers and under the Yard.
-  for (let i = 0; i < 900; i++) {
-    const x = rng.range(0, W);
-    const y = rng.range(0, H);
-    g.fillStyle = `rgba(0,0,0,${rng.range(0.03, 0.12)})`;
-    g.fillRect(x, y, rng.range(1, 6), rng.range(1, 6));
+  // Halftone and wear: the print is forty years old.
+  g.fillStyle = 'rgba(0,0,0,0.1)';
+  for (let y = 0; y < H; y += 6)
+    for (let x = (y / 6) % 2 ? 3 : 0; x < W; x += 6) g.fillRect(x, y, 2, 2);
+  for (let i = 0; i < 1400; i++) {
+    g.fillStyle = `rgba(${rng.chance(0.5) ? '0,0,0' : '236,220,180'},${rng.range(0.03, 0.12)})`;
+    g.fillRect(rng.range(0, W), rng.range(0, H), rng.range(1, 7), rng.range(1, 7));
   }
-  g.strokeStyle = 'rgba(200,200,190,0.05)';
-  g.lineWidth = 10;
+  // Ball tracks worn pale around the flippers and through the Yard.
+  g.strokeStyle = 'rgba(236,220,180,0.05)';
+  g.lineWidth = U * 0.3;
   for (const [cx, cy] of [
     [7.2, 6.5],
     [11.2, 6.5],
     [12.7, 29.5],
-  ]) {
+    [9.2, 36.5],
+  ])
     for (let k = 0; k < 5; k++) {
       g.beginPath();
-      g.arc(X(cx), Y(cy), ART_PX * (1.4 + k * 0.6), 0, Math.PI * 2);
+      g.arc(X(cx), Y(cy), U * (1.4 + k * 0.6), 0, Math.PI * 2);
       g.stroke();
     }
-  }
-}
 
-function label(g: Ctx, text: string, x: number, y: number, rot: number, size: number): void {
-  g.save();
-  g.translate(x, y);
-  g.rotate(rot);
-  g.font = `bold ${Math.round((size / 32) * ART_PX)}px "Courier New", monospace`;
-  g.fillStyle = 'rgba(0,0,0,0.6)';
-  g.fillText(text, 2, 2);
-  g.fillStyle = 'rgba(225,200,150,0.85)';
-  g.fillText(text, 0, 0);
-  g.restore();
+  // Insert sockets: black wells in cream rings for the lamp meshes to sit in.
+  for (const l of TABLE.lamps) socket(g, l, X(l.x), Y(l.y));
 }
 
 function socket(g: Ctx, l: LampDef, x: number, y: number): void {
@@ -155,10 +480,11 @@ function socket(g: Ctx, l: LampDef, x: number, y: number): void {
   g.save();
   g.translate(x, y);
   g.rotate((-l.rot * Math.PI) / 180);
-  g.fillStyle = 'rgba(0,0,0,0.65)';
-  g.strokeStyle = 'rgba(190,160,110,0.6)';
-  g.lineWidth = 2;
-  shapePath(g, l.shape, s * 1.15);
+  g.fillStyle = INK.black;
+  g.strokeStyle = INK.cream;
+  g.lineWidth = ART_PX * 0.07;
+  g.lineJoin = 'round';
+  shapePath(g, l.shape, s * 1.22);
   g.fill();
   g.stroke();
   g.restore();
@@ -200,133 +526,4 @@ export function shapePath(g: Ctx, shape: LampDef['shape'], s: number): void {
       g.rect(-s * 0.1, -s * 0.08, s * 0.7, s * 0.16);
       break;
   }
-}
-
-function drawDevil(g: Ctx, x: number, y: number, s: number): void {
-  g.save();
-  g.translate(x, y);
-  g.fillStyle = 'rgba(120,20,15,0.75)';
-  g.strokeStyle = 'rgba(0,0,0,0.7)';
-  g.lineWidth = 3;
-  // Head
-  g.beginPath();
-  g.ellipse(0, 0, s * 0.42, s * 0.5, 0, 0, Math.PI * 2);
-  g.fill();
-  g.stroke();
-  // Horns (uneven, a little wrong)
-  g.beginPath();
-  g.moveTo(-s * 0.3, -s * 0.35);
-  g.quadraticCurveTo(-s * 0.65, -s * 0.85, -s * 0.2, -s * 1.0);
-  g.quadraticCurveTo(-s * 0.35, -s * 0.6, -s * 0.12, -s * 0.45);
-  g.moveTo(s * 0.28, -s * 0.38);
-  g.quadraticCurveTo(s * 0.75, -s * 0.7, s * 0.32, -s * 0.95);
-  g.quadraticCurveTo(s * 0.4, -s * 0.6, s * 0.1, -s * 0.45);
-  g.fill();
-  g.stroke();
-  // Eyes
-  g.fillStyle = 'rgba(240,210,80,0.95)';
-  g.beginPath();
-  g.ellipse(-s * 0.16, -s * 0.08, s * 0.09, s * 0.05, -0.3, 0, Math.PI * 2);
-  g.ellipse(s * 0.17, -s * 0.1, s * 0.07, s * 0.05, 0.4, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#000';
-  g.fillRect(-s * 0.17, -s * 0.12, s * 0.03, s * 0.08);
-  g.fillRect(s * 0.16, -s * 0.13, s * 0.03, s * 0.08);
-  // Grin
-  g.strokeStyle = 'rgba(0,0,0,0.85)';
-  g.beginPath();
-  g.moveTo(-s * 0.22, s * 0.18);
-  g.quadraticCurveTo(0, s * 0.36, s * 0.24, s * 0.16);
-  g.stroke();
-  for (let i = -3; i <= 3; i++) {
-    g.beginPath();
-    g.moveTo(i * s * 0.06, s * 0.22 + Math.abs(i) * -s * 0.015);
-    g.lineTo(i * s * 0.06, s * 0.27);
-    g.stroke();
-  }
-  // Shackle collar
-  g.strokeStyle = 'rgba(150,150,150,0.8)';
-  g.lineWidth = 6;
-  g.beginPath();
-  g.ellipse(0, s * 0.52, s * 0.32, s * 0.1, 0, 0, Math.PI * 2);
-  g.stroke();
-  g.restore();
-}
-
-function drawChain(g: Ctx, x0: number, y0: number, x1: number, y1: number, rng: Rng): void {
-  const n = 18;
-  g.strokeStyle = 'rgba(150,145,140,0.55)';
-  g.lineWidth = 3;
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1);
-    const sag = Math.sin(t * Math.PI) * 26;
-    const x = x0 + (x1 - x0) * t;
-    const y = y0 + (y1 - y0) * t + sag;
-    g.beginPath();
-    g.ellipse(x, y, 9, 5 + rng.range(-1, 1), i % 2 ? 0.2 : 1.4, 0, Math.PI * 2);
-    g.stroke();
-  }
-}
-
-function drawEye(g: Ctx, x: number, y: number, r: number): void {
-  g.save();
-  g.fillStyle = 'rgba(220,210,180,0.75)';
-  g.strokeStyle = 'rgba(0,0,0,0.8)';
-  g.lineWidth = 3;
-  g.beginPath();
-  g.moveTo(x - r, y);
-  g.quadraticCurveTo(x, y - r * 0.8, x + r, y);
-  g.quadraticCurveTo(x, y + r * 0.8, x - r, y);
-  g.fill();
-  g.stroke();
-  g.fillStyle = 'rgba(120,20,10,0.9)';
-  g.beginPath();
-  g.arc(x + r * 0.1, y, r * 0.38, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#000';
-  g.beginPath();
-  g.arc(x + r * 0.12, y, r * 0.16, 0, Math.PI * 2);
-  g.fill();
-  g.restore();
-}
-
-function drawKey(g: Ctx, x: number, y: number, rot: number): void {
-  g.save();
-  g.translate(x, y);
-  g.rotate(rot);
-  g.strokeStyle = 'rgba(200,170,60,0.7)';
-  g.lineWidth = 5;
-  g.beginPath();
-  g.arc(-20, 0, 11, 0, Math.PI * 2);
-  g.moveTo(-9, 0);
-  g.lineTo(26, 0);
-  g.moveTo(18, 0);
-  g.lineTo(18, 9);
-  g.moveTo(24, 0);
-  g.lineTo(24, 7);
-  g.stroke();
-  g.restore();
-}
-
-function drawGuard(g: Ctx, x: number, y: number, h: number): void {
-  g.save();
-  g.translate(x, y);
-  g.fillStyle = 'rgba(15,15,20,0.6)';
-  g.beginPath();
-  g.arc(0, -h * 0.75, h * 0.13, 0, Math.PI * 2);
-  g.rect(-h * 0.2, -h * 0.92, h * 0.4, h * 0.06);
-  g.moveTo(-h * 0.22, -h * 0.6);
-  g.lineTo(h * 0.22, -h * 0.6);
-  g.lineTo(h * 0.16, 0);
-  g.lineTo(-h * 0.16, 0);
-  g.closePath();
-  g.fill();
-  // Baton
-  g.strokeStyle = 'rgba(15,15,20,0.6)';
-  g.lineWidth = 4;
-  g.beginPath();
-  g.moveTo(h * 0.2, -h * 0.4);
-  g.lineTo(h * 0.45, -h * 0.05);
-  g.stroke();
-  g.restore();
 }

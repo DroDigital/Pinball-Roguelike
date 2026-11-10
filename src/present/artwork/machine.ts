@@ -6,17 +6,7 @@
  * - cabinet-side-art: 1536x512 (3:1), opaque side decals with racing stripes, chained ball & bold title.
  */
 import { BACKGLASS_LEVEL_RECT } from '../../content/art';
-import {
-  FONT,
-  PAL,
-  chain,
-  glow,
-  sagPath,
-  steelBall,
-  text,
-  vgrad,
-  type Ctx,
-} from './kit';
+import { FONT, PAL, chain, glow, sagPath, steelBall, text, vgrad, type Ctx } from './kit';
 
 /** Backglass Print (1024 x 512) */
 export function paintBackglassArt(g: Ctx, w: number, h: number): void {
@@ -152,7 +142,7 @@ export function paintBackglassArt(g: Ctx, w: number, h: number): void {
   });
 
   // Subtitle banner: "PAY OR FALL"
-  text(g, "— PAY OR FALL —", cx, titleY + 36 * u, {
+  text(g, '— PAY OR FALL —', cx, titleY + 36 * u, {
     font: `bold ${20 * u}px ${FONT.cond}`,
     align: 'center',
     spacing: 6 * u,
@@ -409,7 +399,7 @@ export function paintCabinetSide(g: Ctx, w: number, h: number): void {
   });
 
   // Tagline under title
-  text(g, "MODEL 1978 // STATE INDUSTRIAL PINBALL", titleX, titleY + 42 * u, {
+  text(g, 'MODEL 1978 // STATE INDUSTRIAL PINBALL', titleX, titleY + 42 * u, {
     font: `bold ${22 * u}px ${FONT.cond}`,
     align: 'center',
     spacing: 5 * u,

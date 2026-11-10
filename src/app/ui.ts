@@ -117,8 +117,8 @@ export class UI {
       el.querySelector<HTMLButtonElement>('button.primary:not([disabled])') ??
       el.querySelector<HTMLButtonElement>('button:not([disabled])');
     first?.focus({ preventScroll: true });
-    // A framed screen opens at its top, even when the first button is further down.
-    for (const c of Array.from(el.querySelectorAll('.bc-skin__content'))) c.scrollTop = 0;
+    // A screen opens at its top, even when the first button is further down.
+    if (fresh) el.scrollTop = 0;
   }
 
   hide(): void {

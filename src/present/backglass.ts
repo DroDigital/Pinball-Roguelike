@@ -7,7 +7,17 @@
 import { BACKGLASS_LEVEL_RECT } from '../content/art';
 import { readyArt } from './art';
 
-const SHOTS = ['yard', 'sling', 'lanes', 'cellblock', 'chute', 'perimeter', 'searchlight', 'hole'];
+const SHOTS = [
+  'yard',
+  'sling',
+  'lanes',
+  'cellblock',
+  'chute',
+  'perimeter',
+  'searchlight',
+  'hole',
+  'tower',
+];
 const LABEL: Record<string, string> = {
   yard: 'YARD',
   sling: 'SLING',
@@ -17,6 +27,7 @@ const LABEL: Record<string, string> = {
   perimeter: 'PERIM',
   searchlight: 'LIGHT',
   hole: 'HOLE',
+  tower: 'TOWER',
 };
 
 /** Texture size: 2:1 like the print (1774 x 887) and the glass plane. Fixed, so it can be repainted in place. */

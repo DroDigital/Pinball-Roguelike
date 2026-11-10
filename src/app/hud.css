@@ -1,0 +1,538 @@
+/*
+ * Play HUD (see hud.ts): a few black steel plates at the screen's edges, each with a
+ * stencilled tab naming what it holds. Bone-white numbers in a condensed face; sodium yellow
+ * for money and the thing to do next, rust orange for labels, prison green for good news,
+ * blood red for threat. Everything else appears only while it matters.
+ */
+#hud {
+  --plate: #0a0807;
+  --bone: #f1e8d2;
+  --sodium: #ffc21a;
+  --rust: #e8642a;
+  --yard: #79c37f;
+  --blood: #e6362a;
+  --dim: #8c7d66;
+  font-family: var(--bc-head, Impact, sans-serif);
+  color: var(--bone);
+  letter-spacing: 0.07em;
+  line-height: 1;
+}
+
+/* ---- the plate */
+.cp-box {
+  position: absolute;
+  padding: 12px 18px 10px;
+  background: var(--plate);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+}
+/* A stencilled tab clipped to the plate's top edge. */
+.cp-box[data-tab]::before {
+  content: attr(data-tab);
+  position: absolute;
+  left: 10px;
+  top: -9px;
+  padding: 2px 6px 1px;
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--plate);
+  background: var(--rust);
+}
+.cp-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cp-main b {
+  font-weight: normal;
+  font-size: clamp(2.4rem, 4.4vw, 4rem);
+  line-height: 0.9;
+}
+.cp-glyph {
+  display: block;
+  width: clamp(28px, 3vw, 44px);
+  aspect-ratio: 1;
+}
+.cp-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cp-sub {
+  margin-top: 6px;
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
+}
+.cp-sub:empty {
+  display: none;
+}
+.cp-debt {
+  margin-top: 5px;
+  font-size: clamp(0.8rem, 1.1vw, 1rem);
+  color: var(--rust);
+}
+.cp-coins {
+  left: 16px;
+  top: 16px;
+}
+.cp-tickets {
+  right: 16px;
+  top: 16px;
+  text-align: right;
+}
+.cp-tickets .cp-main {
+  justify-content: flex-end;
+}
+@keyframes cp-tick {
+  0% {
+    transform: scale(1.14);
+    color: var(--sodium);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+#hud .cp-coins.bump .cp-main b,
+#hud .cp-coins.bump2 .cp-main b {
+  transform-origin: 0 50%;
+  animation: cp-tick 0.15s steps(3);
+}
+
+/* ---- the DMD: a readout hung top-centre */
+.cp-marquee {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  width: clamp(220px, 26vw, 400px);
+  padding: 6px;
+  background: var(--plate);
+}
+.cp-marquee .hx-plate,
+.cp-marquee .hx-ball-line {
+  display: none;
+}
+.hx-dmd {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+/* ---- the bottom prompt: what to do next */
+.cp-prompt {
+  left: 50%;
+  bottom: 18px;
+  transform: translate(-50%, 0);
+  padding: 12px 24px 10px 30px;
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s steps(2);
+  border-left: 8px solid;
+  border-image: repeating-linear-gradient(-45deg, var(--sodium) 0 6px, var(--plate) 6px 12px) 8;
+}
+.cp-prompt.on {
+  opacity: 1;
+}
+
+/* ---- the old ledger is replaced by the coins plate */
+.hx-left {
+  display: none;
+}
+
+/* ---- status: chips under the tickets plate, only while they matter */
+.hx-right {
+  position: absolute;
+  right: 16px;
+  top: clamp(108px, 12vw, 150px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.hx-box {
+  position: relative;
+}
+.hx-plate,
+.hx-bonus-row,
+.hx-extra,
+.hx-combo-bar,
+.hx-combo .hx-tag,
+.hx-balls {
+  display: none;
+}
+.hx-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.hx-lamps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.hx-lamp,
+.hx-combo,
+.hx-ticket {
+  display: none;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px 6px;
+  background: var(--plate);
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+  color: var(--sodium);
+}
+.hx-lamp.on,
+.hx-lamp.blink,
+.hx-combo.on,
+.hx-ticket {
+  display: flex;
+}
+/* Running modes only; meters, lit-but-idle lamps and luck stay off the screen. */
+.hx-lamp.fill,
+.hx-lamp[data-lamp='luck'],
+.hx-lamp[data-lamp='kick'],
+.hx-lamp[data-lamp='again'],
+.hx-lamp[data-lamp='lock'].on {
+  display: none;
+}
+.hx-lamp small {
+  font-size: 0.85em;
+  color: var(--bone);
+}
+@keyframes cp-blink {
+  50% {
+    color: var(--bone);
+  }
+}
+.hx-lamp.blink {
+  animation: cp-blink 0.4s steps(1) infinite;
+}
+.hx-lamp[data-lamp='save'] {
+  color: var(--yard);
+}
+.hx-lamp[data-lamp='riot'],
+.hx-lamp[data-lamp='brawl'] {
+  color: var(--blood);
+}
+.hx-combo b {
+  font-weight: normal;
+  font-size: clamp(1.6rem, 2.8vw, 2.6rem);
+  color: var(--sodium);
+}
+.hx-combo.hot b {
+  color: var(--blood);
+}
+.hx-combo::before {
+  content: 'COMBO';
+  font-size: 0.8em;
+  color: var(--rust);
+}
+/* The Job: label in rust, count in bone. */
+.hx-ticket {
+  flex-direction: row;
+  max-width: min(320px, 40vw);
+}
+.hx-ticket span {
+  font-size: 0.8em;
+  line-height: 1.15;
+  color: var(--rust);
+  text-transform: uppercase;
+}
+.hx-ticket b {
+  font-weight: normal;
+  color: var(--bone);
+  white-space: nowrap;
+}
+.hx-ticket u {
+  display: none;
+}
+.hx-ticket.done b {
+  color: var(--yard);
+}
+.hx-ticket.jb span,
+.hx-ticket.jb b {
+  color: var(--blood);
+}
+
+/* ---- active charms you can fire, with their key */
+.hx-relics {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.hx-relic {
+  display: none;
+  position: relative;
+  width: 54px;
+  height: 54px;
+  background: var(--plate);
+}
+.hx-relic.active {
+  display: block;
+}
+.hx-relic .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.hx-relic .icon > img {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.hx-relic em {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  font-style: normal;
+  font-size: 0.6rem;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--sodium);
+}
+.hx-relic kbd {
+  position: absolute;
+  top: -8px;
+  left: -6px;
+  padding: 1px 4px 0;
+  font: 0.85rem var(--bc-head, Impact, sans-serif);
+  color: var(--plate);
+  background: var(--sodium);
+}
+@keyframes hx-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.3) rotate(-6deg);
+  }
+}
+.hx-relic.pulse {
+  animation: hx-pulse 0.3s steps(5);
+}
+
+/* ---- banners: two-tone lettering slammed over the table */
+.hx-banners {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+@keyframes hx-stamp {
+  0% {
+    transform: scale(2.4) rotate(-4deg);
+    opacity: 0;
+  }
+  10% {
+    transform: scale(0.94) rotate(-4deg);
+    opacity: 1;
+  }
+  16%,
+  80% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-4deg) translateY(-16px);
+    opacity: 0;
+  }
+}
+.hx-banner {
+  --bk: var(--sodium);
+  --edge: var(--rust);
+  flex: none;
+  width: max-content;
+  max-width: 94vw;
+  text-align: center;
+  color: var(--bk);
+  text-shadow:
+    4px 4px 0 var(--edge),
+    -2px 0 0 var(--plate),
+    2px 0 0 var(--plate),
+    0 -2px 0 var(--plate),
+    6px 8px 0 var(--plate);
+  animation: hx-stamp 1.3s steps(14) forwards;
+}
+.hx-banner b {
+  display: block;
+  font-weight: normal;
+  font-size: clamp(2.2rem, 5.6vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: 0.03em;
+}
+.hx-banner span {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px 4px;
+  font-size: clamp(1rem, 1.9vw, 1.6rem);
+  letter-spacing: 0.1em;
+  color: var(--bone);
+  background: var(--plate);
+  text-shadow: none;
+}
+.hx-banner.big {
+  animation-duration: 2.1s;
+}
+.hx-banner.big b {
+  font-size: clamp(3.4rem, 10vw, 8.5rem);
+}
+.hx-banner.k-red {
+  --bk: var(--blood);
+  --edge: #5a0c08;
+}
+.hx-banner.k-green {
+  --bk: var(--sodium);
+  --edge: #c2185b;
+}
+.hx-banner.k-violet {
+  --bk: #c58aff;
+  --edge: #3a1466;
+}
+.hx-banner.k-bone {
+  --bk: var(--bone);
+  --edge: var(--rust);
+}
+
+/* ---- coins in flight to the coins plate */
+.hx-flyers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hx-flyers i {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f6c51a;
+  box-shadow:
+    inset 0 0 0 3px #9a6a00,
+    0 2px 0 #000;
+}
+
+/* ---- states */
+#hud.menu .hx-right,
+#hud.menu .cp-marquee,
+#hud.menu .cp-prompt,
+#hud.ending > *:not(.cp-marquee),
+#hud.replaying .cp-coins,
+#hud.replaying .cp-tickets {
+  visibility: hidden;
+}
+#hud .plunger {
+  right: 18px;
+  bottom: 90px;
+  border: 0;
+  background: var(--plate);
+}
+#hud .plunger i {
+  background: var(--sodium);
+}
+#hud .plunger em {
+  background: var(--bone);
+}
+#hud .touch-btn {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1rem;
+  color: var(--bone);
+  background: var(--plate);
+  border: 0;
+}
+
+/* ---- relics outside the world: portraits and turntables */
+.icon.relic {
+  width: 1.7em;
+  height: 1.7em;
+  margin-right: 0.25em;
+  vertical-align: -0.55em;
+}
+.icon.relic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.relic-stage {
+  flex: none;
+  width: clamp(56px, 7vw, 88px);
+  aspect-ratio: 1;
+  align-self: center;
+}
+.relic-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* ---- small screens */
+@media (max-height: 520px) and (min-aspect-ratio: 6/5) {
+  .cp-box {
+    padding: 8px 12px 6px;
+  }
+  .cp-coins,
+  .cp-tickets,
+  .cp-marquee {
+    top: 14px;
+  }
+  .hx-right {
+    top: 84px;
+  }
+  .cp-prompt {
+    bottom: 8px;
+  }
+}
+@media (max-aspect-ratio: 6/5) {
+  .cp-box {
+    padding: 8px 12px 6px;
+  }
+  .cp-coins,
+  .cp-tickets {
+    top: 16px;
+  }
+  .cp-coins {
+    left: 8px;
+  }
+  .cp-tickets {
+    right: 8px;
+  }
+  .cp-main b {
+    font-size: 2rem;
+  }
+  .cp-glyph {
+    width: 24px;
+  }
+  .cp-sub {
+    font-size: 0.85rem;
+  }
+  .cp-debt {
+    font-size: 0.7rem;
+  }
+  .cp-marquee {
+    top: auto;
+    bottom: 76px;
+    width: min(70vw, 300px);
+  }
+  .hx-right {
+    top: 112px;
+    right: 8px;
+  }
+  .cp-box[data-tab]::before {
+    font-size: 0.55rem;
+  }
+  .cp-prompt {
+    bottom: 8px;
+    font-size: 0.95rem;
+    padding: 8px 12px 6px 18px;
+  }
+}

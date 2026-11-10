@@ -66,7 +66,7 @@ export const ART = {
   'menus/buy-balls-panel': {
     width: 1200,
     height: 900,
-    content: [0.08, 0.20, 0.84, 0.58],
+    content: [0.08, 0.2, 0.84, 0.58],
     ink: '#291c12',
   },
   'menus/cell-hub-panel': {
@@ -84,7 +84,7 @@ export const ART = {
   'menus/phone-panel': {
     width: 1200,
     height: 900,
-    content: [0.13, 0.20, 0.74, 0.61],
+    content: [0.13, 0.2, 0.74, 0.61],
     ink: '#f2dfb2',
   },
   'menus/red-call-panel': {

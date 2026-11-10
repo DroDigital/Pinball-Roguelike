@@ -44,7 +44,15 @@ export const PERKS: PerkDef[] = [
 ];
 
 /** Shot types a level perk can name. */
-export const PERK_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock', 'yard', 'lanes'];
+export const PERK_SHOTS: ShotType[] = [
+  'chute',
+  'perimeter',
+  'hole',
+  'cellblock',
+  'tower',
+  'yard',
+  'lanes',
+];
 
 /** What a bargain does to the run (applied once when accepted). */
 export interface BargainEffect {

@@ -447,7 +447,7 @@ export const CHARMS: CharmDef[] = [
     rarity: 'uncommon',
     cost: 4,
     tags: ['Iron', 'Yard'],
-    text: 'A 4th Yard bumper.',
+    text: 'An extra Yard bumper, low and central.',
     fx: { mount: 'mount:spareBumper' },
   },
   {

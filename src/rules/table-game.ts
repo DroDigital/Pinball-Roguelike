@@ -13,6 +13,7 @@ import {
   AWARDS,
   BALL,
   BONUS,
+  BRAWL,
   COMBO,
   HOLE,
   HURRY,
@@ -21,13 +22,16 @@ import {
   RIOT,
   SCORE,
   SECRET,
+  SHAKEDOWN,
+  SHIFT,
+  SWEEP,
   TILT,
 } from '../content/balance';
 import { emptyBallStats, type BallStats } from '../content/jobs';
 import { ComboTracker, comboName } from './combo';
 import { BALL_HOOKS, type BallHooks, type BallRules } from './charm-hooks';
 import { bonusTotal } from './bonus';
-import { Lamp, type AwardId, type GameEvent, type GameEventSink } from './types';
+import { Lamp, type AwardId, type GameEvent, type GameEventSink, type MysteryAward } from './types';
 import type { BallOutcome } from './run';
 
 export const SHOT_TYPES: ShotType[] = [
@@ -39,6 +43,7 @@ export const SHOT_TYPES: ShotType[] = [
   'perimeter',
   'searchlight',
   'hole',
+  'tower',
 ];
 
 /** The round's Job as the ball sees it. */
@@ -202,7 +207,8 @@ export function defaultBallContext(): BallContext {
 const LANE_IDS = ['laneA', 'laneB', 'laneC'];
 const ACTIVE_SAVE = 10; // Panic Button seconds
 const TWIN_SAVE = 6; // Twin Yolk multiball save
-const LADDER_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock'];
+const LADDER_SHOTS: ShotType[] = ['chute', 'perimeter', 'hole', 'cellblock', 'tower'];
+const BAIL_IDS = ['bail0', 'bail1', 'bail2', 'bail3'];
 const FAVOURITES = LADDER_SHOTS;
 const PERIM_WINDOW = 2.2; // seconds between orbit entry and top switch
 const SKILL_WINDOW = 4; // seconds after launch for the skill shot to resolve
@@ -295,6 +301,19 @@ export class TableGame implements BallRules {
   jbShots = 0;
   jbResult: 'none' | 'failed' | 'escaped' = 'none';
   private jbSaveLeft = 0;
+  /** Searchlight SWEEP: meter (half-turns) and seconds left. */
+  sweepMeter = 0;
+  sweepLeft = 0;
+  /** Yard BRAWL: heat and seconds left. */
+  heat = 0;
+  brawlLeft = 0;
+  /** SHAKEDOWN: slings counted and whether the mystery is lit at the inlanes. */
+  slingCount = 0;
+  mysteryLit = false;
+  /** The Tower: BAIL letters lit this ball and DOUBLE SHIFT seconds left. */
+  readonly bail = [false, false, false, false];
+  shiftLeft = 0;
+  private readonly hookIds: string[];
 
   constructor(
     readonly sim: PinballSim,
@@ -309,7 +328,8 @@ export class TableGame implements BallRules {
     this.rng = new Rng((st.a ^ Math.imul(st.b, 0x9e3779b1) ^ 0x51ed270b) >>> 0);
     this.levels = { ...ctx.shotLevels };
     this.owned = new Set(ctx.charms);
-    this.hooks = ctx.charms.map((id) => BALL_HOOKS[id]).filter((h): h is BallHooks => !!h);
+    this.hookIds = ctx.charms.filter((id) => !!BALL_HOOKS[id]);
+    this.hooks = this.hookIds.map((id) => BALL_HOOKS[id]);
     for (const s of SHOT_TYPES) this.hitCounts[s] = 0;
     this.luck = ctx.luck;
     const start = Math.min(ctx.bonusStart, ctx.bonusMaxMult);
@@ -387,6 +407,18 @@ export class TableGame implements BallRules {
         this.refreshLamps();
       }
     }
+    if (this.sweepLeft > 0) {
+      this.sweepLeft -= dt;
+      if (this.sweepLeft <= 0) this.endMode('sweep');
+    }
+    if (this.shiftLeft > 0) {
+      this.shiftLeft -= dt;
+      if (this.shiftLeft <= 0) this.endMode('shift');
+    }
+    if (this.brawlLeft > 0) {
+      this.brawlLeft -= dt;
+      if (this.brawlLeft <= 0) this.endMode('brawl');
+    } else if (this.heat > 0) this.heat = Math.max(0, this.heat - BRAWL.decay * dt);
     for (const [id, left] of this.holeHolds) {
       if (left <= 1) {
         this.holeHolds.delete(id);
@@ -430,10 +462,12 @@ export class TableGame implements BallRules {
         this.stats.yardHits++;
         this.pay('yard', SCORE.pop, e.x, e.y, 1, e.id);
         this.endSkill();
+        this.stoke();
         break;
       case 'sling':
         this.pay('sling', SCORE.sling, e.x, e.y);
         this.endSkill();
+        this.countSling();
         break;
       case 'drop':
         this.onDrop(e);
@@ -446,6 +480,7 @@ export class TableGame implements BallRules {
       case 'spin':
         this.stats.spins += e.value;
         this.pay('searchlight', SCORE.searchlightSpin * e.value, e.x, e.y);
+        this.turnSearchlight(e.value);
         break;
       case 'chuteMade':
         this.onChute(e);
@@ -495,6 +530,18 @@ export class TableGame implements BallRules {
       }
       return;
     }
+    const bail = BAIL_IDS.indexOf(id);
+    if (bail >= 0) {
+      if (e.dir > 0) this.onBail(bail, e.x, e.y);
+      return;
+    }
+    if (id === 'towerTop') {
+      if (e.dir > 0) {
+        this.pay('tower', SCORE.towerTop, e.x, e.y);
+        this.spotLane(e.x, e.y);
+      }
+      return;
+    }
     const lane = LANE_IDS.indexOf(id);
     if (lane >= 0 && e.dir > 0) {
       this.onLane(lane, e.x, e.y);
@@ -524,6 +571,7 @@ export class TableGame implements BallRules {
         case 'inlaneR':
           this.pay('lanes', SCORE.inlane, e.x, e.y);
           this.endSkill();
+          if (this.mysteryLit) this.collectMystery(e.x, e.y);
           break;
         case 'outlaneL':
         case 'outlaneR':
@@ -787,7 +835,11 @@ export class TableGame implements BallRules {
 
   /** A set (top lanes or Cell Block) completed: light the Hole award if it isn't. */
   private setComplete(set: 'lanes' | 'cellblock'): void {
-    for (const h of this.hooks) h.onSetComplete?.(this, set);
+    this.hooks.forEach((h, i) => {
+      if (!h.onSetComplete) return;
+      h.onSetComplete(this, set);
+      this.emit({ t: 'charm', id: this.hookIds[i] });
+    });
     if (this.machine.awardLit) return;
     this.machine.awardLit = true;
     const award = AWARDS.ladder[this.machine.award % AWARDS.ladder.length] as AwardId;
@@ -821,6 +873,159 @@ export class TableGame implements BallRules {
     this.refreshLamps();
   }
 
+  // ------------------------------------------------------------------ sweep / brawl / shakedown
+
+  /** Searchlight turns fill the SWEEP meter; full, every other switch pays extra for a while. */
+  private turnSearchlight(turns: number): void {
+    if (this.tilted || this.sweepLeft > 0) return;
+    this.sweepMeter += turns;
+    if (this.sweepMeter < SWEEP.spins) return;
+    this.sweepMeter = 0;
+    this.sweepLeft = SWEEP.seconds;
+    this.stats.sweeps++;
+    this.emit({ t: 'mode', mode: 'sweep', on: true });
+    this.emit({
+      t: 'callout',
+      text: 'SEARCHLIGHT SWEEP',
+      sub: 'EVERY SWITCH PAYS',
+      priority: 6,
+      anim: 'skill',
+    });
+  }
+
+  /** Bumper hits stoke the Yard; enough heat before it cools starts a BRAWL. */
+  private stoke(): void {
+    if (this.tilted || this.brawlLeft > 0) return;
+    this.heat += 1;
+    if (this.heat < BRAWL.heatToStart) return;
+    this.heat = 0;
+    this.brawlLeft = BRAWL.seconds;
+    this.stats.brawls++;
+    this.emit({ t: 'mode', mode: 'brawl', on: true });
+    this.emit({
+      t: 'callout',
+      text: 'YARD BRAWL',
+      sub: `BUMPERS PAY X${BRAWL.popMult}`,
+      priority: 6,
+      anim: 'riot',
+    });
+  }
+
+  private endMode(mode: 'sweep' | 'brawl' | 'shift'): void {
+    if (mode === 'sweep') this.sweepLeft = 0;
+    else if (mode === 'brawl') this.brawlLeft = 0;
+    else this.shiftLeft = 0;
+    this.emit({ t: 'mode', mode, on: false });
+    this.refreshLamps();
+  }
+
+  /** A BAIL target on the upper deck; all four post bail and start a DOUBLE SHIFT. */
+  private onBail(i: number, x: number, y: number): void {
+    if (this.tilted) return;
+    this.pay('tower', SCORE.bail, x, y);
+    this.endSkill();
+    if (!this.bail[i]) {
+      this.bail[i] = true;
+      if (this.bail.every(Boolean)) {
+        this.bail.fill(false);
+        this.stats.bails++;
+        this.pay('tower', SCORE.bailSet, x, y);
+        this.shiftLeft = SHIFT.seconds;
+        this.emit({ t: 'mode', mode: 'shift', on: true });
+        this.emit({
+          t: 'callout',
+          text: 'BAIL POSTED',
+          sub: `DOUBLE SHIFT  ALL PAYS X${SHIFT.mult}`,
+          priority: 7,
+          anim: 'payday',
+        });
+      }
+    }
+    this.refreshLamps();
+  }
+
+  private countSling(): void {
+    if (this.tilted || this.mysteryLit) return;
+    if (++this.slingCount < SHAKEDOWN.slings) return;
+    this.slingCount = 0;
+    this.mysteryLit = true;
+    this.emit({ t: 'mystery', award: null });
+    this.emit({ t: 'callout', text: 'SHAKEDOWN', sub: 'MYSTERY AT THE INLANES', priority: 4 });
+    this.refreshLamps();
+  }
+
+  /** The lit inlane pays out whatever the guards missed. */
+  private collectMystery(x: number, y: number): void {
+    if (this.tilted) return;
+    this.mysteryLit = false;
+    this.stats.shakedowns++;
+    const w = SHAKEDOWN.weights;
+    const order: MysteryAward[] = [
+      'coins',
+      'bigCoins',
+      'bonusX',
+      'ballSave',
+      'luck',
+      'kickback',
+      'lockup',
+    ];
+    let total = 0;
+    for (const k of order) total += w[k];
+    let roll = this.rng.range(0, total);
+    let award: MysteryAward = 'coins';
+    for (const k of order) {
+      roll -= w[k];
+      if (roll < 0) {
+        award = k;
+        break;
+      }
+    }
+    // An award the machine can't give right now turns into cash.
+    if (award === 'bonusX' && this.bonusMult >= this.ctx.bonusMaxMult) award = 'coins';
+    if (award === 'kickback' && (this.ctx.noKickback || this.machine.kickback)) award = 'coins';
+    if (
+      award === 'lockup' &&
+      (this.riot || this.jailbreak || this.ctx.lockdown || this.machine.lockLit)
+    )
+      award = 'coins';
+    let sub = '';
+    switch (award) {
+      case 'coins':
+      case 'bigCoins': {
+        const v = this.shotValue('lanes', award === 'coins' ? SHAKEDOWN.coins : SHAKEDOWN.bigCoins);
+        this.payRaw(v, x, y);
+        sub = `${award === 'coins' ? 'LOOSE CHANGE' : 'HIDDEN ROLL'}  +${fmt(v)}`;
+        break;
+      }
+      case 'bonusX':
+        this.addBonusMult(1);
+        sub = `BONUS X${this.bonusMult}`;
+        break;
+      case 'ballSave':
+        this.saveStarted = true;
+        this.saved = false;
+        this.ballSaveLeft = Math.max(this.ballSaveLeft, SHAKEDOWN.saveSeconds);
+        sub = 'BALL SAVE ARMED';
+        break;
+      case 'luck':
+        this.luck += SHAKEDOWN.luck;
+        sub = `+${SHAKEDOWN.luck} LUCK THIS BALL`;
+        break;
+      case 'kickback':
+        this.machine.kickback = true;
+        this.sim.setKickback(true);
+        sub = 'KICKBACK LIT';
+        break;
+      case 'lockup':
+        this.machine.lockLit = true;
+        sub = 'LOCKUP IS LIT';
+        break;
+    }
+    this.emit({ t: 'mystery', award });
+    this.emit({ t: 'callout', text: 'SHAKEDOWN!', sub, priority: 6, anim: 'skill' });
+    this.refreshLamps();
+  }
+
   private onNudge(): void {
     if (this.tilted) return;
     this.tiltMeter += TILT.perNudge * this.ctx.tiltSensitivity;
@@ -833,6 +1038,10 @@ export class TableGame implements BallRules {
       this.ballSaveLeft = -BALL.ballSaveGrace;
       this.riotSaveLeft = 0;
       this.hurryLeft = 0;
+      this.sweepLeft = 0;
+      this.brawlLeft = 0;
+      this.shiftLeft = 0;
+      this.mysteryLit = false;
       this.emit({ t: 'tilt' });
       this.emit({ t: 'callout', text: 'TILT', priority: 9, anim: 'tilt' });
     } else {
@@ -876,7 +1085,11 @@ export class TableGame implements BallRules {
     if (!forced && !this.rng.chance(this.chance(LUCK.luckyBounce))) return;
     this.sim.luckyKick(e.ballId);
     this.stats.luckyBounces++;
-    for (const h of this.hooks) h.onLuckyBounce?.(this);
+    this.hooks.forEach((h, i) => {
+      if (!h.onLuckyBounce) return;
+      h.onLuckyBounce(this);
+      this.emit({ t: 'charm', id: this.hookIds[i] });
+    });
     this.emit({ t: 'luck', kind: 'bounce', amount: 0 });
     this.emit({ t: 'callout', text: 'LUCKY BOUNCE', priority: 6 });
   }
@@ -948,6 +1161,9 @@ export class TableGame implements BallRules {
   private endBall(): void {
     this.over = true;
     this.hurryLeft = 0;
+    this.sweepLeft = 0;
+    this.brawlLeft = 0;
+    this.shiftLeft = 0;
     if (this.riot) this.endRiot();
     if (this.jailbreak) {
       this.jailbreak = false;
@@ -1011,7 +1227,11 @@ export class TableGame implements BallRules {
   }
 
   private onPaydayHooks(isSuper: boolean): void {
-    for (const h of this.hooks) h.onPayday?.(this, isSuper);
+    this.hooks.forEach((h, i) => {
+      if (!h.onPayday && !h.paydayMult) return;
+      h.onPayday?.(this, isSuper);
+      this.emit({ t: 'charm', id: this.hookIds[i] });
+    });
     // Hand-Crank Generator: PAYDAY recharges every active charm.
     if (this.has('handCrank') && !isSuper) {
       for (const a of this.ctx.actives) a.charges = a.max;
@@ -1170,13 +1390,27 @@ export class TableGame implements BallRules {
     if (this.tilted) return;
     let v = this.shotValue(shot, base);
     if (v <= 0) return;
-    for (const h of this.hooks) if (h.hitMult) v *= h.hitMult(this, shot, source);
+    for (let i = 0; i < this.hooks.length; i++) {
+      const h = this.hooks[i];
+      if (!h.hitMult) continue;
+      const m = h.hitMult(this, shot, source);
+      if (m !== 1) this.emit({ t: 'charm', id: this.hookIds[i] });
+      v *= m;
+    }
+    if (shot === 'yard' && this.brawlLeft > 0) v *= BRAWL.popMult;
+    if (this.shiftLeft > 0) v *= SHIFT.mult;
     this.hitCounts[shot]++;
     for (const h of this.hooks) h.onHit?.(this, shot, source);
     this.bonus += (v / comboMult) * this.ctx.bonusShare;
     if (this.riot) this.payday += RIOT.paydayPerHit;
     this.earned += v;
     this.emit({ t: 'score', shot, amount: v, x, y } satisfies GameEvent);
+    // SWEEP: every switch but the Searchlight itself pays a little extra (no Bonus).
+    if (this.sweepLeft > 0 && shot !== 'searchlight') {
+      const extra = this.shotValue('searchlight', SWEEP.perHit);
+      this.earned += extra;
+      this.emit({ t: 'score', shot: 'searchlight', amount: extra, x, y: y + 0.9 });
+    }
   }
 
   /** Pay an already-valued jackpot (PAYDAY, hurry-up): no Bonus, no PAYDAY growth. */
@@ -1220,6 +1454,11 @@ export class TableGame implements BallRules {
     if (this.jailbreak)
       for (const s of JAILBREAK_SHOTS) L[JB_LAMP[s]] = this.jbLit.has(s) ? Lamp.Fast : Lamp.Off;
     L.kickback = this.machine.kickback ? Lamp.On : Lamp.Off;
+    for (let i = 0; i < 4; i++) L[`bail${i}`] = this.bail[i] ? Lamp.On : Lamp.Slow;
+    L.arrowTower = this.shiftLeft > 0 ? Lamp.Off : Lamp.Slow;
+    L.doubleShift = this.shiftLeft > 0 ? Lamp.Fast : Lamp.Off;
+    L.towerTop = Lamp.On;
+    L.mysteryL = L.mysteryR = this.mysteryLit ? Lamp.Fast : Lamp.Off;
     L.lockup = this.riot ? Lamp.Fast : this.machine.lockLit ? Lamp.Slow : Lamp.Off;
     L.shootAgain = this.extraBalls > 0 ? Lamp.On : Lamp.Off;
     const ladder = AWARDS.ladder;

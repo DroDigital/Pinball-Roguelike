@@ -17,7 +17,7 @@ describe('coin tray', () => {
   it('caps at the pool size', () => {
     const t = new CoinTray();
     t.pour(500);
-    expect(t.count).toBe(140);
+    expect(t.count).toBe(220);
     t.setPile(20);
     expect(t.count).toBe(20);
   });

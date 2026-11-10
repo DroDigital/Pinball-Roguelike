@@ -159,10 +159,24 @@ function paintBookingDossier(g: Ctx, w: number, h: number): void {
   );
 
   // Barcode in bottom right
-  barcode(g, [paperBox[0] + paperBox[2] - 180 * u, paperBox[1] + paperBox[3] - 46 * u, 140 * u, 24 * u], 'lineup-bar', '#2c1e14');
+  barcode(
+    g,
+    [paperBox[0] + paperBox[2] - 180 * u, paperBox[1] + paperBox[3] - 46 * u, 140 * u, 24 * u],
+    'lineup-bar',
+    '#2c1e14',
+  );
 
   // Red rubber stamp "PROCESSED"
-  stamp(g, paperBox[0] + paperBox[2] - 130 * u, paperBox[1] + 115 * u, 'PROCESSED', 28 * u, '#84261a', -0.15, 0.65);
+  stamp(
+    g,
+    paperBox[0] + paperBox[2] - 130 * u,
+    paperBox[1] + 115 * u,
+    'PROCESSED',
+    28 * u,
+    '#84261a',
+    -0.15,
+    0.65,
+  );
 }
 
 /** Deadline Notice */
@@ -202,10 +216,24 @@ function paintDeadlineNotice(g: Ctx, w: number, h: number): void {
   g.restore();
 
   // Rubber stamp: "DEMAND FOR PAYMENT"
-  stamp(g, paperBox[0] + paperBox[2] - 160 * u, paperBox[1] + paperBox[3] - 70 * u, 'DEMAND FOR PAYMENT', 24 * u, '#a02416', 0.1, 0.75);
+  stamp(
+    g,
+    paperBox[0] + paperBox[2] - 160 * u,
+    paperBox[1] + paperBox[3] - 70 * u,
+    'DEMAND FOR PAYMENT',
+    24 * u,
+    '#a02416',
+    0.1,
+    0.75,
+  );
 
   // Threat seal watermark
-  barcode(g, [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 42 * u, 160 * u, 22 * u], 'dl-barcode', '#382215');
+  barcode(
+    g,
+    [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 42 * u, 160 * u, 22 * u],
+    'dl-barcode',
+    '#382215',
+  );
 }
 
 /** Job Ticket */
@@ -274,7 +302,16 @@ function paintJobTicket(g: Ctx, w: number, h: number): void {
   barcode(g, [mainX, ticketBox[1] + ticketBox[3] - 38 * u, 160 * u, 22 * u], 'job-code', '#2a1a0f');
 
   // Red stamp "AUTHORIZED"
-  stamp(g, ticketBox[0] + ticketBox[2] - 120 * u, ticketBox[1] + 60 * u, 'APPROVED', 22 * u, '#84261a', -0.12, 0.7);
+  stamp(
+    g,
+    ticketBox[0] + ticketBox[2] - 120 * u,
+    ticketBox[1] + 60 * u,
+    'APPROVED',
+    22 * u,
+    '#84261a',
+    -0.12,
+    0.7,
+  );
 }
 
 /** Buy Balls Panel */
@@ -316,8 +353,22 @@ function paintBuyBallsPanel(g: Ctx, w: number, h: number): void {
     fill: '#6e563e',
   });
 
-  barcode(g, [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 140 * u, 22 * u], 'buy-barcode', '#2b1b10');
-  stamp(g, paperBox[0] + paperBox[2] - 140 * u, paperBox[1] + paperBox[3] - 65 * u, 'DISPENSED', 24 * u, '#1d5a2c', -0.08, 0.65);
+  barcode(
+    g,
+    [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 140 * u, 22 * u],
+    'buy-barcode',
+    '#2b1b10',
+  );
+  stamp(
+    g,
+    paperBox[0] + paperBox[2] - 140 * u,
+    paperBox[1] + paperBox[3] - 65 * u,
+    'DISPENSED',
+    24 * u,
+    '#1d5a2c',
+    -0.08,
+    0.65,
+  );
 }
 
 /** Ball Receipt / Tally */
@@ -428,8 +479,22 @@ function paintRapSheet(g: Ctx, w: number, h: number): void {
   }
   g.restore();
 
-  barcode(g, [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 160 * u, 22 * u], 'rap-barcode', '#2b1b10');
-  stamp(g, paperBox[0] + paperBox[2] - 140 * u, paperBox[1] + paperBox[3] - 70 * u, 'CONFIDENTIAL', 26 * u, '#84261a', 0.12, 0.75);
+  barcode(
+    g,
+    [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 160 * u, 22 * u],
+    'rap-barcode',
+    '#2b1b10',
+  );
+  stamp(
+    g,
+    paperBox[0] + paperBox[2] - 140 * u,
+    paperBox[1] + paperBox[3] - 70 * u,
+    'CONFIDENTIAL',
+    26 * u,
+    '#84261a',
+    0.12,
+    0.75,
+  );
 }
 
 /** Neighbor Letter */
@@ -510,8 +575,22 @@ function paintEndingPanel(g: Ctx, w: number, h: number): void {
     'OFFICIAL DISPOSITION OF INMATE AND MACHINE PROCEEDS',
   );
 
-  barcode(g, [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 160 * u, 22 * u], 'end-barcode', '#2b1b10');
-  stamp(g, paperBox[0] + paperBox[2] - 160 * u, paperBox[1] + paperBox[3] - 70 * u, 'CASE CLOSED', 30 * u, '#84261a', -0.1, 0.8);
+  barcode(
+    g,
+    [paperBox[0] + 40 * u, paperBox[1] + paperBox[3] - 44 * u, 160 * u, 22 * u],
+    'end-barcode',
+    '#2b1b10',
+  );
+  stamp(
+    g,
+    paperBox[0] + paperBox[2] - 160 * u,
+    paperBox[1] + paperBox[3] - 70 * u,
+    'CASE CLOSED',
+    30 * u,
+    '#84261a',
+    -0.1,
+    0.8,
+  );
 }
 
 export const PAPER_PAINTERS: Record<

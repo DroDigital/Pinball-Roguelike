@@ -8,6 +8,7 @@ import { TW, TH } from './coords';
 import { CellRoom, PROPS } from './cell';
 import { ROOM_UNIFORMS } from './retro-material';
 import { CoinTray } from './coins';
+import { RelicShelf } from './relics';
 import { ART, CABINET_ART } from '../content/art';
 
 export type CamMode =
@@ -39,6 +40,11 @@ export class World {
   readonly bulbMesh: THREE.Mesh;
   readonly cell: CellRoom;
   readonly coins = new CoinTray();
+  /** Owned charms and contraband, standing on planks bolted to the cabinet's flanks. */
+  readonly shelf = new RelicShelf({ halfW: BODY_W / 2, length: TH });
+  private readonly counterCanvas = document.createElement('canvas');
+  private counterTex!: THREE.CanvasTexture;
+  private counterText = '';
   /** World position of the coin tray (camera target). */
   private readonly trayPos = new THREE.Vector3();
   /** Seconds into the trapdoor fall (mode 'fall'). */
@@ -68,6 +74,10 @@ export class World {
   /** The bare bulb's brightness (dims as the cell decays). */
   bulbPower = 1800;
   aspect = 16 / 9;
+  /** The chasing bulbs along the backbox topper. */
+  private readonly marquee: THREE.MeshBasicMaterial[] = [];
+  /** How fast the marquee chases (the app speeds it up for jackpots). */
+  marqueeRate = 3;
   /** The cabinet body (its flanks carry the side print once it has loaded). */
   private readonly body: THREE.Mesh;
 
@@ -97,13 +107,80 @@ export class World {
     back.position.set(0, 7.5, -TH / 2 - 4.2);
     back.name = 'backbox';
     this.cabinet.add(back);
+    // Chrome side rails and legs; a lit topper and speaker grille on the backbox.
+    const chrome = new THREE.MeshStandardMaterial({
+      color: 0xb8bcc4,
+      metalness: 0.95,
+      roughness: 0.22,
+    });
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, BODY_D), chrome);
+      rail.position.set((side * BODY_W) / 2, 0.55, -0.5);
+      this.table.root.add(rail);
+      for (const end of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(1, 13, 1), chrome);
+        leg.position.set(side * (BODY_W / 2 - 0.2), -7.5, -0.5 + end * (BODY_D / 2 - 1.2));
+        this.table.root.add(leg);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.5, 8), chrome);
+        foot.position.set(leg.position.x, -14, leg.position.z);
+        this.table.root.add(foot);
+      }
+    }
+    const topper = new THREE.Mesh(
+      new THREE.BoxGeometry(TW + 1, 2.6, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x120c0a, roughness: 0.6 }),
+    );
+    topper.position.set(0, 9.4, 1.2);
+    back.add(topper);
+    const signTex = new THREE.CanvasTexture(topperSign());
+    signTex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(TW, 2.1),
+      new THREE.MeshBasicMaterial({ map: signTex }),
+    );
+    sign.position.set(0, 9.4, 1.82);
+    back.add(sign);
+    for (let i = 0; i < 14; i++) {
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 6, 4),
+        new THREE.MeshBasicMaterial({ color: 0xffc860 }),
+      );
+      bulb.position.set(-TW / 2 + 0.4 + (i * (TW - 0.8)) / 13, 10.95, 1.5);
+      back.add(bulb);
+      this.marquee.push(bulb.material as THREE.MeshBasicMaterial);
+    }
+    const grille = new THREE.Mesh(
+      new THREE.PlaneGeometry(TW + 1, 1.6),
+      new THREE.MeshBasicMaterial({ map: grilleTexture() }),
+    );
+    grille.position.set(0, -7.1, 2.03);
+    back.add(grille);
     this.scene.add(this.cabinet);
     // Coin tray hung on the cabinet front, under the lockbar and right of centre.
     this.cabinet.updateMatrixWorld(true);
-    this.table.root.localToWorld(this.trayPos.set(TW / 2 - 4.2, -3.8, TH / 2 + 2));
-    this.trayPos.z += 1.5;
+    // Centred and well proud of the lockbar, so the payout is in view from the play camera.
+    this.table.root.localToWorld(this.trayPos.set(0, -2.6, TH / 2 + 2));
+    this.trayPos.z += 4.3;
     this.coins.group.position.copy(this.trayPos);
     this.scene.add(this.coins.group);
+
+    this.shelf.group.position.y = 0.4;
+    this.cabinet.add(this.shelf.group);
+
+    // The take counter: a lamp sign over the coin chute, readable from the play camera.
+    this.counterCanvas.width = 160;
+    this.counterCanvas.height = 40;
+    this.counterTex = new THREE.CanvasTexture(this.counterCanvas);
+    this.counterTex.colorSpace = THREE.SRGBColorSpace;
+    this.counterTex.magFilter = THREE.NearestFilter;
+    const takeSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(8.4, 2.1),
+      new THREE.MeshBasicMaterial({ map: this.counterTex }),
+    );
+    takeSign.position.copy(this.trayPos).add(this.tmpOff.set(0, 4.5, -2.3));
+    takeSign.rotation.x = -1.05;
+    this.scene.add(takeSign);
+    this.setCounter('0');
 
     // The cell around the machine.
     this.cell = new CellRoom();
@@ -128,16 +205,19 @@ export class World {
     this.key = key;
     // GI strings down both side rails plus the backbox spill.
     for (const [x, z, c, i] of [
-      [-9, 14, 0xffc890, 40],
-      [9, 14, 0xffc890, 40],
-      [-9, 4, 0xffc080, 40],
-      [9, 4, 0xffc080, 40],
-      [-8, -7, 0xff9a70, 40],
-      [8, -7, 0x90b8ff, 40],
-      [0, -17, 0xffd0a0, 60],
+      [-9, 17, 0xffc890, 64],
+      [9, 17, 0xffc890, 64],
+      [-9, 6, 0xffc080, 64],
+      [9, 6, 0xffc080, 64],
+      [-8, -5, 0xff9a70, 60],
+      [8, -5, 0x90b8ff, 60],
+      // The upper deck and the arch.
+      [-6, -14, 0xa0ffc0, 60],
+      [6, -14, 0xffc890, 60],
+      [0, -20, 0xffd0a0, 70],
     ] as const) {
-      const l = new THREE.PointLight(c, i, 22, 1.6);
-      l.position.set(x, 3.2, z);
+      const l = new THREE.PointLight(c, i, 26, 1.5);
+      l.position.set(x, 6, z);
       this.table.root.add(l);
       this.gi.push(l);
     }
@@ -168,6 +248,7 @@ export class World {
     this.key.intensity = 2.2 * k;
     for (const l of this.gi) l.intensity = (l.userData.base ??= l.intensity) * k;
     this.bulb.visible = !on;
+    this.shelf.setLit(!on);
   }
 
   /** JAILBREAK: the machine's lights are dying (GI stutters and sags). */
@@ -191,11 +272,13 @@ export class World {
         // portrait phones show the full table; portrait also leaves headroom for the DMD.
         const portrait = this.aspect < 1.2;
         const half = (this.camera.fov * Math.PI) / 360;
-        const fitH = TH * 0.62 + (portrait ? 3 : 0);
+        // The taller table is seen from steeper up so the upper deck is not foreshortened away.
+        const fitH = TH * 0.6 + (portrait ? 3 : 0);
         const fitW = TW * 0.56;
-        const dist = Math.max(fitH / Math.tan(half), fitW / (Math.tan(half) * this.aspect)) * 0.9;
-        const pitch = 62 * (Math.PI / 180);
-        l.set(0, 0, portrait ? -0.6 : 1.6);
+        const dist = Math.max(fitH / Math.tan(half), fitW / (Math.tan(half) * this.aspect)) * 1.04;
+        const pitch = 70 * (Math.PI / 180);
+        // Looking a little below centre keeps the coin tray on screen under the lockbar.
+        l.set(0, 0, portrait ? 0.4 : 3.2);
         p.set(0, Math.sin(pitch) * dist, l.z + Math.cos(pitch) * dist);
         break;
       }
@@ -245,8 +328,8 @@ export class World {
       }
       case 'tray':
         // Looking down past the lockbar at the coins.
-        l.copy(this.trayPos).add(this.tmpOff.set(-4.5, 1.5, -3));
-        p.copy(this.trayPos).add(this.tmpOff.set(-7, 10.5, 11));
+        l.copy(this.trayPos).add(this.tmpOff.set(0, 1, -2));
+        p.copy(this.trayPos).add(this.tmpOff.set(-6, 11, 11));
         break;
       case 'title':
         p.set(9, 16, TH / 2 + 16);
@@ -301,6 +384,29 @@ export class World {
     }
   }
 
+  /** The number on the sign over the coin chute (this ball's take, or the pocket). */
+  setCounter(text: string): void {
+    if (text === this.counterText) return;
+    this.counterText = text;
+    const g = this.counterCanvas.getContext('2d')!;
+    g.fillStyle = '#0b0806';
+    g.fillRect(0, 0, 160, 40);
+    g.fillStyle = '#3a3026';
+    g.fillRect(0, 0, 160, 3);
+    g.fillRect(0, 37, 160, 3);
+    g.fillStyle = '#f4c430';
+    g.font = '34px "Bebas Neue", Impact, sans-serif';
+    g.textAlign = 'right';
+    g.textBaseline = 'middle';
+    g.fillText(text, 152, 22);
+    g.beginPath();
+    g.arc(20, 20, 11, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#0b0806';
+    g.fillRect(18, 12, 4, 16);
+    this.counterTex.needsUpdate = true;
+  }
+
   kick(strength: number, dir = new THREE.Vector3(0, 0, -1)): void {
     this.shakeVel.addScaledVector(dir, strength);
   }
@@ -350,6 +456,13 @@ export class World {
       for (const l of this.gi)
         l.intensity = (l.userData.base ??= l.intensity) * (Math.random() < 0.15 ? 0.05 : 0.35);
     this.cell.update(dt);
+    this.shelf.update(dt);
+    const lit = Math.floor(this.time * this.marqueeRate);
+    for (let i = 0; i < this.marquee.length; i++)
+      this.marquee[i].color.setHex(
+        this.table.blackout ? 0x1a1208 : (i + lit) % 3 === 0 ? 0xfff0b0 : 0x6a4a14,
+      );
+    this.marqueeRate += (3 - this.marqueeRate) * Math.min(1, dt * 0.6);
     if (this.mode === 'fall') {
       this.fallT += dt;
       this.cell.openTrapdoor(Math.min(1, this.fallT * 3));
@@ -383,4 +496,39 @@ function makeEnvMap(): THREE.Texture {
   tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/** The topper's painted sign. */
+function topperSign(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 54;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#5e1410';
+  g.fillRect(0, 0, 512, 54);
+  g.fillStyle = '#d59a2a';
+  g.fillRect(0, 0, 512, 5);
+  g.fillRect(0, 49, 512, 5);
+  g.fillStyle = '#ecdcb4';
+  g.font = '34px "Saira Stencil One", Impact, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('PAY  OR  FALL', 256, 29);
+  return c;
+}
+
+/** Speaker grille: rows of slots in black steel. */
+function grilleTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 24;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#17120e';
+  g.fillRect(0, 0, 256, 24);
+  g.fillStyle = '#050403';
+  for (let y = 3; y < 22; y += 5) for (let x = 6; x < 250; x += 10) g.fillRect(x, y, 7, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  return t;
 }
