@@ -167,7 +167,7 @@ export const SCORE = {
    * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
    * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
    */
-  scale: 0.175,
+  scale: 0.156,
   pop: 0.6,
   sling: 0.15,
   lane: 0.4,

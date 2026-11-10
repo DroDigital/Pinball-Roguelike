@@ -78,6 +78,14 @@ export function paintPlayfield(
     // Chains across the lower playfield.
     drawChain(g, X(3.6), Y(14.2), X(14.8), Y(14.2), rng);
   }
+  // The deck's floor is painted a colder green so it reads as its own level.
+  g.fillStyle = 'rgba(30,70,56,0.4)';
+  g.fillRect(X(1.9), Y(45.5), X(16.4) - X(1.9), Y(33.4) - Y(45.5));
+  g.strokeStyle = 'rgba(220,190,110,0.5)';
+  g.lineWidth = 3;
+  g.setLineDash([10, 8]);
+  g.strokeRect(X(1.9), Y(45.5), X(16.4) - X(1.9), Y(33.4) - Y(45.5));
+  g.setLineDash([]);
   // Eyes watching from the upper left and around the Hole.
   drawEye(g, X(4.2), Y(31.5), 26);
   drawEye(g, X(6.2), Y(33.4), 18);
@@ -100,7 +108,13 @@ export function paintPlayfield(
   label(g, 'PERIMETER', X(15.6), Y(16.6), 1.0, 13);
   label(g, 'PERIMETER', X(3.4), Y(16.2), -0.95, 13);
   label(g, 'THE YARD', X(12.8), Y(24.4), 0, 14);
-  label(g, 'ROLL CALL', X(14.4), Y(31.6), 0.45, 12);
+  label(g, 'ROLL CALL', X(14.6), Y(39.2), 0.45, 12);
+  // The upper deck.
+  label(g, 'THE TOWER', X(9.2), Y(38.6), 0, 15);
+  label(g, 'B A I L', X(6.6), Y(40.4), -0.6, 13);
+  label(g, 'MESS HALL', X(13.2), Y(36.0), 0, 12);
+  label(g, 'TURNSTILE', X(2.9), Y(35.6), -1.45, 10);
+  label(g, 'SHAKEDOWN', X(9.2), Y(12.0), 0, 10);
 
   // Apron title.
   g.font = `bold ${Math.round(ART_PX * 0.95)}px Georgia, serif`;

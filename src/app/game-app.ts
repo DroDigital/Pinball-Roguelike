@@ -500,6 +500,11 @@ export class GameApp {
       }
     }
     this.sparks.update(dt);
+    // The Warden's camera follows the ball (or stares at the stool between balls).
+    const eye = shown?.sim.balls.find((b) => b.state === 'field');
+    if (eye && this.mode === 'play') this.world.table.worldOf(eye.x, eye.y, 0.5, this.tmpV);
+    else this.tmpV.set(0, 6, 38);
+    this.world.cell.props.watch(this.tmpV);
     this.updateCamera(dt);
     this.world.update(dt);
     this.updateCoins(dt);
@@ -883,6 +888,7 @@ export class GameApp {
   }
 
   shake(amount: number): void {
+    this.world.cell.props.rattle(amount * 0.25);
     const s = this.save.settings.shake * amount;
     if (s > 0)
       this.world.kick(

@@ -135,19 +135,19 @@ export class World {
     this.key = key;
     // GI strings down both side rails plus the backbox spill.
     for (const [x, z, c, i] of [
-      [-9, 17, 0xffc890, 40],
-      [9, 17, 0xffc890, 40],
-      [-9, 6, 0xffc080, 40],
-      [9, 6, 0xffc080, 40],
-      [-8, -5, 0xff9a70, 40],
-      [8, -5, 0x90b8ff, 40],
+      [-9, 17, 0xffc890, 64],
+      [9, 17, 0xffc890, 64],
+      [-9, 6, 0xffc080, 64],
+      [9, 6, 0xffc080, 64],
+      [-8, -5, 0xff9a70, 60],
+      [8, -5, 0x90b8ff, 60],
       // The upper deck and the arch.
-      [-6, -14, 0xa0ffc0, 40],
-      [6, -14, 0xffc890, 40],
-      [0, -20, 0xffd0a0, 50],
+      [-6, -14, 0xa0ffc0, 60],
+      [6, -14, 0xffc890, 60],
+      [0, -20, 0xffd0a0, 70],
     ] as const) {
-      const l = new THREE.PointLight(c, i, 22, 1.6);
-      l.position.set(x, 3.2, z);
+      const l = new THREE.PointLight(c, i, 26, 1.5);
+      l.position.set(x, 6, z);
       this.table.root.add(l);
       this.gi.push(l);
     }

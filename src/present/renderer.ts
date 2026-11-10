@@ -90,7 +90,7 @@ export class RetroRenderer {
   flash = 0;
   /** 0..1 zoom punch and colour split (decays in the app loop). */
   punch = 0;
-  exposure = 1.1;
+  exposure = 1.3;
   readonly tint = new THREE.Vector3(1, 1, 1);
   private lowW = 426;
   private lowH = 240;
