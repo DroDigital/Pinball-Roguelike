@@ -3130,6 +3130,21 @@ export class GameApp {
       }
     }
     const pull = shown ? shown.sim.plungerPull : 0;
+    // The bottom prompt says what to do next.
+    const inShooter =
+      playing && shown ? shown.sim.balls.some((b) => b.inShooter && b.state === 'field') : false;
+    const touch = matchMedia('(pointer: coarse)').matches;
+    this.hud.prompt(
+      m === 'tally'
+        ? touch
+          ? 'HOLD BOTH SIDES TO COUNT FASTER'
+          : 'HOLD BOTH FLIPPERS TO COUNT FASTER'
+        : inShooter && !this.ui.open
+          ? touch
+            ? 'DRAG DOWN ON THE RIGHT, RELEASE TO PLUNGE'
+            : 'HOLD SPACE, RELEASE TO PLUNGE'
+          : '',
+    );
     const plunger = this.hud.plunger;
     plunger.style.display =
       playing && shown && shown.sim.balls.some((b) => b.inShooter && b.state === 'field')

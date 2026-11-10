@@ -93,6 +93,15 @@ export class Hud {
   private readonly cache = new Map<string, string>();
   private flying = 0;
   private relicKey = '';
+  /** Corner boxes: coins (with balls left and what is owed) and tickets/keys. */
+  private readonly coinNum: HTMLElement;
+  private readonly coinSub: HTMLElement;
+  private readonly coinDebt: HTMLElement;
+  private readonly ticketNum: HTMLElement;
+  private readonly ticketSub: HTMLElement;
+  private readonly promptEl: HTMLElement;
+  private shownCoins = -1;
+  private coinTarget = 0;
   /** Called as each flying coin lands in the ledger. */
   onCoinLand: (() => void) | null = null;
   reducedMotion = false;
@@ -144,7 +153,27 @@ export class Hud {
       this.gauge,
       h('div', { class: 'hx-when' }, this.rounds, this.deadline),
     );
-    this.left = h('div', { class: 'hx-left' }, marquee, this.ledger);
+    this.left = h('div', { class: 'hx-left' }, this.ledger);
+    this.coinNum = h('b');
+    this.coinSub = h('div', { class: 'cp-sub' });
+    this.coinDebt = h('div', { class: 'cp-debt' });
+    const coinBox = h(
+      'div',
+      { class: 'cp-box cp-coins', 'data-tab': 'INMATE FUNDS' },
+      h('div', { class: 'cp-main' }, this.coinNum, glyph(COIN_SVG, 'coin')),
+      this.coinSub,
+      this.coinDebt,
+    );
+    this.ticketNum = h('b');
+    this.ticketSub = h('div', { class: 'cp-sub' });
+    const ticketBox = h(
+      'div',
+      { class: 'cp-box cp-tickets', 'data-tab': 'COMMISSARY' },
+      h('div', { class: 'cp-main' }, this.ticketNum, glyph(TICKET_SVG, 'ticket')),
+      this.ticketSub,
+    );
+    this.promptEl = h('div', { class: 'cp-box cp-prompt' });
+    marquee.classList.add('cp-marquee');
 
     this.balls = h('div', { class: 'hx-balls' });
     this.comboX = h('b');
@@ -190,7 +219,18 @@ export class Hud {
     this.banners = h('div', { class: 'hx-banners' });
     this.flyers = h('div', { class: 'hx-flyers' });
     this.plunger = h('div', { class: 'plunger' }, h('i'), h('em', { style: { bottom: '50%' } }));
-    root.append(this.left, this.right, this.banners, this.flyers, this.plunger, touch);
+    root.append(
+      coinBox,
+      ticketBox,
+      marquee,
+      this.left,
+      this.right,
+      this.banners,
+      this.flyers,
+      this.promptEl,
+      this.plunger,
+      touch,
+    );
   }
 
   // ------------------------------------------------------------------ helpers
@@ -239,6 +279,23 @@ export class Hud {
     );
     if (!r) return;
     const live = g && f.playing ? g : null;
+
+    // Corner boxes. Coins count what the machine has paid you so far, rolling up as it pays.
+    this.coinTarget = Math.floor(r.pocket + (live && !live.tilted ? live.earned : 0));
+    if (this.shownCoins < 0 || this.coinTarget < this.shownCoins) this.shownCoins = this.coinTarget;
+    else if (this.shownCoins < this.coinTarget)
+      this.shownCoins += Math.max(1, Math.ceil((this.coinTarget - this.shownCoins) * 0.18));
+    this.text('coins', this.coinNum, String(this.shownCoins));
+    this.text('coinsub', this.coinSub, `BALLS LEFT: ${ballsLeft(r)}`);
+    this.text(
+      'coindebt',
+      this.coinDebt,
+      r.phase === 'phone'
+        ? 'DEBT PAID'
+        : `DEBT ${r.debt} · ${Math.max(0, roundsIn(r) - r.round)} ROUND${roundsIn(r) - r.round === 1 ? '' : 'S'} LEFT`,
+    );
+    this.text('tickets', this.ticketNum, String(r.tickets));
+    this.text('ticketsub', this.ticketSub, r.keys ? `KEYS: ${r.keys}` : '');
 
     // Ledger.
     setReel(this.pocket, r.pocket);
@@ -381,6 +438,12 @@ export class Hud {
 
   // ------------------------------------------------------------------ moments
 
+  /** The bottom prompt: what to do next ('' hides it). */
+  prompt(text: string): void {
+    this.text('prompt', this.promptEl, text);
+    this.cls('promptc', this.promptEl, `cp-box cp-prompt${text ? ' on' : ''}`);
+  }
+
   /** Stamp a banner over the table. */
   banner(text: string, sub = '', kind: BannerKind = 'gold', big = false): void {
     while (this.banners.childElementCount >= 2) this.banners.firstElementChild?.remove();
@@ -407,10 +470,11 @@ export class Hud {
 
   /** The ledger jolts (coins landing, a deposit). */
   bump(strong = false): void {
-    const el = this.ledger;
+    const el = this.coinNum.parentElement!.parentElement!;
     el.classList.remove('bump', 'bump2');
     void el.offsetWidth;
     el.classList.add(strong ? 'bump2' : 'bump');
+    void strong;
   }
 
   /** The whole cluster swings on its chains (a nudge, a jackpot). */
@@ -426,8 +490,9 @@ export class Hud {
 
   /** Coins fly from a point on screen (CSS px) into the ledger's reels. */
   coins(x: number, y: number, n: number): void {
-    if (this.reducedMotion || !this.ballRow.isConnected) return;
-    const target = (this.ballRow.style.display === 'none' ? this.pocket : this.ball).root;
+    if (this.reducedMotion) return;
+    // Coins fly into the coins plate.
+    const target = this.coinNum;
     const tr = target.getBoundingClientRect();
     if (tr.width === 0) return;
     const tx = tr.left + tr.width * 0.5;
@@ -498,4 +563,18 @@ function setReel(r: Reel, v: number): void {
     r.cols[i].style.transform = `translateY(${-d * 10}%)`;
     r.cols[i].parentElement!.classList.toggle('lead', leading);
   });
+}
+
+/** The coin: a struck disc with a keyhole punched through it. */
+const COIN_SVG =
+  '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#f6c51a"/><circle cx="16" cy="16" r="10.5" fill="none" stroke="#9a6a00" stroke-width="2.5"/><circle cx="16" cy="13" r="3.4" fill="#000"/><path d="M14 15h4l1.4 8h-6.8z" fill="#000"/></svg>';
+/** The ticket: a stub with punched edges. */
+const TICKET_SVG =
+  '<svg viewBox="0 0 32 32"><path d="M3 9h26v4a3 3 0 0 0 0 6v4H3v-4a3 3 0 0 0 0-6z" fill="#ff5a2a"/><path d="M11 9v14" stroke="#000" stroke-width="2" stroke-dasharray="2 2"/><path d="M15 13h10M15 17h8M15 21h6" stroke="#000" stroke-width="2"/></svg>';
+
+function glyph(svg: string, kind: string): HTMLElement {
+  const el = document.createElement('i');
+  el.className = `cp-glyph ${kind}`;
+  el.innerHTML = svg;
+  return el;
 }

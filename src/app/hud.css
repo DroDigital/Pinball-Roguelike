@@ -1,492 +1,276 @@
 /*
- * Play HUD (see hud.ts). There is no housing: the read-outs are block lettering laid straight
- * over the cell in five flat inks, hard-edged and black-outlined, the way a cheap machine
- * stamps numbers on its own glass. No gradients, no glow, no rounded corners.
+ * Play HUD (see hud.ts): a few black steel plates at the screen's edges, each with a
+ * stencilled tab naming what it holds. Bone-white numbers in a condensed face; sodium yellow
+ * for money and the thing to do next, rust orange for labels, prison green for good news,
+ * blood red for threat. Everything else appears only while it matters.
  */
 #hud {
-  --k: #0b0806;
-  --bone: #eadfc4;
-  --coin: #f4c430;
-  --blood: #e0382a;
-  --grass: #63d864;
-  --rust: #8a7a5c;
-  /* A hard black outline: eight directions and a drop. */
-  --ol:
-    2px 0 var(--k), -2px 0 var(--k), 0 2px var(--k), 0 -2px var(--k), 2px 2px var(--k),
-    -2px -2px var(--k), 2px -2px var(--k), -2px 2px var(--k), 0 5px var(--k);
-  --hx-w: clamp(180px, 20vw, 290px);
+  --plate: #0a0807;
+  --bone: #f1e8d2;
+  --sodium: #ffc21a;
+  --rust: #e8642a;
+  --yard: #79c37f;
+  --blood: #e6362a;
+  --dim: #8c7d66;
   font-family: var(--bc-head, Impact, sans-serif);
   color: var(--bone);
-  letter-spacing: 0.05em;
-  text-shadow: var(--ol);
+  letter-spacing: 0.07em;
   line-height: 1;
 }
-/* Everything shivers by a pixel now and then, like vertices that never sit still. */
-@keyframes hx-jitter {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  33% {
-    transform: translate(1px, 0);
-  }
-  66% {
-    transform: translate(0, 1px);
-  }
-}
-.hx-left,
-.hx-right {
+
+/* ---- the plate */
+.cp-box {
   position: absolute;
-  top: 14px;
-  width: var(--hx-w);
+  padding: 12px 18px 10px;
+  background: var(--plate);
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+}
+/* A stencilled tab clipped to the plate's top edge. */
+.cp-box[data-tab]::before {
+  content: attr(data-tab);
+  position: absolute;
+  left: 10px;
+  top: -9px;
+  padding: 2px 6px 1px;
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--plate);
+  background: var(--rust);
+}
+.cp-main {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  transition: opacity 0.2s steps(3);
+  align-items: center;
+  gap: 10px;
 }
-.hx-left {
-  left: 16px;
+.cp-main b {
+  font-weight: normal;
+  font-size: clamp(2.4rem, 4.4vw, 4rem);
+  line-height: 0.9;
 }
-.hx-right {
-  right: 16px;
-  align-items: flex-end;
-  text-align: right;
+.cp-glyph {
+  display: block;
+  width: clamp(28px, 3vw, 44px);
+  aspect-ratio: 1;
 }
-@keyframes hx-swing {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  20% {
-    transform: translate(calc(var(--swing, 1deg) * 3px / 1deg), 4px);
-  }
-  60% {
-    transform: translate(calc(var(--swing, 1deg) * -1px / 1deg), -2px);
-  }
+.cp-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.hx-left.swing,
-.hx-right.swing {
-  animation: hx-swing 0.3s steps(4);
+.cp-sub {
+  margin-top: 6px;
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
 }
-.hx-box {
-  position: relative;
-}
-.hx-plate {
+.cp-sub:empty {
   display: none;
 }
-.hx-tag {
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
+.cp-debt {
+  margin-top: 5px;
+  font-size: clamp(0.8rem, 1.1vw, 1rem);
   color: var(--rust);
 }
+.cp-coins {
+  left: 16px;
+  top: 16px;
+}
+.cp-tickets {
+  right: 16px;
+  top: 16px;
+  text-align: right;
+}
+.cp-tickets .cp-main {
+  justify-content: flex-end;
+}
+@keyframes cp-tick {
+  0% {
+    transform: scale(1.14);
+    color: var(--sodium);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+#hud .cp-coins.bump .cp-main b,
+#hud .cp-coins.bump2 .cp-main b {
+  transform-origin: 0 50%;
+  animation: cp-tick 0.15s steps(3);
+}
 
-/* ---- the DMD: a bare black sign */
-.hx-dmd-well {
-  background: var(--k);
-  border: 3px solid var(--k);
-  outline: 2px solid #3a3026;
+/* ---- the DMD: a readout hung top-centre */
+.cp-marquee {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  width: clamp(220px, 26vw, 400px);
+  padding: 6px;
+  background: var(--plate);
+}
+.cp-marquee .hx-plate,
+.cp-marquee .hx-ball-line {
+  display: none;
 }
 .hx-dmd {
   display: block;
   width: 100%;
   image-rendering: pixelated;
 }
-.hx-ball-line {
-  margin-top: 8px;
-  font-size: 0.9rem;
-  letter-spacing: 0.12em;
-  color: var(--rust);
+
+/* ---- the bottom prompt: what to do next */
+.cp-prompt {
+  left: 50%;
+  bottom: 18px;
+  transform: translate(-50%, 0);
+  padding: 12px 24px 10px 30px;
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
   white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s steps(2);
+  border-left: 8px solid;
+  border-image: repeating-linear-gradient(-45deg, var(--sodium) 0 6px, var(--plate) 6px 12px) 8;
+}
+.cp-prompt.on {
+  opacity: 1;
 }
 
-/* ---- the ledger: numbers, nothing else */
-.hx-ledger {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.hx-reel-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.hx-reel-row .hx-tag {
-  order: 2;
-}
-.hx-reel {
-  display: flex;
-}
-.hx-digit {
-  width: 0.62em;
-  height: 1em;
-  overflow: hidden;
-  font-size: clamp(1.9rem, 3.4vw, 3.2rem);
-  line-height: 1em;
-  text-align: center;
-  color: var(--bone);
-}
-.hx-digit > span {
-  display: block;
-  white-space: pre;
-  line-height: 1em;
-  transition: transform 0.18s steps(4);
-}
-.hx-digit.lead {
+/* ---- the old ledger is replaced by the coins plate */
+.hx-left {
   display: none;
 }
-.hx-digit.red {
-  width: 0.5em;
-  font-size: clamp(1.2rem, 2.1vw, 2rem);
-  align-self: flex-end;
-  color: var(--coin);
-  opacity: 0.75;
-}
-/* This ball's take is the big one, in coin yellow; the pocket sits under it. */
-.hx-ball-row {
-  order: -1;
-}
-.hx-ball-row .hx-digit {
-  font-size: clamp(2.8rem, 5.4vw, 5rem);
-  color: var(--coin);
-}
-.hx-ball-row .hx-digit.red {
-  font-size: clamp(1.6rem, 3vw, 2.8rem);
-}
-.hx-ball-row .hx-tag {
-  color: var(--coin);
-}
-.hx-ball-row .hx-reel {
-  animation: hx-jitter 0.9s steps(1) infinite;
-}
-@keyframes hx-bump {
-  0% {
-    transform: scale(1.18) translateY(-3px);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-.hx-ledger.bump .hx-ball-row,
-.hx-ledger.bump2 .hx-ball-row {
-  transform-origin: 0 100%;
-  animation: hx-bump 0.14s steps(3);
-}
-.hx-owed {
-  display: flex;
-  gap: 16px;
-  margin-top: 6px;
-  font-size: 1.05rem;
-  letter-spacing: 0.1em;
-  color: var(--rust);
-}
-.hx-owed b {
-  font-weight: normal;
-  font-size: 1.5em;
-}
-.hx-bank b {
-  color: var(--grass);
-}
-.hx-debt b {
-  color: var(--blood);
-}
-/* The debt gauge: a notched bar, flat fill. */
-.hx-gauge {
-  position: relative;
-  height: 10px;
-  margin: 4px 0 6px;
-  background: var(--k);
-  border: 2px solid var(--k);
-  outline: 2px solid #3a3026;
-}
-.hx-gauge i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--coin);
-  transition: width 0.3s steps(6);
-}
-.hx-gauge em {
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(90deg, transparent 0 10px, var(--k) 10px 12px);
-}
-.hx-gauge.full i {
-  background: var(--grass);
-}
-@keyframes hx-danger {
-  50% {
-    outline-color: var(--blood);
-  }
-}
-.hx-gauge.danger {
-  animation: hx-danger 0.6s steps(1) infinite;
-}
-.hx-gauge.danger i {
-  background: var(--blood);
-}
-.hx-when {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  color: var(--rust);
-}
-.hx-rounds {
-  display: flex;
-  gap: 5px;
-}
-.hx-rounds i {
-  width: 12px;
-  height: 12px;
-  background: #2a231c;
-  border: 2px solid var(--k);
-}
-.hx-rounds i.done {
-  background: var(--grass);
-}
-.hx-rounds i.now {
-  background: var(--coin);
-}
 
-/* ---- status: lines of lettering that only exist while they matter */
+/* ---- status: chips under the tickets plate, only while they matter */
+.hx-right {
+  position: absolute;
+  right: 16px;
+  top: clamp(108px, 12vw, 150px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.hx-box {
+  position: relative;
+}
+.hx-plate,
+.hx-bonus-row,
+.hx-extra,
+.hx-combo-bar,
+.hx-combo .hx-tag,
+.hx-balls {
+  display: none;
+}
 .hx-status {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
-}
-.hx-balls {
-  display: flex;
-  gap: 5px;
-  min-height: 16px;
-  font-size: 1rem;
-  color: var(--blood);
-}
-.hx-balls i {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #b9bdc4;
-  border: 2px solid var(--k);
-}
-.hx-balls i.live {
-  background: var(--coin);
-  margin-right: 6px;
-}
-.hx-balls i.extra {
-  background: var(--grass);
-}
-.hx-combo {
-  display: none;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.hx-combo.armed,
-.hx-combo.on {
-  display: flex;
-}
-.hx-combo .hx-tag {
-  display: none;
-}
-.hx-combo b {
-  font-weight: normal;
-  font-size: clamp(1.4rem, 2.4vw, 2.2rem);
-  color: var(--rust);
-}
-.hx-combo-bar {
-  width: clamp(90px, 10vw, 150px);
-  height: 8px;
-  background: var(--k);
-  border: 2px solid var(--k);
-}
-.hx-combo-bar i {
-  display: block;
-  height: 100%;
-  width: 0;
-  margin-left: auto;
-  background: var(--bone);
-}
-.hx-combo.on b {
-  font-size: clamp(2.6rem, 5vw, 4.6rem);
-  color: var(--coin);
-  animation: hx-jitter 0.3s steps(1) infinite;
-}
-.hx-combo.on .hx-combo-bar i {
-  background: var(--coin);
-}
-.hx-combo.hot b {
-  color: var(--blood);
-}
-.hx-combo.hot .hx-combo-bar i {
-  background: var(--blood);
-}
-.hx-bonus-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-.hx-bonus-row > b {
-  font-weight: normal;
-  font-size: 1.4rem;
-  color: var(--bone);
-}
-.hx-bonus {
-  display: flex;
-  gap: 2px;
-}
-.hx-bonus i {
-  display: none;
-  font-style: normal;
-  font-size: 1.4rem;
-  color: var(--coin);
-}
-/* Only the multiplier you hold is printed. */
-.hx-bonus.m2 i:nth-child(2),
-.hx-bonus.m3 i:nth-child(3),
-.hx-bonus.m4 i:nth-child(4),
-.hx-bonus.m5 i:nth-child(5) {
-  display: block;
-}
-.hx-bonus.over i:nth-child(5) {
-  color: var(--blood);
+  gap: 6px;
 }
 .hx-lamps {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 6px;
 }
-.hx-lamp {
-  --p: 0;
+.hx-lamp,
+.hx-combo,
+.hx-ticket {
   display: none;
   align-items: baseline;
-  gap: 8px;
-  font-size: 1.35rem;
-  letter-spacing: 0.08em;
-  color: var(--coin);
-}
-.hx-lamp small {
-  font-size: 0.8em;
-  color: var(--bone);
+  gap: 10px;
+  padding: 8px 12px 6px;
+  background: var(--plate);
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+  color: var(--sodium);
 }
 .hx-lamp.on,
 .hx-lamp.blink,
-.hx-lamp.fill {
+.hx-combo.on,
+.hx-ticket {
   display: flex;
 }
-@keyframes hx-blink {
+/* Running modes only; meters, lit-but-idle lamps and luck stay off the screen. */
+.hx-lamp.fill,
+.hx-lamp[data-lamp='luck'],
+.hx-lamp[data-lamp='kick'],
+.hx-lamp[data-lamp='again'],
+.hx-lamp[data-lamp='lock'].on {
+  display: none;
+}
+.hx-lamp small {
+  font-size: 0.85em;
+  color: var(--bone);
+}
+@keyframes cp-blink {
   50% {
-    opacity: 0.25;
+    color: var(--bone);
   }
 }
 .hx-lamp.blink {
-  animation: hx-blink 0.36s steps(1) infinite;
-}
-/* A mode that is charging shows as a short notched meter after its name. */
-.hx-lamp.fill {
-  font-size: 0.95rem;
-  color: var(--rust);
-}
-.hx-lamp.fill::after {
-  content: '';
-  width: 54px;
-  height: 8px;
-  border: 2px solid var(--k);
-  background: linear-gradient(90deg, var(--bone) calc(var(--p) * 100%), var(--k) 0);
+  animation: cp-blink 0.4s steps(1) infinite;
 }
 .hx-lamp[data-lamp='save'] {
-  color: var(--grass);
+  color: var(--yard);
 }
 .hx-lamp[data-lamp='riot'],
 .hx-lamp[data-lamp='brawl'] {
   color: var(--blood);
 }
-.hx-lamp[data-lamp='mystery'],
-.hx-lamp[data-lamp='shift'] {
-  color: #c58aff;
+.hx-combo b {
+  font-weight: normal;
+  font-size: clamp(1.6rem, 2.8vw, 2.6rem);
+  color: var(--sodium);
 }
-.hx-lamp[data-lamp='sweep'] {
-  color: #7ac4ff;
+.hx-combo.hot b {
+  color: var(--blood);
 }
-
-/* ---- the Job: one line and a notched bar */
+.hx-combo::before {
+  content: 'COMBO';
+  font-size: 0.8em;
+  color: var(--rust);
+}
+/* The Job: label in rust, count in bone. */
 .hx-ticket {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  max-width: var(--hx-w);
-}
-.hx-ticket + .hx-ticket {
-  margin-top: 8px;
+  flex-direction: row;
+  max-width: min(320px, 40vw);
 }
 .hx-ticket span {
-  font-size: 0.95rem;
+  font-size: 0.8em;
   line-height: 1.15;
-  letter-spacing: 0.08em;
+  color: var(--rust);
   text-transform: uppercase;
-  color: var(--bone);
 }
 .hx-ticket b {
   font-weight: normal;
-  font-size: 1.5rem;
-  color: var(--coin);
+  color: var(--bone);
+  white-space: nowrap;
 }
 .hx-ticket u {
-  --p: 0;
-  width: clamp(90px, 10vw, 150px);
-  height: 8px;
-  border: 2px solid var(--k);
-  background: linear-gradient(270deg, var(--coin) calc(var(--p) * 100%), var(--k) 0);
+  display: none;
 }
 .hx-ticket.done b {
-  color: var(--grass);
-}
-.hx-ticket.done u {
-  background: var(--grass);
+  color: var(--yard);
 }
 .hx-ticket.jb span,
 .hx-ticket.jb b {
   color: var(--blood);
 }
-.hx-ticket.jb u {
-  background: linear-gradient(270deg, var(--blood) calc(var(--p) * 100%), var(--k) 0);
-}
-.hx-extra {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 2px 12px;
-  font-size: 0.9rem;
-  color: var(--rust);
-}
-.hx-extra:empty,
-.hx-job:empty {
-  display: none;
-}
-.hx-extra b {
-  font-weight: normal;
-  color: var(--coin);
-}
-.hx-extra small {
-  flex-basis: 100%;
-  font-size: 0.8rem;
-  color: var(--grass);
-}
 
-/* ---- relics: the things themselves, no sockets */
+/* ---- active charms you can fire, with their key */
 .hx-relics {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
+  gap: 6px;
   justify-content: flex-end;
 }
 .hx-relic {
+  display: none;
   position: relative;
-  width: 58px;
-  height: 58px;
+  width: 54px;
+  height: 54px;
+  background: var(--plate);
+}
+.hx-relic.active {
+  display: block;
 }
 .hx-relic .icon {
   display: block;
@@ -498,126 +282,126 @@
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
-  filter: drop-shadow(2px 0 0 var(--k)) drop-shadow(-2px 0 0 var(--k)) drop-shadow(0 2px 0 var(--k))
-    drop-shadow(0 -2px 0 var(--k));
 }
 .hx-relic em {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -4px;
+  bottom: 2px;
   font-style: normal;
   font-size: 0.6rem;
   letter-spacing: 0;
   text-align: center;
-  color: var(--coin);
+  color: var(--sodium);
 }
 .hx-relic kbd {
   position: absolute;
-  top: -2px;
-  left: 0;
-  font: 0.95rem var(--bc-head, Impact, sans-serif);
-  color: var(--coin);
+  top: -8px;
+  left: -6px;
+  padding: 1px 4px 0;
+  font: 0.85rem var(--bc-head, Impact, sans-serif);
+  color: var(--plate);
+  background: var(--sodium);
 }
 @keyframes hx-pulse {
-  0% {
-    transform: translateY(0) scale(1);
+  0%,
+  100% {
+    transform: scale(1);
   }
   30% {
-    transform: translateY(-14px) scale(1.4);
-  }
-  100% {
-    transform: translateY(0) scale(1);
+    transform: scale(1.3) rotate(-6deg);
   }
 }
 .hx-relic.pulse {
   animation: hx-pulse 0.3s steps(5);
-  z-index: 2;
 }
 
-/* ---- banners: lettering slammed over the table */
+/* ---- banners: two-tone lettering slammed over the table */
 .hx-banners {
   position: absolute;
   left: 50%;
-  top: 22%;
+  top: 30%;
   width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
 }
 @keyframes hx-stamp {
   0% {
-    transform: scale(2.6);
+    transform: scale(2.4) rotate(-4deg);
     opacity: 0;
   }
   10% {
-    transform: scale(0.92);
+    transform: scale(0.94) rotate(-4deg);
     opacity: 1;
   }
   16%,
   80% {
-    transform: scale(1);
+    transform: scale(1) rotate(-4deg);
     opacity: 1;
   }
   100% {
-    transform: scale(1) translateY(-18px);
+    transform: scale(1) rotate(-4deg) translateY(-16px);
     opacity: 0;
   }
 }
 .hx-banner {
-  --bk: var(--coin);
+  --bk: var(--sodium);
+  --edge: var(--rust);
   flex: none;
   width: max-content;
   max-width: 94vw;
   text-align: center;
   color: var(--bk);
   text-shadow:
-    3px 0 var(--k),
-    -3px 0 var(--k),
-    0 3px var(--k),
-    0 -3px var(--k),
-    3px 3px var(--k),
-    -3px -3px var(--k),
-    3px -3px var(--k),
-    -3px 3px var(--k),
-    0 8px var(--k);
+    4px 4px 0 var(--edge),
+    -2px 0 0 var(--plate),
+    2px 0 0 var(--plate),
+    0 -2px 0 var(--plate),
+    6px 8px 0 var(--plate);
   animation: hx-stamp 1.3s steps(14) forwards;
 }
 .hx-banner b {
   display: block;
   font-weight: normal;
-  font-size: clamp(2rem, 5.2vw, 4.4rem);
+  font-size: clamp(2.2rem, 5.6vw, 5rem);
   line-height: 0.95;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 .hx-banner span {
-  display: block;
-  margin-top: 4px;
-  font-size: clamp(1rem, 2vw, 1.7rem);
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px 4px;
+  font-size: clamp(1rem, 1.9vw, 1.6rem);
   letter-spacing: 0.1em;
   color: var(--bone);
+  background: var(--plate);
+  text-shadow: none;
 }
 .hx-banner.big {
   animation-duration: 2.1s;
 }
 .hx-banner.big b {
-  font-size: clamp(3rem, 9vw, 7.5rem);
+  font-size: clamp(3.4rem, 10vw, 8.5rem);
 }
 .hx-banner.k-red {
   --bk: var(--blood);
+  --edge: #5a0c08;
 }
 .hx-banner.k-green {
-  --bk: var(--grass);
+  --bk: var(--sodium);
+  --edge: #c2185b;
 }
 .hx-banner.k-violet {
   --bk: #c58aff;
+  --edge: #3a1466;
 }
 .hx-banner.k-bone {
   --bk: var(--bone);
+  --edge: var(--rust);
 }
 
-/* ---- coins in flight */
+/* ---- coins in flight to the coins plate */
 .hx-flyers {
   position: absolute;
   inset: 0;
@@ -625,33 +409,34 @@
 }
 .hx-flyers i {
   position: absolute;
-  left: -8px;
-  top: -8px;
-  width: 16px;
-  height: 16px;
-  background: var(--coin);
-  border: 3px solid var(--k);
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  box-shadow: inset -3px -3px 0 #b9841c;
+  background: #f6c51a;
+  box-shadow:
+    inset 0 0 0 3px #9a6a00,
+    0 2px 0 #000;
 }
 
 /* ---- states */
-#hud.menu:not(.playing) .hx-left,
 #hud.menu .hx-right,
-#hud.ending .hx-right,
-#hud.ending .hx-ledger,
-#hud.replaying .hx-ledger,
-#hud.replaying .hx-relics {
-  opacity: 0;
+#hud.menu .cp-marquee,
+#hud.menu .cp-prompt,
+#hud.ending > *:not(.cp-marquee),
+#hud.replaying .cp-coins,
+#hud.replaying .cp-tickets {
+  visibility: hidden;
 }
 #hud .plunger {
-  right: calc(var(--hx-w) + 34px);
-  border: 3px solid var(--k);
-  outline: 2px solid #3a3026;
-  background: var(--k);
+  right: 18px;
+  bottom: 90px;
+  border: 0;
+  background: var(--plate);
 }
 #hud .plunger i {
-  background: var(--coin);
+  background: var(--sodium);
 }
 #hud .plunger em {
   background: var(--bone);
@@ -660,11 +445,11 @@
   font-family: var(--bc-head, Impact, sans-serif);
   font-size: 1rem;
   color: var(--bone);
-  background: var(--k);
-  border: 3px solid var(--bone);
+  background: var(--plate);
+  border: 0;
 }
 
-/* ---- relics outside the world: rendered portraits and live turntables */
+/* ---- relics outside the world: portraits and turntables */
 .icon.relic {
   width: 1.7em;
   height: 1.7em;
@@ -690,169 +475,64 @@
   image-rendering: pixelated;
 }
 
-/* ---- phones on their side */
+/* ---- small screens */
 @media (max-height: 520px) and (min-aspect-ratio: 6/5) {
-  #hud {
-    --hx-w: clamp(140px, 19vw, 200px);
+  .cp-box {
+    padding: 8px 12px 6px;
   }
-  .hx-left,
+  .cp-coins,
+  .cp-tickets,
+  .cp-marquee {
+    top: 14px;
+  }
   .hx-right {
-    top: 6px;
-    gap: 6px;
+    top: 84px;
   }
-  .hx-when,
-  .hx-extra,
-  .hx-ball-line,
-  .hx-gauge {
-    display: none;
-  }
-  .hx-lamp {
-    font-size: 1rem;
-  }
-  .hx-relic {
-    width: 30px;
-    height: 30px;
+  .cp-prompt {
+    bottom: 8px;
   }
 }
-
-/* ---- portrait: the sign across the top, numbers under it */
 @media (max-aspect-ratio: 6/5) {
-  #hud {
-    --hx-w: min(96vw, 520px);
+  .cp-box {
+    padding: 8px 12px 6px;
   }
-  .hx-left {
-    left: 50%;
-    top: 4px;
-    transform: translateX(-50%);
-    gap: 4px;
+  .cp-coins,
+  .cp-tickets {
+    top: 16px;
   }
-  .hx-left.swing,
-  .hx-right.swing {
-    animation: none;
+  .cp-coins {
+    left: 8px;
   }
-  .hx-when,
-  .hx-extra,
-  .hx-ball-line,
-  .hx-gauge,
-  .hx-bonus-row {
-    display: none;
+  .cp-tickets {
+    right: 8px;
   }
-  .hx-ledger {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 14px;
+  .cp-main b {
+    font-size: 2rem;
   }
-  .hx-ball-row .hx-digit {
-    font-size: 2.2rem;
+  .cp-glyph {
+    width: 24px;
   }
-  .hx-ball-row .hx-digit.red {
-    font-size: 1.3rem;
+  .cp-sub {
+    font-size: 0.85rem;
   }
-  .hx-digit {
-    font-size: 1.4rem;
-  }
-  .hx-owed {
-    margin: 0 0 0 auto;
-    gap: 10px;
-    font-size: 0.75rem;
-  }
-  /* Status hangs down the right edge under the sign. */
-  .hx-right {
-    right: 6px;
-    top: calc(min(96vw, 520px) * 0.25 + 58px);
-    width: 46vw;
-    gap: 4px;
-  }
-  .hx-lamp {
-    font-size: 0.95rem;
-  }
-  .hx-ticket span {
+  .cp-debt {
     font-size: 0.7rem;
   }
-  .hx-ticket b {
-    font-size: 1rem;
+  .cp-marquee {
+    top: auto;
+    bottom: 76px;
+    width: min(70vw, 300px);
   }
-  .hx-relic {
-    width: 28px;
-    height: 28px;
+  .hx-right {
+    top: 112px;
+    right: 8px;
   }
-  .hx-banners {
-    top: 44%;
+  .cp-box[data-tab]::before {
+    font-size: 0.55rem;
   }
-  #hud .plunger {
-    right: 14px;
+  .cp-prompt {
+    bottom: 8px;
+    font-size: 0.95rem;
+    padding: 8px 12px 6px 18px;
   }
-}
-
-/* ---- less: only what you need at a glance while the ball is alive ---- */
-/* Left: this ball's take, then what you owe. The pocket, round lamps and the deadline line
-   live on the ATM and the cell screens. */
-#hud.playing .hx-reel-row:not(.hx-ball-row),
-.hx-when,
-.hx-ball-line,
-.hx-ball-row .hx-tag,
-.hx-bank {
-  display: none;
-}
-.hx-owed {
-  margin-top: 2px;
-  font-size: 1.15rem;
-}
-.hx-debt::before {
-  content: 'OWED ';
-}
-.hx-debt {
-  font-size: 0;
-}
-.hx-debt::before,
-.hx-debt b {
-  font-size: 1.15rem;
-}
-.hx-debt b {
-  font-size: 1.7rem;
-}
-.hx-gauge {
-  width: 70%;
-}
-/* Right: balls, then modes only while they run. Charging meters, the Bonus read-out, luck,
-   tickets and the relic row are gone: relics stand on the shelves beside the table. */
-.hx-lamp.fill,
-.hx-lamp[data-lamp='luck'],
-.hx-lamp[data-lamp='kick'],
-.hx-lamp[data-lamp='again'],
-.hx-bonus-row > .hx-tag,
-.hx-bonus-row > b,
-.hx-extra,
-.hx-combo.armed,
-.hx-relic:not(.active) {
-  display: none;
-}
-.hx-lamp[data-lamp='lock'].on {
-  display: none;
-}
-.hx-ticket span {
-  color: var(--rust);
-}
-.hx-ticket u {
-  display: none;
-}
-.hx-ticket {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 10px;
-}
-.hx-dmd-well {
-  width: 78%;
-}
-@media (max-aspect-ratio: 6/5) {
-  .hx-dmd-well {
-    width: 100%;
-  }
-}
-.hx-digit.red {
-  display: none;
-}
-.hx-ball-row .hx-tag {
-  display: inline;
-  font-size: 0.9rem;
 }
