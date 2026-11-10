@@ -26,7 +26,8 @@ const glowMat = new THREE.MeshBasicMaterial({ vertexColors: true });
 function partGeometry(p: RelicPart, m: THREE.Matrix4): THREE.BufferGeometry {
   let unit = unitCache.get(p[0]);
   if (!unit) {
-    unit = UNIT[p[0]]().toNonIndexed();
+    const raw = UNIT[p[0]]();
+    unit = raw.index ? raw.toNonIndexed() : raw;
     unit.deleteAttribute('uv');
     unitCache.set(p[0], unit);
   }

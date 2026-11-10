@@ -9,6 +9,8 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     viewport: { width: 1280, height: 800 },
     launchOptions: {
+      // PW_CHROMIUM points at a preinstalled Chromium when the pinned browser isn't downloaded.
+      executablePath: process.env.PW_CHROMIUM || undefined,
       // Software GL so the smoke test runs on headless CI machines without a GPU.
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
     },

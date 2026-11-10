@@ -313,7 +313,7 @@ export const ECONOMY = {
    * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
    * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
    */
-  payGrowth: 1.53,
+  payGrowth: 1.48,
 };
 
 /** Sentences. */

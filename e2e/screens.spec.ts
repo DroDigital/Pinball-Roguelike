@@ -75,6 +75,14 @@ for (const size of SIZES) {
       await shot('buy');
 
       await call(page, 'buy', 3);
+      // A few relics on the shelves and the rail, and the quality governor off (software GL).
+      await page.evaluate(() => {
+        const g = (globalThis as unknown as { __game: Game }).__game;
+        g.qualityDropped = true;
+        g.run.charms.push('piggyBank', 'jarOfTeeth', 'candleStub', 'panicButton');
+        g.run.contraband.push('moonshine');
+        g.enterCell();
+      });
       await shot('cell');
 
       await call(page, 'enterAtm', 'cell');
@@ -112,6 +120,16 @@ for (const size of SIZES) {
       await call(page, 'startBall');
       await page.waitForTimeout(800);
       await shot('play');
+      // The seat's view of the machine and the relic shelves.
+      await page.evaluate(() => {
+        const g = (globalThis as unknown as { __game: Game }).__game;
+        g.world.setMode('seated');
+      });
+      await shot('play-seated');
+      await page.evaluate(() => {
+        const g = (globalThis as unknown as { __game: Game }).__game;
+        g.world.setMode('play');
+      });
 
       await call(page, 'openPause');
       await shot('pause');

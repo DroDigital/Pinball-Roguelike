@@ -71,6 +71,10 @@ export class World {
   /** The bare bulb's brightness (dims as the cell decays). */
   bulbPower = 1800;
   aspect = 16 / 9;
+  /** The chasing bulbs along the backbox topper. */
+  private readonly marquee: THREE.MeshBasicMaterial[] = [];
+  /** How fast the marquee chases (the app speeds it up for jackpots). */
+  marqueeRate = 3;
   /** The cabinet body (its flanks carry the side print once it has loaded). */
   private readonly body: THREE.Mesh;
 
@@ -100,6 +104,54 @@ export class World {
     back.position.set(0, 7.5, -TH / 2 - 4.2);
     back.name = 'backbox';
     this.cabinet.add(back);
+    // Chrome side rails and legs; a lit topper and speaker grille on the backbox.
+    const chrome = new THREE.MeshStandardMaterial({
+      color: 0xb8bcc4,
+      metalness: 0.95,
+      roughness: 0.22,
+    });
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, BODY_D), chrome);
+      rail.position.set((side * BODY_W) / 2, 0.55, -0.5);
+      this.table.root.add(rail);
+      for (const end of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(1, 13, 1), chrome);
+        leg.position.set(side * (BODY_W / 2 - 0.2), -7.5, -0.5 + end * (BODY_D / 2 - 1.2));
+        this.table.root.add(leg);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.5, 8), chrome);
+        foot.position.set(leg.position.x, -14, leg.position.z);
+        this.table.root.add(foot);
+      }
+    }
+    const topper = new THREE.Mesh(
+      new THREE.BoxGeometry(TW + 1, 2.6, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0x120c0a, roughness: 0.6 }),
+    );
+    topper.position.set(0, 9.4, 1.2);
+    back.add(topper);
+    const signTex = new THREE.CanvasTexture(topperSign());
+    signTex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(TW, 2.1),
+      new THREE.MeshBasicMaterial({ map: signTex }),
+    );
+    sign.position.set(0, 9.4, 1.82);
+    back.add(sign);
+    for (let i = 0; i < 14; i++) {
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 6, 4),
+        new THREE.MeshBasicMaterial({ color: 0xffc860 }),
+      );
+      bulb.position.set(-TW / 2 + 0.4 + (i * (TW - 0.8)) / 13, 10.95, 1.5);
+      back.add(bulb);
+      this.marquee.push(bulb.material as THREE.MeshBasicMaterial);
+    }
+    const grille = new THREE.Mesh(
+      new THREE.PlaneGeometry(TW + 1, 1.6),
+      new THREE.MeshBasicMaterial({ map: grilleTexture() }),
+    );
+    grille.position.set(0, -7.1, 2.03);
+    back.add(grille);
     this.scene.add(this.cabinet);
     // Coin tray hung on the cabinet front, under the lockbar and right of centre.
     this.cabinet.updateMatrixWorld(true);
@@ -364,6 +416,12 @@ export class World {
         l.intensity = (l.userData.base ??= l.intensity) * (Math.random() < 0.15 ? 0.05 : 0.35);
     this.cell.update(dt);
     this.shelf.update(dt);
+    const lit = Math.floor(this.time * this.marqueeRate);
+    for (let i = 0; i < this.marquee.length; i++)
+      this.marquee[i].color.setHex(
+        this.table.blackout ? 0x1a1208 : (i + lit) % 3 === 0 ? 0xfff0b0 : 0x6a4a14,
+      );
+    this.marqueeRate += (3 - this.marqueeRate) * Math.min(1, dt * 0.6);
     if (this.mode === 'fall') {
       this.fallT += dt;
       this.cell.openTrapdoor(Math.min(1, this.fallT * 3));
@@ -397,4 +455,39 @@ function makeEnvMap(): THREE.Texture {
   tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/** The topper's painted sign. */
+function topperSign(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 54;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#5e1410';
+  g.fillRect(0, 0, 512, 54);
+  g.fillStyle = '#d59a2a';
+  g.fillRect(0, 0, 512, 5);
+  g.fillRect(0, 49, 512, 5);
+  g.fillStyle = '#ecdcb4';
+  g.font = '34px "Saira Stencil One", Impact, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('PAY  OR  FALL', 256, 29);
+  return c;
+}
+
+/** Speaker grille: rows of slots in black steel. */
+function grilleTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 24;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#17120e';
+  g.fillRect(0, 0, 256, 24);
+  g.fillStyle = '#050403';
+  for (let y = 3; y < 22; y += 5) for (let x = 6; x < 250; x += 10) g.fillRect(x, y, 7, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  return t;
 }

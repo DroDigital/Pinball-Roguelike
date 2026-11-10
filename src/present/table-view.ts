@@ -9,7 +9,7 @@ import type { PinballSim } from '../sim/sim';
 import { Lamp } from '../rules/types';
 import { wx, wz, TW, TH, CX, CY } from './coords';
 import { paintPlayfield, shapePath, ART_PX } from './playfield-art';
-import { readyArt } from './art';
+import { canvasTexture } from './retro-material';
 
 const LAMP_COLORS: Record<LampColor, number> = {
   red: 0xff3a2a,
@@ -47,7 +47,12 @@ export class TableView {
   private readonly flippers = new Map<string, THREE.Group>();
   private readonly pops = new Map<
     string,
-    { cap: THREE.MeshStandardMaterial; ring: THREE.Mesh; base: number }
+    {
+      cap: THREE.MeshStandardMaterial;
+      side: THREE.MeshStandardMaterial;
+      ring: THREE.Mesh;
+      base: number;
+    }
   >();
   /** Objects shown only when their tag is active for the current ball. */
   private readonly tagged = new Map<string, THREE.Object3D[]>();
@@ -111,7 +116,7 @@ export class TableView {
 
     // Playfield.
     const canvas = document.createElement('canvas');
-    paintPlayfield(canvas, readyArt('machine/playfield-illustration'));
+    paintPlayfield(canvas);
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
@@ -147,9 +152,22 @@ export class TableView {
       cabinet: new THREE.MeshStandardMaterial({ color: 0x2b1810, roughness: 0.75 }),
     };
 
+    // Printed tops for the parts that stand on the playfield (extrusion UVs are table units).
+    const cap = (tex: THREE.Texture, rough = 0.6, metal = 0): THREE.MeshStandardMaterial => {
+      tex.repeat.set(0.5, 0.5);
+      return new THREE.MeshStandardMaterial({ map: tex, roughness: rough, metalness: metal });
+    };
+    const caps: Partial<Record<string, THREE.Material>> = {
+      block: cap(plateTexture('#2b2622', '#4a433b')),
+      apron: cap(hazardTexture(), 0.55, 0.2),
+      cabinet: cap(plateTexture('#1a120c', '#3a2a1a'), 0.7),
+      guide: cap(plateTexture('#8a8d92', '#c9ccd2'), 0.3, 0.8),
+      rail: cap(plateTexture('#b0261a', '#e8d8b0'), 0.4),
+      lane: cap(plateTexture('#c79a3a', '#f0d890'), 0.3, 0.7),
+    };
     for (const w of t.walls) {
       if (w.look === 'invisible') continue;
-      const mat =
+      const side =
         w.look === 'cabinet'
           ? mats.cabinet
           : w.look === 'block'
@@ -165,6 +183,8 @@ export class TableView {
                     : w.mat === 'rubber'
                       ? mats.rubber
                       : mats.wood;
+      const top = caps[w.look];
+      const mat: THREE.Material | THREE.Material[] = top ? [top, side] : side;
       const mesh = w.look === 'cabinet' ? this.cabinetMesh(w, mat) : this.wallMesh(w, mat);
       if (mesh) {
         this.root.add(mesh);
@@ -196,6 +216,8 @@ export class TableView {
       this.root.add(g);
     }
 
+    const capTex = bumperCapTexture();
+    const slingTex = slingTexture();
     for (const b of t.bumpers) {
       const g = new THREE.Group();
       tag(g, b.tag);
@@ -206,23 +228,37 @@ export class TableView {
       body.position.y = 0.35;
       const skirt = new THREE.Mesh(new THREE.CylinderGeometry(b.r, b.r, 0.12, 24), mats.post);
       skirt.position.y = 0.06;
+      // A domed cap with a printed starburst; the whole cap lights when it fires.
       const capMat = new THREE.MeshStandardMaterial({
+        map: capTex,
+        emissive: 0x400000,
+        emissiveMap: capTex,
+        roughness: 0.35,
+      });
+      const capSide = new THREE.MeshStandardMaterial({
         color: 0xd02020,
         emissive: 0x400000,
         roughness: 0.4,
       });
-      const cap = new THREE.Mesh(
-        new THREE.CylinderGeometry(b.r * 0.92, b.r * 0.92, 0.3, 24),
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(b.r * 0.78, b.r * 0.96, 0.42, 24), [
+        capSide,
         capMat,
+        capSide,
+      ]);
+      cap.position.y = 0.95;
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(b.r * 1.0, b.r * 1.0, 0.1, 24),
+        mats.rail,
       );
-      cap.position.y = 0.85;
+      collar.position.y = 0.72;
+      g.add(collar);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(b.r * 0.86, 0.08, 6, 24), mats.metal);
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.45;
       g.add(body, skirt, cap, ring);
       g.position.set(wx(b.x), 0, wz(b.y));
       this.root.add(g);
-      this.pops.set(b.id, { cap: capMat, ring, base: 0.45 });
+      this.pops.set(b.id, { cap: capMat, side: capSide, ring, base: 0.45 });
     }
 
     for (const s of t.slings) {
@@ -231,11 +267,14 @@ export class TableView {
       );
       const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.75, bevelEnabled: false });
       const mat = new THREE.MeshStandardMaterial({
-        color: 0xe8dcc8,
+        map: slingTex,
         roughness: 0.45,
         emissive: 0x000000,
       });
-      const m = new THREE.Mesh(geo, mat);
+      const m = new THREE.Mesh(geo, [
+        mat,
+        new THREE.MeshStandardMaterial({ color: 0x1c1512, roughness: 0.6 }),
+      ]);
       m.rotation.x = -Math.PI / 2;
       this.root.add(m);
       this.root.add(this.segmentBox(s.a, s.b, 0.14, 0.5, mats.rubber, s.postR * 0.9));
@@ -374,7 +413,7 @@ export class TableView {
     this.lamps.set(l.id, { def: l, mat, on, off, glow });
   }
 
-  private wallMesh(w: WallDef, mat: THREE.Material): THREE.Mesh | null {
+  private wallMesh(w: WallDef, mat: THREE.Material | THREE.Material[]): THREE.Mesh | null {
     if (!w.loop) return null;
     const shape = new THREE.Shape(w.pts.map((p) => new THREE.Vector2(wx(p[0]), -wz(p[1]))));
     const geo = new THREE.ExtrudeGeometry(shape, { depth: w.h ?? 1, bevelEnabled: false });
@@ -384,7 +423,7 @@ export class TableView {
     return m;
   }
 
-  private cabinetMesh(w: WallDef, mat: THREE.Material): THREE.Mesh {
+  private cabinetMesh(w: WallDef, mat: THREE.Material | THREE.Material[]): THREE.Mesh {
     const pad = 1.6;
     const outer = new THREE.Shape([
       new THREE.Vector2(-TW / 2 - pad, -TH / 2 - pad - 2),
@@ -422,9 +461,9 @@ export class TableView {
     return m;
   }
 
-  /** Print the art pack's illustration on the playfield (it arrives after the table is built). */
-  setIllustration(img: HTMLImageElement): void {
-    paintPlayfield(this.pfCanvas, img);
+  /** Repaint the playfield print (its fonts arrive after the table is built). */
+  repaint(): void {
+    paintPlayfield(this.pfCanvas);
     this.pfTex.needsUpdate = true;
   }
 
@@ -441,7 +480,8 @@ export class TableView {
       const v = this.pops.get(p.id);
       if (!v) continue;
       if (p.id === this.goldPop) v.cap.emissive.setRGB(0.35 + p.flash, 0.25 + p.flash * 0.8, 0.02);
-      else v.cap.emissive.setRGB(0.25 + p.flash * 0.9, 0.02 + p.flash * 0.25, 0);
+      else v.cap.emissive.setRGB(0.3 + p.flash * 1.2, 0.2 + p.flash * 0.9, 0.16 + p.flash * 0.6);
+      v.side.emissive.copy(v.cap.emissive).multiplyScalar(0.6);
       v.ring.position.y = v.base - p.flash * 0.3;
     }
     sim.slings.forEach((s, i) =>
@@ -544,7 +584,9 @@ export class TableView {
     if (goldId === this.goldPop) return;
     for (const [id, v] of this.pops) {
       const isGold = id === goldId;
-      v.cap.color.setHex(isGold ? 0xe8b830 : 0xd02020);
+      v.cap.color.setHex(isGold ? 0xf0c040 : 0xffffff);
+      v.side.color.setHex(isGold ? 0xe8b830 : 0xd02020);
+      v.side.metalness = isGold ? 0.85 : 0;
       v.cap.metalness = isGold ? 0.85 : 0;
       v.cap.roughness = isGold ? 0.25 : 0.4;
     }
@@ -637,4 +679,101 @@ function lampShape(kind: LampDef['shape'], size: number): THREE.Shape {
   shapePath(fake, kind, size);
   pts.forEach(([x, y], i) => (i === 0 ? s.moveTo(x, -y) : s.lineTo(x, -y)));
   return s;
+}
+
+/** A riveted plate: base colour with a lighter bevel and a rivet in each corner of a 2x2 tile. */
+function plateTexture(base: string, hi: string): THREE.Texture {
+  return canvasTexture(64, 64, (g) => {
+    g.fillStyle = base;
+    g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = hi;
+    g.globalAlpha = 0.35;
+    g.strokeRect(1.5, 1.5, 61, 61);
+    g.globalAlpha = 1;
+    for (const [x, y] of [
+      [8, 8],
+      [56, 8],
+      [8, 56],
+      [56, 56],
+    ]) {
+      g.fillStyle = 'rgba(0,0,0,0.6)';
+      g.fillRect(x - 3, y - 3, 6, 6);
+      g.fillStyle = hi;
+      g.fillRect(x - 2, y - 2, 3, 3);
+    }
+    for (let i = 0; i < 60; i++) {
+      g.fillStyle = `rgba(0,0,0,${Math.random() * 0.18})`;
+      g.fillRect(Math.random() * 64, Math.random() * 64, 3, 1);
+    }
+  });
+}
+
+/** Black and mustard hazard stripes (the apron and the plugs). */
+function hazardTexture(): THREE.Texture {
+  return canvasTexture(64, 64, (g) => {
+    g.fillStyle = '#17120e';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#d59a2a';
+    for (let i = -2; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(i * 32, 0);
+      g.lineTo(i * 32 + 16, 0);
+      g.lineTo(i * 32 + 80, 64);
+      g.lineTo(i * 32 + 64, 64);
+      g.fill();
+    }
+  });
+}
+
+/** Bumper cap: a cream star on red inside a black ring. */
+function bumperCapTexture(): THREE.Texture {
+  const t = canvasTexture(64, 64, (g) => {
+    g.fillStyle = '#b3261a';
+    g.fillRect(0, 0, 64, 64);
+    g.translate(32, 32);
+    g.fillStyle = '#ecdcb4';
+    g.beginPath();
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2;
+      const r = i % 2 ? 11 : 26;
+      g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.fill();
+    g.fillStyle = '#120c0a';
+    g.beginPath();
+    g.arc(0, 0, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#d59a2a';
+    g.beginPath();
+    g.arc(0, 0, 5, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#120c0a';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.arc(0, 0, 29, 0, Math.PI * 2);
+    g.stroke();
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
+/** Sling plastic: cream with red lightning chevrons. */
+function slingTexture(): THREE.Texture {
+  const t = canvasTexture(64, 64, (g) => {
+    g.fillStyle = '#ecdcb4';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#b3261a';
+    for (let k = 0; k < 4; k++) {
+      g.beginPath();
+      g.moveTo(0, k * 16 + 8);
+      g.lineTo(32, k * 16);
+      g.lineTo(64, k * 16 + 8);
+      g.lineTo(64, k * 16 + 13);
+      g.lineTo(32, k * 16 + 5);
+      g.lineTo(0, k * 16 + 13);
+      g.fill();
+    }
+  });
+  t.repeat.set(0.6, 0.6);
+  return t;
 }

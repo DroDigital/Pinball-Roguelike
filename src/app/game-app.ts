@@ -290,9 +290,8 @@ export class GameApp {
       void loadArt('machine/backglass').then(() => this.paintGlass(this.glassLevels));
     }
     // The machine's printed art replaces the procedural decoration as it arrives.
-    void loadArt('machine/playfield-illustration').then(
-      (img) => img && this.world.table.setIllustration(img),
-    );
+    // The playfield print uses the UI's display faces: repaint once they have loaded.
+    void document.fonts?.ready.then(() => this.world.table.repaint());
     void loadArt('machine/cabinet-side-art').then((img) => img && this.world.setCabinetArt(img));
     this.hints = new Hints(document.body, this.save.seenHints, () => this.persist());
     this.hints.enabled = this.save.settings.hints;
