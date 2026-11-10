@@ -1980,18 +1980,7 @@ export class GameApp {
               )
             : null,
           this.charmBar(r),
-          h(
-            'div',
-            {
-              style: {
-                fontFamily: 'var(--bc-crt)',
-                fontSize: '0.95em',
-                color: '#a49477',
-                margin: '2px 0',
-              },
-            },
-            `SHOT UPGRADES: ${levelsText(r)}`,
-          ),
+          h('div', { class: 'cell-levels' }, `SHOT UPGRADES: ${levelsText(r)}`),
           this.stash(r, () => this.enterCell()),
           sentenceActive(r)
             ? h(
@@ -2922,7 +2911,7 @@ export class GameApp {
       cellmate: 'Paid in full. The wall came down.',
     };
     const drains = Object.entries(r.stats.drains)
-      .map(([k, v]) => `${k} ${v}`)
+      .map(([k, v]) => `${k}\u00a0${v}`)
       .join(', ');
     this.ui.show(
       h(
@@ -3124,6 +3113,7 @@ export class GameApp {
       menu: this.ui.open,
     });
     this.world.shelf.sync(r ? r.charms : [], r ? r.contraband : []);
+    this.world.setCounter(g && playing ? formatCoins(g.earned) : r ? String(r.pocket) : '0');
     if (r) {
       if (r.keys) this.hints.show('keys');
       if (g && playing && g.stats.seconds > 25) this.hints.show('nudge');
@@ -3206,7 +3196,7 @@ function rewardText(def: JobDef, deadline: number): string {
 
 function levelsText(r: RunState): string {
   return (Object.entries(r.shotLevels) as [string, number][])
-    .map(([k, v]) => `${k} ${v}`)
+    .map(([k, v]) => `${k}\u00a0${v}`)
     .join(' · ');
 }
 

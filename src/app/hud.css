@@ -1,150 +1,90 @@
 /*
- * Play HUD: riveted instruments hung on chains either side of the machine (see hud.ts).
- * Dark oxidised steel, brass nameplates, amber and phosphor read-outs, blood red for threat.
+ * Play HUD (see hud.ts). There is no housing: the read-outs are block lettering laid straight
+ * over the cell in five flat inks, hard-edged and black-outlined, the way a cheap machine
+ * stamps numbers on its own glass. No gradients, no glow, no rounded corners.
  */
 #hud {
-  --hx-steel: #1b1917;
-  --hx-steel-hi: #35302b;
-  --hx-rust: #5a2f1c;
-  --hx-brass: #b98a3a;
-  --hx-amber: #ffb24a;
-  --hx-bone: #f1e3c4;
-  --hx-red: #ff4a36;
-  --hx-green: #7dff9a;
-  --hx-w: clamp(196px, 21.5vw, 310px);
+  --k: #0b0806;
+  --bone: #eadfc4;
+  --coin: #f4c430;
+  --blood: #e0382a;
+  --grass: #63d864;
+  --rust: #8a7a5c;
+  /* A hard black outline: eight directions and a drop. */
+  --ol:
+    2px 0 var(--k), -2px 0 var(--k), 0 2px var(--k), 0 -2px var(--k), 2px 2px var(--k),
+    -2px -2px var(--k), 2px -2px var(--k), -2px 2px var(--k), 0 5px var(--k);
+  --hx-w: clamp(180px, 20vw, 290px);
   font-family: var(--bc-head, Impact, sans-serif);
-  color: var(--hx-bone);
-  letter-spacing: 0.06em;
+  color: var(--bone);
+  letter-spacing: 0.05em;
+  text-shadow: var(--ol);
+  line-height: 1;
+}
+/* Everything shivers by a pixel now and then, like vertices that never sit still. */
+@keyframes hx-jitter {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(1px, 0);
+  }
+  66% {
+    transform: translate(0, 1px);
+  }
 }
 .hx-left,
 .hx-right {
   position: absolute;
-  top: 0;
+  top: 14px;
   width: var(--hx-w);
-  padding-top: 26px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transform-origin: 50% -40px;
-  transition: opacity 0.25s;
+  gap: 12px;
+  transition: opacity 0.2s steps(3);
 }
 .hx-left {
-  left: 14px;
+  left: 16px;
 }
 .hx-right {
-  right: 14px;
-}
-/* Chains running up out of sight. */
-.hx-left::before,
-.hx-left::after,
-.hx-right::before,
-.hx-right::after {
-  content: '';
-  position: absolute;
-  top: -8px;
-  width: 8px;
-  height: 36px;
-  background: repeating-linear-gradient(
-    180deg,
-    #6c6a66 0 3px,
-    #1a1917 3px 4px,
-    #3a3835 4px 9px,
-    #1a1917 9px 10px
-  );
-  border-radius: 3px;
-  box-shadow: 1px 0 0 #000;
-}
-.hx-left::before,
-.hx-right::before {
-  left: 18%;
-}
-.hx-left::after,
-.hx-right::after {
-  right: 18%;
+  right: 16px;
+  align-items: flex-end;
+  text-align: right;
 }
 @keyframes hx-swing {
-  0% {
-    transform: rotate(0);
+  0%,
+  100% {
+    transform: translate(0, 0);
   }
-  25% {
-    transform: rotate(var(--swing, 1deg));
+  20% {
+    transform: translate(calc(var(--swing, 1deg) * 3px / 1deg), 4px);
   }
   60% {
-    transform: rotate(calc(var(--swing, 1deg) * -0.5));
-  }
-  100% {
-    transform: rotate(0);
+    transform: translate(calc(var(--swing, 1deg) * -1px / 1deg), -2px);
   }
 }
 .hx-left.swing,
 .hx-right.swing {
-  animation: hx-swing 0.7s ease-out;
+  animation: hx-swing 0.3s steps(4);
 }
-
-/* ---- the plate every instrument is cut from */
 .hx-box {
   position: relative;
-  padding: 10px 10px 9px;
-  background:
-    radial-gradient(circle at 7px 7px, #8a8378 0 1.6px, #14110f 2px 3px, transparent 3.4px),
-    radial-gradient(
-      circle at calc(100% - 7px) 7px,
-      #8a8378 0 1.6px,
-      #14110f 2px 3px,
-      transparent 3.4px
-    ),
-    radial-gradient(
-      circle at 7px calc(100% - 7px),
-      #8a8378 0 1.6px,
-      #14110f 2px 3px,
-      transparent 3.4px
-    ),
-    radial-gradient(
-      circle at calc(100% - 7px) calc(100% - 7px),
-      #8a8378 0 1.6px,
-      #14110f 2px 3px,
-      transparent 3.4px
-    ),
-    repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 5px),
-    radial-gradient(120% 80% at 0% 100%, rgba(120, 52, 22, 0.35), transparent 60%),
-    linear-gradient(170deg, var(--hx-steel-hi), var(--hx-steel) 55%, #100e0d);
-  border: 2px solid #0a0908;
-  border-radius: 5px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
-    0 10px 22px rgba(0, 0, 0, 0.7);
 }
 .hx-plate {
-  margin: -2px auto 7px;
-  width: fit-content;
-  padding: 1px 14px 0;
-  font-family: var(--bc-stencil, Impact, sans-serif);
-  font-size: 0.72rem;
-  letter-spacing: 0.22em;
-  color: #2a1a08;
-  background: linear-gradient(180deg, #e2bb6a, var(--hx-brass) 55%, #7a5720);
-  border: 1px solid #3a2810;
-  border-radius: 2px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
-  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.4);
+  display: none;
 }
 .hx-tag {
-  font-family: var(--bc-stencil, Impact, sans-serif);
-  font-size: 0.62rem;
-  letter-spacing: 0.2em;
-  color: #9c8a6c;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: var(--rust);
 }
 
-/* ---- marquee: the DMD in its well */
+/* ---- the DMD: a bare black sign */
 .hx-dmd-well {
-  padding: 5px;
-  background: #050403;
-  border: 2px solid #000;
-  border-radius: 3px;
-  box-shadow:
-    inset 0 0 14px rgba(0, 0, 0, 0.9),
-    0 0 22px rgba(255, 120, 30, 0.22);
+  background: var(--k);
+  border: 3px solid var(--k);
+  outline: 2px solid #3a3026;
 }
 .hx-dmd {
   display: block;
@@ -152,475 +92,375 @@
   image-rendering: pixelated;
 }
 .hx-ball-line {
-  margin-top: 6px;
-  text-align: center;
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  color: #c9b48c;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  color: var(--rust);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* ---- ledger: coin reels, the debt gauge, round lamps */
+/* ---- the ledger: numbers, nothing else */
+.hx-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .hx-reel-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
+  align-items: baseline;
+  gap: 10px;
+}
+.hx-reel-row .hx-tag {
+  order: 2;
 }
 .hx-reel {
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  background: #060504;
-  border: 1px solid #000;
-  border-radius: 3px;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9);
 }
 .hx-digit {
-  width: 1.05em;
-  height: 1.5em;
+  width: 0.62em;
+  height: 1em;
   overflow: hidden;
-  font-family: var(--bc-head, Impact, sans-serif);
-  font-size: clamp(1.05rem, 1.75vw, 1.6rem);
-  line-height: 1.5em;
+  font-size: clamp(1.9rem, 3.4vw, 3.2rem);
+  line-height: 1em;
   text-align: center;
-  color: #16120e;
-  background: linear-gradient(
-    180deg,
-    #8f8672 0,
-    #efe4c8 28%,
-    #fff7e2 50%,
-    #e2d6b8 72%,
-    #7f7663 100%
-  );
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  color: var(--bone);
 }
 .hx-digit > span {
   display: block;
-  width: 1.05em;
   white-space: pre;
-  line-height: 1.5em;
-  transition: transform 0.38s cubic-bezier(0.2, 1.35, 0.4, 1);
+  line-height: 1em;
+  transition: transform 0.18s steps(4);
 }
-.hx-digit.lead > span {
-  opacity: 0.22;
+.hx-digit.lead {
+  display: none;
 }
 .hx-digit.red {
-  color: #fff3e0;
-  background: linear-gradient(
-    180deg,
-    #4a0d08 0,
-    #c22a1c 30%,
-    #e2412e 50%,
-    #b3241a 72%,
-    #400a06 100%
-  );
+  width: 0.5em;
+  font-size: clamp(1.2rem, 2.1vw, 2rem);
+  align-self: flex-end;
+  color: var(--coin);
+  opacity: 0.75;
 }
-.hx-ball-row .hx-digit:not(.red) {
-  background: linear-gradient(
-    180deg,
-    #7a4a12 0,
-    #ffc15a 28%,
-    #ffd98a 50%,
-    #f0a93a 72%,
-    #6a3d0c 100%
-  );
+/* This ball's take is the big one, in coin yellow; the pocket sits under it. */
+.hx-ball-row {
+  order: -1;
+}
+.hx-ball-row .hx-digit {
+  font-size: clamp(2.8rem, 5.4vw, 5rem);
+  color: var(--coin);
+}
+.hx-ball-row .hx-digit.red {
+  font-size: clamp(1.6rem, 3vw, 2.8rem);
 }
 .hx-ball-row .hx-tag {
-  color: var(--hx-amber);
+  color: var(--coin);
+}
+.hx-ball-row .hx-reel {
+  animation: hx-jitter 0.9s steps(1) infinite;
 }
 @keyframes hx-bump {
   0% {
-    transform: translateY(0) scale(1);
-  }
-  30% {
-    transform: translateY(3px) scale(1.025);
-    filter: brightness(1.35);
+    transform: scale(1.18) translateY(-3px);
   }
   100% {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
   }
 }
-.hx-ledger.bump {
-  animation: hx-bump 0.16s ease-out;
-}
-.hx-ledger.bump2 {
-  animation: hx-bump 0.34s ease-out;
+.hx-ledger.bump .hx-ball-row,
+.hx-ledger.bump2 .hx-ball-row {
+  transform-origin: 0 100%;
+  animation: hx-bump 0.14s steps(3);
 }
 .hx-owed {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.86rem;
+  gap: 16px;
+  margin-top: 6px;
+  font-size: 1.05rem;
   letter-spacing: 0.1em;
-  color: #a8987a;
+  color: var(--rust);
 }
 .hx-owed b {
-  font-family: var(--bc-crt, monospace);
-  font-size: 1.25em;
   font-weight: normal;
+  font-size: 1.5em;
 }
 .hx-bank b {
-  color: var(--hx-green);
-  text-shadow: 0 0 8px rgba(80, 255, 130, 0.5);
+  color: var(--grass);
 }
 .hx-debt b {
-  color: var(--hx-red);
-  text-shadow: 0 0 8px rgba(255, 60, 40, 0.55);
+  color: var(--blood);
 }
+/* The debt gauge: a notched bar, flat fill. */
 .hx-gauge {
   position: relative;
-  height: 12px;
-  margin: 5px 0 7px;
-  background: #070605;
-  border: 1px solid #000;
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.9);
+  height: 10px;
+  margin: 4px 0 6px;
+  background: var(--k);
+  border: 2px solid var(--k);
+  outline: 2px solid #3a3026;
 }
 .hx-gauge i {
   position: absolute;
   inset: 0 auto 0 0;
-  background: repeating-linear-gradient(90deg, #ffb24a 0 6px, #c9781c 6px 8px);
-  transition: width 0.4s ease-out;
+  background: var(--coin);
+  transition: width 0.3s steps(6);
 }
 .hx-gauge em {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 45%);
+  background: repeating-linear-gradient(90deg, transparent 0 10px, var(--k) 10px 12px);
 }
 .hx-gauge.full i {
-  background: repeating-linear-gradient(90deg, #7dff9a 0 6px, #2f9e52 6px 8px);
+  background: var(--grass);
 }
 @keyframes hx-danger {
   50% {
-    box-shadow:
-      inset 0 2px 5px rgba(0, 0, 0, 0.9),
-      0 0 12px rgba(255, 50, 30, 0.9);
-    border-color: #ff4a36;
+    outline-color: var(--blood);
   }
 }
 .hx-gauge.danger {
-  animation: hx-danger 0.9s infinite;
+  animation: hx-danger 0.6s steps(1) infinite;
 }
 .hx-gauge.danger i {
-  background: repeating-linear-gradient(90deg, #ff5a40 0 6px, #9c1e12 6px 8px);
+  background: var(--blood);
 }
 .hx-when {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 0.74rem;
-  letter-spacing: 0.14em;
-  color: #a8987a;
+  gap: 12px;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--rust);
 }
 .hx-rounds {
   display: flex;
   gap: 5px;
 }
 .hx-rounds i {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #4a4038, #17130f 70%);
-  border: 1px solid #000;
+  width: 12px;
+  height: 12px;
+  background: #2a231c;
+  border: 2px solid var(--k);
 }
 .hx-rounds i.done {
-  background: radial-gradient(circle at 35% 30%, #c9ffd6, #2f9e52 70%);
+  background: var(--grass);
 }
 .hx-rounds i.now {
-  background: radial-gradient(circle at 35% 30%, #fff3c9, #ff9b2f 70%);
-  box-shadow: 0 0 9px rgba(255, 160, 50, 0.9);
+  background: var(--coin);
 }
 
-/* ---- status rack */
+/* ---- status: lines of lettering that only exist while they matter */
 .hx-status {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-}
-.hx-status .hx-plate {
-  margin-bottom: 0;
+  align-items: flex-end;
+  gap: 8px;
 }
 .hx-balls {
   display: flex;
-  justify-content: center;
   gap: 5px;
   min-height: 16px;
-  font-size: 0.7rem;
-  color: var(--hx-red);
+  font-size: 1rem;
+  color: var(--blood);
 }
 .hx-balls i {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, #fff, #a9adb4 30%, #3b3e44 75%, #15161a);
-  box-shadow: 0 1px 2px #000;
+  background: #b9bdc4;
+  border: 2px solid var(--k);
 }
 .hx-balls i.live {
-  box-shadow:
-    0 0 0 2px #050403,
-    0 0 0 3px var(--hx-amber),
-    0 0 10px rgba(255, 170, 60, 0.9);
-  margin-right: 5px;
+  background: var(--coin);
+  margin-right: 6px;
 }
 .hx-balls i.extra {
-  background: radial-gradient(circle at 32% 28%, #fff, #ffd98a 30%, #b9782a 75%, #4a2a08);
+  background: var(--grass);
 }
 .hx-combo {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 2px 8px;
-  padding: 4px 8px 6px;
-  background: #080706;
-  border: 1px solid #000;
-  border-radius: 3px;
-  opacity: 0.45;
-  transition: opacity 0.2s;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.hx-combo.armed,
+.hx-combo.on {
+  display: flex;
+}
+.hx-combo .hx-tag {
+  display: none;
 }
 .hx-combo b {
-  justify-self: end;
-  font-family: var(--bc-head, Impact, sans-serif);
-  font-size: clamp(1.3rem, 2.3vw, 2.1rem);
-  line-height: 1;
   font-weight: normal;
-  color: #5a4c3a;
+  font-size: clamp(1.4rem, 2.4vw, 2.2rem);
+  color: var(--rust);
 }
 .hx-combo-bar {
-  grid-column: 1 / -1;
-  height: 5px;
-  background: #1a1512;
-  border-radius: 3px;
-  overflow: hidden;
+  width: clamp(90px, 10vw, 150px);
+  height: 8px;
+  background: var(--k);
+  border: 2px solid var(--k);
 }
 .hx-combo-bar i {
   display: block;
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, #ff4a2a, #ffd27a);
-}
-.hx-combo.armed {
-  opacity: 0.8;
-}
-.hx-combo.on {
-  opacity: 1;
-  border-color: #7a3d10;
-  box-shadow: 0 0 14px rgba(255, 130, 40, 0.35);
+  margin-left: auto;
+  background: var(--bone);
 }
 .hx-combo.on b {
-  color: var(--hx-amber);
-  text-shadow: 0 0 12px rgba(255, 150, 40, 0.9);
+  font-size: clamp(2.6rem, 5vw, 4.6rem);
+  color: var(--coin);
+  animation: hx-jitter 0.3s steps(1) infinite;
 }
-@keyframes hx-hot {
-  50% {
-    transform: scale(1.12) rotate(-2deg);
-    color: #fff;
-  }
+.hx-combo.on .hx-combo-bar i {
+  background: var(--coin);
 }
 .hx-combo.hot b {
-  color: #ff5a36;
-  animation: hx-hot 0.28s infinite;
+  color: var(--blood);
+}
+.hx-combo.hot .hx-combo-bar i {
+  background: var(--blood);
 }
 .hx-bonus-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.9rem;
 }
 .hx-bonus-row > b {
-  font-family: var(--bc-crt, monospace);
   font-weight: normal;
-  font-size: 1.05rem;
-  color: var(--hx-amber);
-  min-width: 2.2em;
+  font-size: 1.4rem;
+  color: var(--bone);
 }
 .hx-bonus {
   display: flex;
-  gap: 3px;
-  margin-left: auto;
+  gap: 2px;
 }
 .hx-bonus i {
-  width: 22px;
-  padding: 1px 0;
+  display: none;
   font-style: normal;
-  font-size: 0.66rem;
-  text-align: center;
-  color: #4a3f33;
-  background: #0c0a09;
-  border: 1px solid #000;
-  border-radius: 2px;
+  font-size: 1.4rem;
+  color: var(--coin);
 }
-.hx-bonus.m1 i:nth-child(-n + 1),
-.hx-bonus.m2 i:nth-child(-n + 2),
-.hx-bonus.m3 i:nth-child(-n + 3),
-.hx-bonus.m4 i:nth-child(-n + 4),
-.hx-bonus.m5 i:nth-child(-n + 5) {
-  color: #2a1404;
-  background: linear-gradient(180deg, #ffd98a, #ff9b2f);
-  box-shadow: 0 0 8px rgba(255, 160, 50, 0.7);
+/* Only the multiplier you hold is printed. */
+.hx-bonus.m2 i:nth-child(2),
+.hx-bonus.m3 i:nth-child(3),
+.hx-bonus.m4 i:nth-child(4),
+.hx-bonus.m5 i:nth-child(5) {
+  display: block;
 }
-.hx-bonus.over i {
-  background: linear-gradient(180deg, #ffd0c0, #ff4a36);
+.hx-bonus.over i:nth-child(5) {
+  color: var(--blood);
 }
 .hx-lamps {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 .hx-lamp {
   --p: 0;
-  position: relative;
-  padding: 3px 0 2px;
-  font-size: 0.6rem;
-  line-height: 1.1;
-  text-align: center;
-  color: #4d4236;
-  background: #0c0a09;
-  border: 1px solid #000;
-  border-radius: 2px;
-  overflow: hidden;
+  display: none;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  color: var(--coin);
 }
 .hx-lamp small {
-  display: block;
-  min-height: 1.1em;
-  font-family: var(--bc-crt, monospace);
-  font-size: 0.74rem;
-  letter-spacing: 0;
+  font-size: 0.8em;
+  color: var(--bone);
 }
 .hx-lamp.on,
-.hx-lamp.blink {
-  color: #1c0d03;
-  background: linear-gradient(180deg, #ffe2a0, #ff9b2f);
-  box-shadow: 0 0 9px rgba(255, 160, 50, 0.75);
+.hx-lamp.blink,
+.hx-lamp.fill {
+  display: flex;
 }
 @keyframes hx-blink {
   50% {
-    filter: brightness(0.45);
+    opacity: 0.25;
   }
 }
 .hx-lamp.blink {
-  animation: hx-blink 0.4s steps(1) infinite;
+  animation: hx-blink 0.36s steps(1) infinite;
 }
+/* A mode that is charging shows as a short notched meter after its name. */
 .hx-lamp.fill {
-  color: #b9a888;
+  font-size: 0.95rem;
+  color: var(--rust);
 }
-.hx-lamp.fill::before {
+.hx-lamp.fill::after {
   content: '';
-  position: absolute;
-  inset: auto 0 0 0;
-  height: calc(var(--p) * 100%);
-  background: rgba(255, 140, 40, 0.38);
+  width: 54px;
+  height: 8px;
+  border: 2px solid var(--k);
+  background: linear-gradient(90deg, var(--bone) calc(var(--p) * 100%), var(--k) 0);
 }
-.hx-lamp[data-lamp='save'].on,
-.hx-lamp[data-lamp='save'].blink {
-  background: linear-gradient(180deg, #e8fff0, #7dff9a);
-  box-shadow: 0 0 9px rgba(90, 255, 140, 0.75);
+.hx-lamp[data-lamp='save'] {
+  color: var(--grass);
 }
-.hx-lamp[data-lamp='riot'].blink,
-.hx-lamp[data-lamp='brawl'].blink {
-  background: linear-gradient(180deg, #ffd0c0, #ff4a36);
-  box-shadow: 0 0 10px rgba(255, 70, 50, 0.85);
+.hx-lamp[data-lamp='riot'],
+.hx-lamp[data-lamp='brawl'] {
+  color: var(--blood);
 }
-.hx-lamp[data-lamp='mystery'].blink,
-.hx-lamp[data-lamp='shift'].blink {
-  background: linear-gradient(180deg, #f0d8ff, #b06aff);
-  box-shadow: 0 0 10px rgba(180, 100, 255, 0.85);
+.hx-lamp[data-lamp='mystery'],
+.hx-lamp[data-lamp='shift'] {
+  color: #c58aff;
 }
-.hx-lamp[data-lamp='sweep'].blink {
-  background: linear-gradient(180deg, #e0f2ff, #58b4ff);
-  box-shadow: 0 0 10px rgba(90, 170, 255, 0.85);
+.hx-lamp[data-lamp='sweep'] {
+  color: #7ac4ff;
 }
 
-/* ---- the Job: a punched paper ticket */
+/* ---- the Job: one line and a notched bar */
 .hx-ticket {
-  position: relative;
-  padding: 5px 8px 9px;
-  font-family: var(--bc-typewriter, monospace);
-  font-size: 0.7rem;
-  letter-spacing: 0;
-  line-height: 1.25;
-  color: #2a1c10;
-  background: linear-gradient(180deg, #efe0b8, #d9c592);
-  border-radius: 2px;
-  transform: rotate(-1deg);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
-  clip-path: polygon(
-    0 0,
-    100% 0,
-    100% 100%,
-    96% 94%,
-    92% 100%,
-    88% 94%,
-    84% 100%,
-    80% 94%,
-    76% 100%,
-    72% 94%,
-    68% 100%,
-    64% 94%,
-    60% 100%,
-    56% 94%,
-    52% 100%,
-    48% 94%,
-    44% 100%,
-    40% 94%,
-    36% 100%,
-    32% 94%,
-    28% 100%,
-    24% 94%,
-    20% 100%,
-    16% 94%,
-    12% 100%,
-    8% 94%,
-    4% 100%,
-    0 94%
-  );
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  max-width: var(--hx-w);
 }
 .hx-ticket + .hx-ticket {
-  margin-top: 5px;
+  margin-top: 8px;
 }
 .hx-ticket span {
-  display: block;
+  font-size: 0.95rem;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--bone);
 }
 .hx-ticket b {
-  font-family: var(--bc-head, Impact, sans-serif);
-  font-size: 1.05rem;
   font-weight: normal;
-  letter-spacing: 0.06em;
-  color: #7a1a10;
+  font-size: 1.5rem;
+  color: var(--coin);
 }
 .hx-ticket u {
   --p: 0;
-  display: block;
-  height: 4px;
-  margin-top: 2px;
-  background: linear-gradient(90deg, #7a1a10 calc(var(--p) * 100%), rgba(60, 40, 20, 0.25) 0);
-}
-.hx-ticket.done {
-  background: linear-gradient(180deg, #d8f5c8, #a9d68a);
+  width: clamp(90px, 10vw, 150px);
+  height: 8px;
+  border: 2px solid var(--k);
+  background: linear-gradient(270deg, var(--coin) calc(var(--p) * 100%), var(--k) 0);
 }
 .hx-ticket.done b {
-  color: #14501e;
+  color: var(--grass);
 }
-.hx-ticket.jb {
-  color: #fff3d8;
-  background: linear-gradient(180deg, #8a1c12, #4a0d08);
+.hx-ticket.done u {
+  background: var(--grass);
 }
+.hx-ticket.jb span,
 .hx-ticket.jb b {
-  color: #ffd27a;
+  color: var(--blood);
 }
 .hx-ticket.jb u {
-  background: linear-gradient(90deg, #ffd27a calc(var(--p) * 100%), rgba(0, 0, 0, 0.4) 0);
+  background: linear-gradient(270deg, var(--blood) calc(var(--p) * 100%), var(--k) 0);
 }
 .hx-extra {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
-  font-size: 0.72rem;
-  color: #a8987a;
+  justify-content: flex-end;
+  gap: 2px 12px;
+  font-size: 0.9rem;
+  color: var(--rust);
 }
 .hx-extra:empty,
 .hx-job:empty {
@@ -628,186 +468,156 @@
 }
 .hx-extra b {
   font-weight: normal;
-  color: var(--hx-amber);
+  color: var(--coin);
 }
 .hx-extra small {
   flex-basis: 100%;
-  font-family: var(--bc-typewriter, monospace);
-  letter-spacing: 0;
-  color: var(--hx-green);
+  font-size: 0.8rem;
+  color: var(--grass);
 }
 
-/* ---- relic rail: owned charms in sockets */
+/* ---- relics: the things themselves, no sockets */
 .hx-relics {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 2px;
   justify-content: flex-end;
 }
 .hx-relic {
-  --rc: #8a7a5a;
   position: relative;
-  width: 46px;
-  height: 46px;
-  background:
-    radial-gradient(circle at 50% 60%, rgba(255, 200, 120, 0.16), transparent 65%),
-    linear-gradient(160deg, #2c2722, #100e0c);
-  border: 2px solid var(--rc);
-  border-radius: 4px;
-  box-shadow:
-    inset 0 0 8px rgba(0, 0, 0, 0.9),
-    0 3px 6px rgba(0, 0, 0, 0.6);
-}
-.hx-relic.r-uncommon {
-  --rc: #5fae6a;
-}
-.hx-relic.r-rare {
-  --rc: #5aa0e0;
-}
-.hx-relic.r-legendary {
-  --rc: #f0c040;
-}
-.hx-relic.r-devil {
-  --rc: #e2442f;
+  width: 58px;
+  height: 58px;
 }
 .hx-relic .icon {
   display: block;
   width: 100%;
   height: 100%;
-  font-size: 30px;
+  margin: 0;
 }
 .hx-relic .icon > img {
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
+  filter: drop-shadow(2px 0 0 var(--k)) drop-shadow(-2px 0 0 var(--k)) drop-shadow(0 2px 0 var(--k))
+    drop-shadow(0 -2px 0 var(--k));
 }
 .hx-relic em {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -1px;
+  bottom: -4px;
   font-style: normal;
-  font-size: 0.5rem;
+  font-size: 0.6rem;
   letter-spacing: 0;
   text-align: center;
-  color: var(--hx-amber);
-  text-shadow: 0 0 3px #000;
+  color: var(--coin);
 }
 .hx-relic kbd {
   position: absolute;
-  top: -5px;
-  left: -5px;
-  min-width: 14px;
-  padding: 0 2px;
-  font: 0.6rem var(--bc-head, Impact, sans-serif);
-  text-align: center;
-  color: #1c0d03;
-  background: var(--hx-amber);
-  border-radius: 2px;
+  top: -2px;
+  left: 0;
+  font: 0.95rem var(--bc-head, Impact, sans-serif);
+  color: var(--coin);
 }
 @keyframes hx-pulse {
   0% {
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
-  25% {
-    transform: scale(1.35) rotate(-6deg);
-    box-shadow: 0 0 20px var(--rc);
-    filter: brightness(1.8);
+  30% {
+    transform: translateY(-14px) scale(1.4);
   }
   100% {
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 .hx-relic.pulse {
-  animation: hx-pulse 0.45s ease-out;
+  animation: hx-pulse 0.3s steps(5);
   z-index: 2;
 }
 
-/* ---- banners stamped over the table */
+/* ---- banners: lettering slammed over the table */
 .hx-banners {
   position: absolute;
   left: 50%;
-  top: 24%;
+  top: 22%;
   width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 @keyframes hx-stamp {
   0% {
-    transform: scale(3.2) rotate(-9deg);
+    transform: scale(2.6);
     opacity: 0;
   }
-  12% {
-    transform: scale(0.94) rotate(-3deg);
+  10% {
+    transform: scale(0.92);
     opacity: 1;
   }
-  18% {
-    transform: scale(1.04) rotate(-3deg);
-  }
-  24%,
-  78% {
-    transform: scale(1) rotate(-3deg);
+  16%,
+  80% {
+    transform: scale(1);
     opacity: 1;
   }
   100% {
-    transform: scale(1.08) rotate(-3deg) translateY(-22px);
+    transform: scale(1) translateY(-18px);
     opacity: 0;
   }
 }
 .hx-banner {
-  --bk: #ffd27a;
+  --bk: var(--coin);
   flex: none;
   width: max-content;
-  max-width: 92vw;
-  padding: 2px 22px 0;
+  max-width: 94vw;
   text-align: center;
   color: var(--bk);
-  border: 4px solid var(--bk);
-  border-radius: 6px;
-  background: rgba(8, 5, 3, 0.72);
-  text-shadow: 0 3px 0 #000;
-  box-shadow:
-    0 0 0 2px #000,
-    0 0 34px color-mix(in srgb, var(--bk) 60%, transparent);
-  animation: hx-stamp 1.5s ease-out forwards;
+  text-shadow:
+    3px 0 var(--k),
+    -3px 0 var(--k),
+    0 3px var(--k),
+    0 -3px var(--k),
+    3px 3px var(--k),
+    -3px -3px var(--k),
+    3px -3px var(--k),
+    -3px 3px var(--k),
+    0 8px var(--k);
+  animation: hx-stamp 1.3s steps(14) forwards;
 }
 .hx-banner b {
   display: block;
-  font-family: var(--bc-stencil, Impact, sans-serif);
   font-weight: normal;
-  font-size: clamp(1.6rem, 4.2vw, 3.4rem);
-  line-height: 1.05;
-  letter-spacing: 0.08em;
+  font-size: clamp(2rem, 5.2vw, 4.4rem);
+  line-height: 0.95;
+  letter-spacing: 0.04em;
 }
 .hx-banner span {
   display: block;
-  margin: -2px 0 4px;
-  font-size: clamp(0.8rem, 1.5vw, 1.2rem);
-  letter-spacing: 0.18em;
-  color: var(--hx-bone);
+  margin-top: 4px;
+  font-size: clamp(1rem, 2vw, 1.7rem);
+  letter-spacing: 0.1em;
+  color: var(--bone);
 }
 .hx-banner.big {
-  animation-duration: 2.3s;
+  animation-duration: 2.1s;
 }
 .hx-banner.big b {
-  font-size: clamp(2.4rem, 7vw, 5.6rem);
+  font-size: clamp(3rem, 9vw, 7.5rem);
 }
 .hx-banner.k-red {
-  --bk: #ff4a36;
+  --bk: var(--blood);
 }
 .hx-banner.k-green {
-  --bk: #7dff9a;
+  --bk: var(--grass);
 }
 .hx-banner.k-violet {
   --bk: #c58aff;
 }
 .hx-banner.k-bone {
-  --bk: #f1e3c4;
+  --bk: var(--bone);
 }
 
-/* ---- coins in flight to the ledger */
+/* ---- coins in flight */
 .hx-flyers {
   position: absolute;
   inset: 0;
@@ -815,183 +625,43 @@
 }
 .hx-flyers i {
   position: absolute;
-  left: -9px;
-  top: -9px;
-  width: 18px;
-  height: 18px;
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  background: var(--coin);
+  border: 3px solid var(--k);
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff6c8, #ffc83a 40%, #b9781c 78%, #5a3608);
-  box-shadow:
-    inset 0 0 0 2px rgba(120, 70, 10, 0.7),
-    0 0 10px rgba(255, 190, 60, 0.8);
+  box-shadow: inset -3px -3px 0 #b9841c;
 }
 
 /* ---- states */
+#hud.menu:not(.playing) .hx-left,
 #hud.menu .hx-right,
 #hud.ending .hx-right,
-#hud.ending .hx-ledger {
-  opacity: 0;
-}
-#hud.menu:not(.playing) .hx-left {
-  opacity: 0;
-}
+#hud.ending .hx-ledger,
 #hud.replaying .hx-ledger,
 #hud.replaying .hx-relics {
   opacity: 0;
 }
 #hud .plunger {
-  right: calc(var(--hx-w) + 30px);
+  right: calc(var(--hx-w) + 34px);
+  border: 3px solid var(--k);
+  outline: 2px solid #3a3026;
+  background: var(--k);
 }
-
-/* ---- narrow landscape (phones on their side): drop the detail, keep the numbers */
-@media (max-height: 520px) and (min-aspect-ratio: 6/5) {
-  #hud {
-    --hx-w: clamp(150px, 20vw, 210px);
-  }
-  .hx-left,
-  .hx-right {
-    padding-top: 8px;
-    gap: 5px;
-  }
-  .hx-left::before,
-  .hx-left::after,
-  .hx-right::before,
-  .hx-right::after,
-  .hx-plate,
-  .hx-when,
-  .hx-extra,
-  .hx-ball-line {
-    display: none;
-  }
-  .hx-box {
-    padding: 5px 6px;
-  }
-  .hx-lamps {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .hx-lamp small {
-    display: none;
-  }
-  .hx-relic {
-    width: 30px;
-    height: 30px;
-  }
+#hud .plunger i {
+  background: var(--coin);
 }
-
-/* ---- portrait: the marquee across the top, a thin strip of instruments under it */
-@media (max-aspect-ratio: 6/5) {
-  #hud {
-    --hx-w: min(96vw, 520px);
-  }
-  .hx-left,
-  .hx-right {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    padding-top: 4px;
-    gap: 3px;
-  }
-  .hx-left.swing,
-  .hx-right.swing {
-    animation: none;
-  }
-  .hx-left::before,
-  .hx-left::after,
-  .hx-right::before,
-  .hx-right::after,
-  .hx-plate,
-  .hx-when,
-  .hx-extra,
-  .hx-ball-line,
-  .hx-bonus-row,
-  .hx-combo .hx-tag {
-    display: none;
-  }
-  .hx-box {
-    padding: 4px 6px;
-  }
-  .hx-ledger {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .hx-reel-row {
-    margin: 0;
-    gap: 4px;
-  }
-  .hx-digit {
-    font-size: 0.95rem;
-  }
-  .hx-owed {
-    flex-direction: column;
-    font-size: 0.66rem;
-    margin-left: auto;
-  }
-  .hx-gauge {
-    display: none;
-  }
-  /* The status rack sits under the marquee and ledger as one row of jewels. */
-  .hx-right {
-    top: calc(min(96vw, 520px) * 0.27 + 62px);
-  }
-  .hx-status {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    background: rgba(12, 9, 7, 0.72);
-  }
-  .hx-combo {
-    display: flex;
-    padding: 0 6px;
-  }
-  .hx-combo b {
-    font-size: 1.1rem;
-  }
-  .hx-combo-bar {
-    width: 30px;
-  }
-  .hx-lamps {
-    flex: 1;
-    grid-template-columns: repeat(11, 1fr);
-    gap: 2px;
-  }
-  .hx-lamp {
-    font-size: 0.46rem;
-  }
-  .hx-lamp small {
-    display: none;
-  }
-  .hx-job {
-    flex-basis: 100%;
-  }
-  .hx-ticket {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 2px 6px 6px;
-    font-size: 0.6rem;
-    transform: none;
-  }
-  .hx-ticket b {
-    font-size: 0.8rem;
-  }
-  .hx-ticket u {
-    display: none;
-  }
-  .hx-relics {
-    justify-content: center;
-  }
-  .hx-relic {
-    width: 28px;
-    height: 28px;
-  }
-  .hx-banners {
-    top: 46%;
-  }
-  #hud .plunger {
-    right: 18px;
-  }
+#hud .plunger em {
+  background: var(--bone);
+}
+#hud .touch-btn {
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1rem;
+  color: var(--bone);
+  background: var(--k);
+  border: 3px solid var(--bone);
 }
 
 /* ---- relics outside the world: rendered portraits and live turntables */
@@ -1006,21 +676,12 @@
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
 }
 .relic-stage {
   flex: none;
-  width: clamp(54px, 7vw, 84px);
+  width: clamp(56px, 7vw, 88px);
   aspect-ratio: 1;
   align-self: center;
-  background:
-    radial-gradient(circle at 50% 78%, rgba(255, 190, 100, 0.3), transparent 62%),
-    linear-gradient(170deg, #26211d, #0c0a09);
-  border: 1px solid #000;
-  border-radius: 4px;
-  box-shadow:
-    inset 0 0 12px rgba(0, 0, 0, 0.9),
-    inset 0 -6px 0 rgba(0, 0, 0, 0.45);
 }
 .relic-stage canvas {
   display: block;
@@ -1028,17 +689,170 @@
   height: 100%;
   image-rendering: pixelated;
 }
-/* A card you can't afford dims its text, never the relic itself. */
-.shop-card-tile:disabled {
-  opacity: 1 !important;
+
+/* ---- phones on their side */
+@media (max-height: 520px) and (min-aspect-ratio: 6/5) {
+  #hud {
+    --hx-w: clamp(140px, 19vw, 200px);
+  }
+  .hx-left,
+  .hx-right {
+    top: 6px;
+    gap: 6px;
+  }
+  .hx-when,
+  .hx-extra,
+  .hx-ball-line,
+  .hx-gauge {
+    display: none;
+  }
+  .hx-lamp {
+    font-size: 1rem;
+  }
+  .hx-relic {
+    width: 30px;
+    height: 30px;
+  }
 }
-.shop-card-tile:disabled > *:not(.shop-card-body),
-.shop-card-tile:disabled .shop-card-body > div {
-  opacity: 0.45;
+
+/* ---- portrait: the sign across the top, numbers under it */
+@media (max-aspect-ratio: 6/5) {
+  #hud {
+    --hx-w: min(96vw, 520px);
+  }
+  .hx-left {
+    left: 50%;
+    top: 4px;
+    transform: translateX(-50%);
+    gap: 4px;
+  }
+  .hx-left.swing,
+  .hx-right.swing {
+    animation: none;
+  }
+  .hx-when,
+  .hx-extra,
+  .hx-ball-line,
+  .hx-gauge,
+  .hx-bonus-row {
+    display: none;
+  }
+  .hx-ledger {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 14px;
+  }
+  .hx-ball-row .hx-digit {
+    font-size: 2.2rem;
+  }
+  .hx-ball-row .hx-digit.red {
+    font-size: 1.3rem;
+  }
+  .hx-digit {
+    font-size: 1.4rem;
+  }
+  .hx-owed {
+    margin: 0 0 0 auto;
+    gap: 10px;
+    font-size: 0.75rem;
+  }
+  /* Status hangs down the right edge under the sign. */
+  .hx-right {
+    right: 6px;
+    top: calc(min(96vw, 520px) * 0.25 + 58px);
+    width: 46vw;
+    gap: 4px;
+  }
+  .hx-lamp {
+    font-size: 0.95rem;
+  }
+  .hx-ticket span {
+    font-size: 0.7rem;
+  }
+  .hx-ticket b {
+    font-size: 1rem;
+  }
+  .hx-relic {
+    width: 28px;
+    height: 28px;
+  }
+  .hx-banners {
+    top: 44%;
+  }
+  #hud .plunger {
+    right: 14px;
+  }
 }
-.shop-card-tile:disabled .relic-stage {
-  filter: saturate(0.55);
+
+/* ---- less: only what you need at a glance while the ball is alive ---- */
+/* Left: this ball's take, then what you owe. The pocket, round lamps and the deadline line
+   live on the ATM and the cell screens. */
+#hud.playing .hx-reel-row:not(.hx-ball-row),
+.hx-when,
+.hx-ball-line,
+.hx-ball-row .hx-tag,
+.hx-bank {
+  display: none;
 }
-.cell-token .icon.relic {
-  font-size: 1.1em;
+.hx-owed {
+  margin-top: 2px;
+  font-size: 1.15rem;
+}
+.hx-debt::before {
+  content: 'OWED ';
+}
+.hx-debt {
+  font-size: 0;
+}
+.hx-debt::before,
+.hx-debt b {
+  font-size: 1.15rem;
+}
+.hx-debt b {
+  font-size: 1.7rem;
+}
+.hx-gauge {
+  width: 70%;
+}
+/* Right: balls, then modes only while they run. Charging meters, the Bonus read-out, luck,
+   tickets and the relic row are gone: relics stand on the shelves beside the table. */
+.hx-lamp.fill,
+.hx-lamp[data-lamp='luck'],
+.hx-lamp[data-lamp='kick'],
+.hx-lamp[data-lamp='again'],
+.hx-bonus-row > .hx-tag,
+.hx-bonus-row > b,
+.hx-extra,
+.hx-combo.armed,
+.hx-relic:not(.active) {
+  display: none;
+}
+.hx-lamp[data-lamp='lock'].on {
+  display: none;
+}
+.hx-ticket span {
+  color: var(--rust);
+}
+.hx-ticket u {
+  display: none;
+}
+.hx-ticket {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+.hx-dmd-well {
+  width: 78%;
+}
+@media (max-aspect-ratio: 6/5) {
+  .hx-dmd-well {
+    width: 100%;
+  }
+}
+.hx-digit.red {
+  display: none;
+}
+.hx-ball-row .hx-tag {
+  display: inline;
+  font-size: 0.9rem;
 }

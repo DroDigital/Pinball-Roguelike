@@ -42,6 +42,9 @@ export class World {
   readonly coins = new CoinTray();
   /** Owned charms and contraband, standing on planks bolted to the cabinet's flanks. */
   readonly shelf = new RelicShelf({ halfW: BODY_W / 2, length: TH });
+  private readonly counterCanvas = document.createElement('canvas');
+  private counterTex!: THREE.CanvasTexture;
+  private counterText = '';
   /** World position of the coin tray (camera target). */
   private readonly trayPos = new THREE.Vector3();
   /** Seconds into the trapdoor fall (mode 'fall'). */
@@ -163,6 +166,21 @@ export class World {
 
     this.shelf.group.position.y = 0.4;
     this.cabinet.add(this.shelf.group);
+
+    // The take counter: a lamp sign over the coin chute, readable from the play camera.
+    this.counterCanvas.width = 160;
+    this.counterCanvas.height = 40;
+    this.counterTex = new THREE.CanvasTexture(this.counterCanvas);
+    this.counterTex.colorSpace = THREE.SRGBColorSpace;
+    this.counterTex.magFilter = THREE.NearestFilter;
+    const takeSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(8.4, 2.1),
+      new THREE.MeshBasicMaterial({ map: this.counterTex }),
+    );
+    takeSign.position.copy(this.trayPos).add(this.tmpOff.set(0, 4.5, -2.3));
+    takeSign.rotation.x = -1.05;
+    this.scene.add(takeSign);
+    this.setCounter('0');
 
     // The cell around the machine.
     this.cell = new CellRoom();
@@ -364,6 +382,29 @@ export class World {
       m.name = 'cabinet-side-art';
       this.table.root.add(m);
     }
+  }
+
+  /** The number on the sign over the coin chute (this ball's take, or the pocket). */
+  setCounter(text: string): void {
+    if (text === this.counterText) return;
+    this.counterText = text;
+    const g = this.counterCanvas.getContext('2d')!;
+    g.fillStyle = '#0b0806';
+    g.fillRect(0, 0, 160, 40);
+    g.fillStyle = '#3a3026';
+    g.fillRect(0, 0, 160, 3);
+    g.fillRect(0, 37, 160, 3);
+    g.fillStyle = '#f4c430';
+    g.font = '34px "Bebas Neue", Impact, sans-serif';
+    g.textAlign = 'right';
+    g.textBaseline = 'middle';
+    g.fillText(text, 152, 22);
+    g.beginPath();
+    g.arc(20, 20, 11, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#0b0806';
+    g.fillRect(18, 12, 4, 16);
+    this.counterTex.needsUpdate = true;
   }
 
   kick(strength: number, dir = new THREE.Vector3(0, 0, -1)): void {
