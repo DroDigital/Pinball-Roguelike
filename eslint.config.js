@@ -92,4 +92,9 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Some Node scripts also declare their globals in a comment.
+    files: ['tools/**/*.mjs'],
+    rules: { 'no-redeclare': 'off' },
+  },
 );
