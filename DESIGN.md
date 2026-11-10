@@ -346,7 +346,51 @@ Known limits: the menus fall back to the plain panels on small or very short vie
 backglass ladders are drawn on the print's own strip, so they are small on phones; the
 cabinet side is seen from the cell cameras only at an angle.
 
+### M10 — The bigger machine and the relic pass
+
+- [x] The Tower: the playfield grows from 40 to 48 units with an upper deck above the Yard.
+      A pair of deck flippers on the same buttons, the BAIL stand-up bank (four targets), two
+      Mess Hall bumpers, the Turnstile spinner where the left Perimeter climbs past the deck,
+      and a tower rollover that spots a top lane. The gap between the deck flippers drops the
+      ball onto the Yard; a side passage along the shooter column lets lane traffic past.
+- [x] New shot type `tower` with its own level ladder (Oil Can, perks and the Hole award reach it)
+- [x] Searchlight SWEEP: 9 spinner half-turns fill a meter; then every other switch pays extra
+      for 12 s
+- [x] Yard BRAWL: bumper hits build heat that cools; full heat makes bumpers pay x3 for 10 s
+- [x] SHAKEDOWN: 9 slingshot hits light a mystery at both inlanes (cash, Bonus X, ball save,
+      luck, kickback or Lockup; an award the machine can't give turns into cash)
+- [x] DOUBLE SHIFT: a completed BAIL set doubles every hit for 15 s
+- [x] Plunger recalibrated for the longer shooter lane (`PLUNGER.climb`, `lossComp`, `lanePull`,
+      measured with `tools/plunge-probe.ts`); 300-ball soak clean
+- [x] Relics: a procedural low-poly model for all 65 charms and contraband, on shelves bolted to
+      the cabinet's flanks, hopping when their charm fires; portraits and turntables in menus
+- [x] HUD rebuilt as hung instruments (see README); banners, flying coins, sparks, shock rings,
+      zoom punch with colour split, scanlines
+- [x] The coin tray is centred and in view of the play camera; the machine pays whole coins into
+      it as they are earned and takes them back on a tilt
+- [x] Cell dressing: barred window and moonlight, pipes, chains that sway when the machine is
+      shaken, a cot, a drain, dust, and a camera that follows the ball
+- [x] Default internal resolution 360p (240p and 180p remain in Settings)
+- [ ] Full nine-archetype calibration at Hard Time 0 on the new table (see the decisions log for
+      what was measured)
+
+Known limits: the bot never aims at the upper deck, so BAIL and DOUBLE SHIFT are absent from the
+economy numbers and are worth more to a player than the sim shows. The old painted HUD bezels
+(`src/present/artwork/hud.ts`, `HUD_FIT`, `hudLayout`) are no longer used and can be deleted.
+
 ## Decisions log
+
+- 2026-11-10 — The machine grew upward instead of being re-laid out. — Every lower shot (the
+  flipper geometry, the Chute, the Hole, both Perimeters, the bot's shot table and the feel
+  targets) was tuned against the existing geometry; inserting 8 units above the Yard keeps all
+  of that and gives the new deck its own flippers. The cost is a longer plunge, re-measured.
+- 2026-11-10 — Stand-up targets are trigger lines in front of a rubber bank, and the deck has no
+  second drop bank. — The rules read one Cell Block through `dropStates()`; a second bank would
+  have meant reworking Lockup. Triggers needed no sim change.
+- 2026-11-10 — The machine pays into the tray while the ball is alive. — Coins only appeared at
+  the drain, out of view; now each whole coin earned drops from the chute at once. Earnings are
+  still committed at the drain, so a tilt empties the tray back to the pocket.
+- 2026-11-10 — SCORE.scale 0.175 to 0.156. — See the calibration note below.
 
 - 2026-10-14 — Replaced old AI PNG asset pack with code-generated 2D canvas artwork system and
   crisp vector SVG icons. Every menu frame, sheet, HUD bezel, machine decal and title logo is

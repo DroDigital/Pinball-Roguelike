@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { harness } from './harness';
-import { BRAWL, SCORE, SHAKEDOWN, SWEEP } from '../../src/content/balance';
+import { BRAWL, SCORE, SHAKEDOWN, SHIFT, SWEEP } from '../../src/content/balance';
 import { Lamp } from '../../src/rules/types';
 
 describe('Searchlight SWEEP', () => {
@@ -87,5 +87,44 @@ describe('SHAKEDOWN', () => {
     expect(h.game.tilted).toBe(true);
     expect(h.game.mysteryLit).toBe(false);
     expect(h.game.sweepLeft).toBe(0);
+  });
+});
+
+describe('The Tower', () => {
+  it('each BAIL target pays once lit or not, and the fourth posts bail', () => {
+    const h = harness();
+    for (let i = 0; i < 3; i++) h.fire('trigger', `bail${i}`, { dir: 1 });
+    expect(h.game.bail).toEqual([true, true, true, false]);
+    expect(h.game.lamps.bail0).toBe(Lamp.On);
+    expect(h.game.lamps.bail3).toBe(Lamp.Slow);
+    // A ball leaving the bank crosses the line the other way: nothing.
+    const before = h.game.earned;
+    h.fire('trigger', 'bail3', { dir: -1 });
+    expect(h.game.earned).toBe(before);
+    h.fire('trigger', 'bail3', { dir: 1 });
+    expect(h.game.stats.bails).toBe(1);
+    expect(h.game.bail).toEqual([false, false, false, false]);
+    expect(h.game.shiftLeft).toBeCloseTo(SHIFT.seconds);
+    expect(h.game.earned - before).toBeCloseTo((SCORE.bail + SCORE.bailSet) * SCORE.scale);
+  });
+
+  it('DOUBLE SHIFT doubles hits until it runs out', () => {
+    const h = harness();
+    for (let i = 0; i < 4; i++) h.fire('trigger', `bail${i}`, { dir: 1 });
+    const before = h.game.earned;
+    h.fire('sling', 'slingL');
+    expect(h.game.earned - before).toBeCloseTo(SCORE.sling * SCORE.scale * SHIFT.mult);
+    h.wait(SHIFT.seconds + 0.1);
+    const after = h.game.earned;
+    h.fire('sling', 'slingL');
+    expect(h.game.earned - after).toBeCloseTo(SCORE.sling * SCORE.scale);
+    expect(h.game.lamps.doubleShift).toBe(Lamp.Off);
+  });
+
+  it('the tower rollover pays and spots a top lane', () => {
+    const h = harness();
+    h.fire('trigger', 'towerTop', { dir: 1 });
+    expect(h.game.machine.lanes.filter(Boolean)).toHaveLength(1);
+    expect(h.of('score').some((e) => e.shot === 'tower')).toBe(true);
   });
 });

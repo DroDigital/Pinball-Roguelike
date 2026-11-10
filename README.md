@@ -142,7 +142,7 @@ it up. Each new charm and contraband item needs a test in `tests/rules/charms.te
   moved, run `npx tsx tools/calibrate-shots.ts` to re-measure the bot's cradle shots.
 
 ### Artwork & UI system
- 
+
 All UI frames, documents, machine artwork, and the title logo are painted dynamically in
 code using the HTML5 2D canvas API (`src/present/artwork/`). There are zero static PNG downloads
 needed at runtime, keeping the entire production build under 350 kB gzipped:
@@ -154,7 +154,10 @@ needed at runtime, keeping the entire production build under 350 kB gzipped:
   cabinet, phone panel, red-call panel, pause panel, settings panel).
 - **Paper & Clipboard Sheets:** `src/present/artwork/sheets.ts` (booking dossier, deadline notice,
   job ticket, buy-balls panel, ball receipt, rap sheet, neighbor letter, ending panel).
-- **HUD Bezels:** `src/present/artwork/hud.ts` (score/DMD panel, coin ledger, status rack).
+- **Relics:** every charm and contraband has a low-poly 3D model described as data in
+  `src/present/relic-models.ts` (a handful of scaled primitives each) and merged into one mesh by
+  `src/present/relics.ts`. Owned relics stand on the shelves bolted to the cabinet; menus use
+  rendered portraits and live turntables. A new item without a recipe shows as a wrapped parcel.
 - **Machine Prints:** `src/present/artwork/machine.ts` (70s style backglass with quiet lower strip
   for live shot ladders, playfield illustration under table inserts, cabinet flank decals).
 - **Title Logo:** `src/present/artwork/logo.ts` (metallic brass/bone bevels, chrome steel ball,
@@ -165,8 +168,9 @@ needed at runtime, keeping the entire production build under 350 kB gzipped:
 - **Menu Screens:** Mark a panel `data-skin="<screen>"` (a key of `SCREEN_ART`) and `UI.mount`
   places controls inside the frame's content window (`src/app/skin.ts`, `src/app/skin.css`).
   Put the heading on the frame's label plate with `data-slot="head"` (rect in `HEAD_RECT`).
-- **HUD Layout:** `hudLayout()` positions frames in gutters (landscape), a banner (tablet portrait),
-  or plain text (phones).
+- **HUD:** `src/app/hud.ts` and `src/app/hud.css`: instruments hung on chains either side of the
+  machine (coin reels, debt gauge, combo clock, status jewels, the Job ticket, the relic rail),
+  stamped banners and coins that fly into the ledger. It collapses to a strip on phones.
 - **Loading & Cache:** `src/present/art.ts` draws critical textures on demand and background textures
   during idle frames as Blob URLs. The service worker (`public/sw.js`) precaches the application
   shell and fonts for full offline play.
