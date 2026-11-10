@@ -1,0 +1,672 @@
+/*
+ * Menu housing: every screen is a riveted steel slab bolted over the cell, in the same
+ * language as the play HUD (hud.css): oxidised plate, brass nameplates, cast-iron keys, amber
+ * and phosphor read-outs, red only for threat. Loaded last; it restyles the plain panels.
+ */
+:root {
+  --ui-steel: #1c1917;
+  --ui-steel-hi: #3a342e;
+  --ui-brass: #b98a3a;
+  --ui-amber: #ffb24a;
+  --ui-bone: #f1e3c4;
+  --ui-red: #ff4a36;
+  --ui-green: #7dff9a;
+}
+
+/* The cell falls back while a screen is up. */
+#ui::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, rgba(6, 4, 3, 0.35), rgba(6, 4, 3, 0.86));
+}
+#ui:has(.panel)::before {
+  opacity: 1;
+}
+
+/* ---- the slab */
+.panel {
+  position: relative;
+  padding: 18px 22px 16px;
+  max-width: min(600px, 94vw);
+  max-height: 92vh;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.02rem;
+  letter-spacing: 0.06em;
+  color: var(--ui-bone);
+  background:
+    radial-gradient(circle at 9px 9px, #8a8378 0 2px, #14110f 2.6px 4px, transparent 4.4px),
+    radial-gradient(
+      circle at calc(100% - 9px) 9px,
+      #8a8378 0 2px,
+      #14110f 2.6px 4px,
+      transparent 4.4px
+    ),
+    radial-gradient(
+      circle at 9px calc(100% - 9px),
+      #8a8378 0 2px,
+      #14110f 2.6px 4px,
+      transparent 4.4px
+    ),
+    radial-gradient(
+      circle at calc(100% - 9px) calc(100% - 9px),
+      #8a8378 0 2px,
+      #14110f 2.6px 4px,
+      transparent 4.4px
+    ),
+    repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.016) 0 2px, transparent 2px 6px),
+    radial-gradient(90% 70% at 0% 100%, rgba(122, 52, 20, 0.4), transparent 62%),
+    radial-gradient(70% 50% at 100% 0%, rgba(122, 52, 20, 0.22), transparent 60%),
+    linear-gradient(168deg, var(--ui-steel-hi), var(--ui-steel) 50%, #0e0c0b);
+  border: 3px solid #080706;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.11),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.65),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.28),
+    0 0 0 1px #2e2924,
+    0 26px 70px rgba(0, 0, 0, 0.9);
+  scrollbar-width: thin;
+  scrollbar-color: #5a4a30 #0c0a09;
+}
+/* Wide screens: the shop, the cell hub, the lineup, the rap sheet. */
+.panel.shop,
+.panel[data-skin='cell'],
+.panel.lineup,
+.panel.rapsheet,
+.panel.settings {
+  max-width: min(880px, 96vw);
+}
+.panel.title {
+  max-width: min(620px, 94vw);
+  text-align: center;
+}
+
+/* ---- nameplates */
+.panel h1,
+.panel h2 {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 14px;
+  padding: 3px 26px 1px;
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-weight: normal;
+  font-size: 1.3rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+  color: #2a1a08;
+  background:
+    radial-gradient(circle at 9px 50%, #4a3414 0 2px, transparent 2.6px),
+    radial-gradient(circle at calc(100% - 9px) 50%, #4a3414 0 2px, transparent 2.6px),
+    linear-gradient(180deg, #ecc878, var(--ui-brass) 52%, #7a5720);
+  border: 1px solid #2a1c08;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 210, 0.6),
+    0 2px 0 rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.45);
+}
+.panel h1.logo {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  width: auto;
+}
+.panel h1.logo img {
+  display: block;
+  width: min(100%, 460px);
+  margin: 0 auto;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.8));
+}
+.panel p {
+  font-family: var(--bc-typewriter, 'Courier New', monospace);
+  font-size: 0.92rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #dccdaa;
+}
+.panel .dim {
+  color: #9c8a6c;
+}
+.panel b {
+  font-weight: normal;
+}
+
+/* ---- keys: cast iron, lit when they matter */
+.panel button {
+  position: relative;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 1.02rem;
+  letter-spacing: 0.1em;
+  color: var(--ui-bone);
+  background: linear-gradient(180deg, #4a423a, #2a2520 48%, #171412);
+  border: 2px solid #080706;
+  border-radius: 5px;
+  padding: 9px 16px 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.5),
+    0 4px 0 #050404,
+    0 6px 10px rgba(0, 0, 0, 0.6);
+  transition:
+    transform 0.06s,
+    box-shadow 0.06s,
+    filter 0.12s;
+}
+.panel button:hover,
+.panel button:focus-visible {
+  background: linear-gradient(180deg, #5c5246, #352e27 48%, #1d1916);
+  outline: 2px solid var(--ui-amber);
+  outline-offset: 2px;
+  filter: brightness(1.12);
+}
+.panel button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 0 #050404;
+}
+.panel button.primary {
+  color: #241204;
+  background: linear-gradient(180deg, #ffe2a0, #ffab3a 52%, #c9701a);
+  border-color: #3a1c04;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 220, 0.7),
+    inset 0 -2px 0 rgba(120, 50, 0, 0.5),
+    0 4px 0 #4a2204,
+    0 0 22px rgba(255, 150, 40, 0.45),
+    0 6px 10px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+}
+.panel button.primary:hover,
+.panel button.primary:focus-visible {
+  background: linear-gradient(180deg, #fff0c4, #ffbc55 52%, #d87c20);
+  outline-color: #fff3d0;
+}
+.panel button:disabled {
+  opacity: 0.42;
+  filter: saturate(0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 0 #050404;
+}
+
+/* ---- the action row: a hazard strip above the keys */
+.panel .row,
+.panel .cell-dock {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 0;
+}
+.panel .row::before,
+.panel .cell-dock::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(-45deg, #d59a2a 0 8px, #17120e 8px 16px);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+  opacity: 0.75;
+}
+.panel .row.seed::before {
+  display: none;
+}
+.panel .row.seed {
+  padding-top: 0;
+  margin-top: 8px;
+}
+
+/* ---- read-outs: wells cut into the plate */
+.panel .cell-gauge-box,
+.panel .atm-readout-box,
+.panel .shop-counters-bar,
+.panel .cell-order-banner,
+.panel .cell-contraband-shelf,
+.panel .cell-equipment-rack,
+.panel .shop-pawn-drawer,
+.panel .atm-credit-facility {
+  background: #080706;
+  border: 2px solid #000;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.panel .cell-equipment-rack,
+.panel .cell-contraband-shelf,
+.panel .shop-pawn-drawer {
+  padding: 8px 10px;
+}
+.panel .cell-gauge-val,
+.panel .atm-readout-val {
+  font-family: var(--bc-crt, monospace);
+  font-size: 2rem;
+  line-height: 1;
+}
+.panel .cell-gauge-label,
+.panel .atm-readout-label,
+.panel .cell-rack-hdr,
+.panel .shop-section-label {
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  color: #9c8a6c;
+}
+.panel .cell-cockpit-title {
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 1.35rem;
+  letter-spacing: 0.18em;
+  color: var(--ui-amber);
+  text-shadow: 0 0 14px rgba(255, 150, 40, 0.45);
+}
+.panel .cell-token {
+  background: linear-gradient(170deg, #2c2722, #100e0c);
+  border-width: 2px;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 8px rgba(0, 0, 0, 0.9),
+    0 3px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- shop cards: wares behind glass */
+.panel .shop-card-tile {
+  text-align: left;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 30%),
+    linear-gradient(170deg, #26211d, #0d0b0a);
+  border-width: 2px;
+  border-radius: 6px;
+  padding: 8px 10px 9px;
+}
+.panel .shop-card-tile:hover,
+.panel .shop-card-tile:focus-visible {
+  transform: translateY(-3px);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 34%),
+    linear-gradient(170deg, #332c26, #14110f);
+}
+.panel .shop-card-heading {
+  font-size: 1.2rem;
+  color: var(--ui-bone);
+}
+.panel .shop-card-lore {
+  font-family: var(--bc-typewriter, monospace);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c9b99a;
+}
+.panel .shop-card-price {
+  font-family: var(--bc-crt, monospace);
+  font-size: 1.05rem;
+  color: var(--ui-amber);
+  background: #080706;
+  border: 1px solid #000;
+}
+
+/* ---- terminals: phosphor behind thick glass, in a steel bezel */
+.panel.atm {
+  color: var(--ui-green);
+  font-family: var(--bc-crt, 'Courier New', monospace);
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.3) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 40%, #0c3a1c, #041a0c 62%, #010804);
+  border: 12px solid #24201c;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.85),
+    inset 0 0 18px rgba(90, 255, 140, 0.18),
+    0 0 0 3px #080706,
+    0 0 0 5px #3a342e,
+    0 0 50px rgba(60, 255, 120, 0.12),
+    0 26px 70px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 0 8px rgba(90, 255, 140, 0.55);
+}
+.panel.atm h2 {
+  color: var(--ui-green);
+  background: rgba(60, 255, 120, 0.1);
+  border: 1px solid rgba(90, 255, 140, 0.5);
+  box-shadow: none;
+  font-family: var(--bc-crt, monospace);
+  font-size: 1.5rem;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 10px rgba(90, 255, 140, 0.7);
+}
+.panel.atm p {
+  font-family: var(--bc-crt, monospace);
+  font-size: 1.1rem;
+  color: #bfffcf;
+}
+.panel.atm button:not(.bc-skin) {
+  font-family: var(--bc-crt, monospace);
+  font-size: 1.15rem;
+  color: var(--ui-green);
+  background: linear-gradient(180deg, #0e4a22, #06280f);
+  border-color: #010804;
+  box-shadow:
+    inset 0 1px 0 rgba(140, 255, 180, 0.3),
+    0 4px 0 #010804,
+    0 0 12px rgba(60, 255, 120, 0.2);
+  text-shadow: 0 0 6px rgba(90, 255, 140, 0.6);
+}
+.panel.atm button:not(.bc-skin):hover,
+.panel.atm button:not(.bc-skin):focus-visible {
+  background: linear-gradient(180deg, #16662f, #093a16);
+  outline-color: var(--ui-green);
+}
+.panel.atm button.primary:not(.bc-skin) {
+  color: #021006;
+  background: linear-gradient(180deg, #c8ffd8, #5aff8c 55%, #1f9e4a);
+  text-shadow: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 4px 0 #063a16,
+    0 0 22px rgba(90, 255, 140, 0.5);
+}
+.panel.atm .atm-readout-box,
+.panel.atm .atm-credit-facility {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(90, 255, 140, 0.35);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.7);
+}
+.panel.atm .row::before {
+  background: repeating-linear-gradient(90deg, rgba(90, 255, 140, 0.6) 0 6px, transparent 6px 12px);
+  height: 2px;
+}
+
+/* ---- the red call: the same slab, lit from hell */
+.panel.red {
+  background:
+    radial-gradient(circle at 9px 9px, #c9705a 0 2px, #1a0806 2.6px 4px, transparent 4.4px),
+    radial-gradient(
+      circle at calc(100% - 9px) 9px,
+      #c9705a 0 2px,
+      #1a0806 2.6px 4px,
+      transparent 4.4px
+    ),
+    repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.016) 0 2px, transparent 2px 6px),
+    radial-gradient(100% 80% at 50% 110%, rgba(255, 60, 30, 0.45), transparent 65%),
+    linear-gradient(168deg, #4a1410, #240806 55%, #100302);
+  border-color: #080302;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 180, 160, 0.14),
+    0 0 0 1px #5a1810,
+    0 0 60px rgba(255, 50, 30, 0.35),
+    0 26px 70px rgba(0, 0, 0, 0.9);
+}
+.panel.red h2 {
+  color: #fff0e0;
+  background: linear-gradient(180deg, #ff6a50, #c22a1c 52%, #6a0e08);
+  border-color: #2a0604;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ---- inputs and small parts */
+.panel input[type='text'] {
+  font-family: var(--bc-crt, monospace);
+  font-size: 1.2rem;
+  color: var(--ui-amber);
+  background: #080706;
+  border: 2px solid #000;
+  border-radius: 3px;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95);
+}
+.panel .grid b,
+.panel .amber-badge {
+  color: var(--ui-amber);
+}
+.tally {
+  color: var(--ui-bone);
+}
+
+/* ---- toast and hint notes */
+#toast {
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 1.25rem;
+  letter-spacing: 0.16em;
+  color: var(--ui-amber);
+  text-shadow:
+    0 2px 0 #000,
+    0 0 16px rgba(255, 140, 40, 0.6);
+}
+
+/* ---- phones: thinner slab, same parts */
+@media (max-height: 520px), (max-width: 520px) {
+  .panel {
+    padding: 12px 12px 10px;
+    border-width: 2px;
+    font-size: 0.9rem;
+  }
+  .panel h1,
+  .panel h2 {
+    font-size: 1rem;
+    margin-bottom: 8px;
+    padding: 2px 16px 0;
+  }
+  .panel button {
+    padding: 7px 11px 6px;
+    font-size: 0.9rem;
+  }
+  .panel .row,
+  .panel .cell-dock {
+    margin-top: 10px;
+    padding-top: 12px;
+    gap: 8px;
+  }
+  .panel.atm {
+    border-width: 6px;
+    border-radius: 10px;
+    font-size: 1rem;
+  }
+}
+
+/* ---- documents: paperwork clipped to a board (booking, notices, receipts, the rap sheet) */
+.panel.bc-light {
+  padding: 34px 26px 18px;
+  color: #291c12;
+  font-family: var(--bc-typewriter, 'Courier New', monospace);
+  letter-spacing: 0.01em;
+  background:
+    radial-gradient(60% 40% at 82% 88%, rgba(120, 70, 20, 0.16), transparent 70%),
+    radial-gradient(40% 30% at 10% 12%, rgba(120, 70, 20, 0.12), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(60, 40, 20, 0.035) 0 1px, transparent 1px 4px),
+    linear-gradient(175deg, #f3e6c2, #e2d0a2 60%, #d3bf8e);
+  border: 0;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 10px #3a2616,
+    0 0 0 12px #120a05,
+    inset 0 0 40px rgba(90, 60, 20, 0.25),
+    0 30px 70px rgba(0, 0, 0, 0.9);
+}
+/* The clip. */
+.panel.bc-light::before {
+  content: '';
+  position: sticky;
+  display: block;
+  top: -34px;
+  width: 150px;
+  height: 30px;
+  margin: -44px auto 14px;
+  background:
+    radial-gradient(circle at 50% 46%, #14110f 0 5px, transparent 5.5px),
+    linear-gradient(180deg, #d4d8de, #8a8f98 45%, #4a4e56);
+  border: 2px solid #17191d;
+  border-radius: 5px 5px 12px 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.55);
+  z-index: 3;
+}
+.panel.bc-light h1,
+.panel.bc-light h2 {
+  padding: 0 4px 4px;
+  width: auto;
+  font-family: var(--bc-stencil, Impact, sans-serif);
+  font-size: 1.5rem;
+  letter-spacing: 0.16em;
+  color: #291c12;
+  background: none;
+  border: 0;
+  border-bottom: 4px double #291c12;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+.panel.bc-light p {
+  color: #3a2a1a;
+}
+.panel.bc-light .dim {
+  color: #6a543a;
+}
+.panel.bc-light .row::before,
+.panel.bc-light .cell-dock::before {
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #291c12 0 8px, transparent 8px 14px);
+  opacity: 0.7;
+}
+/* Ink on paper for the parts that were lit for steel. */
+.panel.bc-light .receipt-row-label,
+.panel.bc-light .receipt-row-val,
+.panel.bc-light .receipt-title,
+.panel.bc-light .receipt-sub,
+.panel.bc-light .receipt-header,
+.panel.bc-light .grid,
+.panel.bc-light li,
+.panel.bc-light label,
+.panel.bc-light span:not(.icon):not([class*='stamp']) {
+  color: #291c12;
+}
+.panel.bc-light .receipt-row-dots {
+  border-color: rgba(41, 28, 18, 0.45);
+}
+.panel.bc-light .receipt-stamp {
+  mix-blend-mode: multiply;
+}
+.panel.bc-light input[type='text'] {
+  color: #291c12;
+  background: rgba(255, 255, 255, 0.35);
+  border: 0;
+  border-bottom: 2px solid #291c12;
+  box-shadow: none;
+  font-family: var(--bc-typewriter, monospace);
+}
+.panel.bc-light button.mugcard {
+  background: #efe2bd;
+  border: 2px solid #6a543a;
+  color: #291c12;
+  box-shadow: 2px 3px 0 rgba(41, 28, 18, 0.35);
+  border-radius: 2px;
+}
+.panel.bc-light button.mugcard.sel {
+  border-color: #a8231a;
+  box-shadow:
+    0 0 0 3px #a8231a,
+    3px 5px 0 rgba(41, 28, 18, 0.4);
+  transform: rotate(-1.5deg);
+}
+.panel.bc-light button.mugcard b,
+.panel.bc-light button.mugcard small {
+  color: #291c12;
+}
+
+/* ---- Job tickets: carbon-copy work orders on the terminal */
+.panel.atm button[data-skin='jobs'] {
+  display: block;
+  text-align: left;
+  padding: 12px 14px 12px 26px;
+  font-family: var(--bc-typewriter, monospace);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  color: #291c12;
+  background:
+    radial-gradient(circle at 11px 18%, #0a2212 0 4px, transparent 4.5px),
+    radial-gradient(circle at 11px 50%, #0a2212 0 4px, transparent 4.5px),
+    radial-gradient(circle at 11px 82%, #0a2212 0 4px, transparent 4.5px),
+    repeating-linear-gradient(0deg, rgba(60, 40, 20, 0.05) 0 1px, transparent 1px 4px),
+    linear-gradient(175deg, #f6ebca, #e2d0a2);
+  border: 0;
+  border-radius: 2px;
+  box-shadow:
+    3px 5px 0 rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(41, 28, 18, 0.5);
+  transform: rotate(-0.8deg);
+}
+.panel.atm button[data-skin='jobs']:nth-child(even) {
+  transform: rotate(0.9deg);
+}
+.panel.atm button[data-skin='jobs']:hover,
+.panel.atm button[data-skin='jobs']:focus-visible {
+  transform: translateY(-4px) rotate(0deg) scale(1.02);
+  outline: 3px solid var(--ui-amber);
+  outline-offset: 3px;
+  filter: none;
+  background:
+    radial-gradient(circle at 11px 18%, #0a2212 0 4px, transparent 4.5px),
+    radial-gradient(circle at 11px 50%, #0a2212 0 4px, transparent 4.5px),
+    radial-gradient(circle at 11px 82%, #0a2212 0 4px, transparent 4.5px),
+    linear-gradient(175deg, #fff6da, #ecdcb0);
+}
+.panel.atm button[data-skin='jobs'] .ticket-head {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: #6a543a;
+  border-bottom: 1px dashed rgba(41, 28, 18, 0.5);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.panel.atm button[data-skin='jobs'] .ticket-task {
+  font-size: 1.15rem;
+  font-weight: bold;
+  line-height: 1.25;
+  color: #1c120a;
+  margin-bottom: 10px;
+}
+.panel.atm button[data-skin='jobs'] .ticket-seal {
+  display: inline-block;
+  padding: 3px 8px;
+  font-family: var(--bc-head, Impact, sans-serif);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: #a8231a;
+  border: 2px solid #a8231a;
+  border-radius: 3px;
+  transform: rotate(-1.5deg);
+  background: none;
+}
+
+/* The terminal's bezel is steel, whatever colour its glass glows. */
+.panel.atm:not(.bc-skin) {
+  border-color: #24201c;
+}
+.receipt-stamp.settled {
+  border-color: #2f9e52;
+  color: #2f9e52;
+}
+.receipt-stamp.tilted {
+  border-color: #e2442f;
+  color: #e2442f;
+}
+.panel.bc-light .receipt-stamp.settled {
+  border-color: #1d5a2c;
+  color: #1d5a2c;
+}
+.panel.bc-light .receipt-stamp.tilted {
+  border-color: #84261a;
+  color: #84261a;
+}
