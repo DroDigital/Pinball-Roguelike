@@ -296,6 +296,9 @@ export const WANTED = {
   step: 3,
   /** The poster moves on to another shot after this long unclaimed. */
   rotate: 14,
+  /** MOST WANTED: every this many bounties in a ball, every wanted shot pays for a while. */
+  mostWantedEvery: 4,
+  mostWantedSeconds: 15,
 };
 
 /**

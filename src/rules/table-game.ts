@@ -40,6 +40,7 @@ import {
   type GameEventSink,
   type MysteryAward,
   type PaEvent,
+  type TableMode,
   type WantedShot,
 } from './types';
 import type { BallOutcome } from './run';
@@ -359,6 +360,8 @@ export class TableGame implements BallRules {
   paClock: number = PA.first;
   frenzyLeft = 0;
   manhuntLeft = 0;
+  /** MOST WANTED seconds left: every wanted shot pays while it runs. */
+  mostWantedLeft = 0;
   /** Its own stream so the new features never shift lucky bounces or Shakedown rolls. */
   private readonly paRng: Rng;
   private readonly hookIds: string[];
@@ -477,8 +480,12 @@ export class TableGame implements BallRules {
       this.manhuntLeft -= dt;
       if (this.manhuntLeft <= 0) this.endMode('manhunt');
     }
+    if (this.mostWantedLeft > 0) {
+      this.mostWantedLeft -= dt;
+      if (this.mostWantedLeft <= 0) this.endMode('mostWanted');
+    }
     if (this.saveStarted && !this.over && !this.tilted && !this.jailbreak) {
-      this.wantedLeft -= dt;
+      if (this.mostWantedLeft <= 0) this.wantedLeft -= dt;
       if (this.wantedLeft <= 0) this.moveWanted(true);
       if (!this.riot && this.multiSaveLeft <= 0 && this.sim.ballsInPlay() === 1) {
         this.paClock -= dt;
@@ -981,11 +988,12 @@ export class TableGame implements BallRules {
     });
   }
 
-  private endMode(mode: 'sweep' | 'brawl' | 'shift' | 'frenzy' | 'manhunt'): void {
+  private endMode(mode: TableMode): void {
     if (mode === 'sweep') this.sweepLeft = 0;
     else if (mode === 'brawl') this.brawlLeft = 0;
     else if (mode === 'frenzy') this.frenzyLeft = 0;
     else if (mode === 'manhunt') this.manhuntLeft = 0;
+    else if (mode === 'mostWanted') this.mostWantedLeft = 0;
     else this.shiftLeft = 0;
     this.emit({ t: 'mode', mode, on: false });
     this.refreshLamps();
@@ -1116,6 +1124,7 @@ export class TableGame implements BallRules {
       this.shiftLeft = 0;
       this.frenzyLeft = 0;
       this.manhuntLeft = 0;
+      this.mostWantedLeft = 0;
       this.mysteryLit = false;
       this.emit({ t: 'tilt' });
       this.emit({ t: 'callout', text: 'TILT', priority: 9, anim: 'tilt' });
@@ -1241,6 +1250,7 @@ export class TableGame implements BallRules {
     this.shiftLeft = 0;
     this.frenzyLeft = 0;
     this.manhuntLeft = 0;
+    this.mostWantedLeft = 0;
     if (this.riot) this.endRiot();
     if (this.jailbreak) {
       this.jailbreak = false;
@@ -1445,7 +1455,8 @@ export class TableGame implements BallRules {
 
   /** The wanted shot was made: pay the bounty (bigger every time this ball) and move on. */
   private hitWanted(shot: WantedShot, x: number, y: number): void {
-    if (shot !== this.wanted || this.jailbreak || this.tilted || this.over) return;
+    const most = this.mostWantedLeft > 0;
+    if ((shot !== this.wanted && !most) || this.jailbreak || this.tilted || this.over) return;
     const n = ++this.stats.bounties;
     let v = this.shotValue(WANTED_LEVEL[shot], WANTED.base + WANTED.step * (n - 1));
     if (this.manhuntLeft > 0) v *= PA.manhuntMult;
@@ -1461,7 +1472,20 @@ export class TableGame implements BallRules {
       priority: 6,
       anim: 'payday',
     });
+    if (most) return;
     this.moveWanted(false);
+    if (n % WANTED.mostWantedEvery === 0) {
+      this.mostWantedLeft = WANTED.mostWantedSeconds;
+      this.emit({ t: 'mode', mode: 'mostWanted', on: true });
+      this.emit({
+        t: 'callout',
+        text: 'MOST WANTED',
+        sub: 'EVERY SHOT PAYS A BOUNTY',
+        priority: 8,
+        anim: 'riot',
+        duration: 2,
+      });
+    }
   }
 
   /** Post the bounty on another shot (never the same one twice in a row). */
@@ -1650,7 +1674,10 @@ export class TableGame implements BallRules {
     L.arrowTower = this.shiftLeft > 0 ? Lamp.Off : Lamp.Slow;
     if (this.jailbreak)
       for (const s of JAILBREAK_SHOTS) L[JB_LAMP[s]] = this.jbLit.has(s) ? Lamp.Fast : Lamp.Off;
-    else if (!this.tilted && !this.over) L[WANTED_LAMP[this.wanted]] = Lamp.Fast;
+    else if (!this.tilted && !this.over) {
+      if (this.mostWantedLeft > 0) for (const w of WANTED_SHOTS) L[WANTED_LAMP[w]] = Lamp.Fast;
+      else L[WANTED_LAMP[this.wanted]] = Lamp.Fast;
+    }
     L.kickback = this.machine.kickback ? Lamp.On : Lamp.Off;
     for (let i = 0; i < 4; i++) L[`bail${i}`] = this.bail[i] ? Lamp.On : Lamp.Slow;
     L.doubleShift = this.shiftLeft > 0 ? Lamp.Fast : Lamp.Off;

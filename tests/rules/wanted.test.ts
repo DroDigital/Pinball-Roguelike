@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { harness } from './harness';
-import { PA, SCORE, WANTED } from '../../src/content/balance';
+import { COMBO, PA, SCORE, WANTED } from '../../src/content/balance';
 import { Lamp } from '../../src/rules/types';
 import { WANTED_SHOTS, newMachineState } from '../../src/rules/table-game';
 
@@ -58,6 +58,47 @@ describe('WANTED', () => {
     expect(h.game.tilted).toBe(true);
     h.chute();
     expect(h.of('wanted')).toHaveLength(0);
+  });
+});
+
+describe('MOST WANTED', () => {
+  /** Collect bounties until MOST WANTED lights. */
+  function collect(h: ReturnType<typeof harness>, n: number): void {
+    for (let i = 0; i < n; i++) {
+      h.game.wanted = 'chute';
+      h.chute();
+      h.wait(COMBO.window + 0.1);
+    }
+  }
+
+  it('every Nth bounty lights every wanted shot for a while', () => {
+    const h = harness();
+    collect(h, WANTED.mostWantedEvery - 1);
+    expect(h.game.mostWantedLeft).toBe(0);
+    collect(h, 1);
+    expect(h.game.mostWantedLeft).toBeGreaterThan(0);
+    expect(h.of('mode').at(-1)).toEqual({ t: 'mode', mode: 'mostWanted', on: true });
+    for (const lamp of ['arrowChute', 'arrowHole', 'arrowPerimL', 'arrowCell', 'arrowTower'])
+      expect(h.game.lamps[lamp]).toBe(Lamp.Fast);
+  });
+
+  it('while it runs, any wanted shot pays and the bounty keeps growing', () => {
+    const h = harness();
+    collect(h, WANTED.mostWantedEvery);
+    const before = h.of('wanted').length;
+    h.hole();
+    h.fire('trigger', 'bail0', { dir: 1 });
+    const paid = h.of('wanted').slice(before);
+    expect(paid.map((e) => e.shot)).toEqual(['hole', 'tower']);
+    expect(paid[1].amount).toBeGreaterThan(paid[0].amount);
+  });
+
+  it('ends after its time', () => {
+    const h = harness();
+    collect(h, WANTED.mostWantedEvery);
+    h.wait(WANTED.mostWantedSeconds + 0.1);
+    expect(h.game.mostWantedLeft).toBe(0);
+    expect(h.of('mode').at(-1)).toEqual({ t: 'mode', mode: 'mostWanted', on: false });
   });
 });
 

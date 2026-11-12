@@ -505,10 +505,11 @@ export class GameApp {
       this.wantedPulse -= dt;
       if (this.wantedPulse <= 0) {
         this.wantedPulse = 0.7;
-        const lamp = WANTED_LAMPS.get(wg.wanted);
-        if (lamp) {
+        const color = wg.manhuntLeft > 0 ? 0xff3020 : 0xffc040;
+        for (const [shot, lamp] of WANTED_LAMPS) {
+          if (shot !== wg.wanted && wg.mostWantedLeft <= 0) continue;
           const p = this.world.table.worldOf(lamp.x, lamp.y, 0.3, this.tmpS);
-          this.sparks.ring(p, wg.manhuntLeft > 0 ? 0xff3020 : 0xffc040, 2.2, 0.6);
+          this.sparks.ring(p, color, 2.2, 0.6);
         }
       }
     }
@@ -755,7 +756,11 @@ export class GameApp {
         case 'mode':
           if (e.on) {
             const [text, sub, kind] = MODE_BANNERS[e.mode];
-            this.hud.banner(text, sub, kind, e.mode === 'shift');
+            this.hud.banner(text, sub, kind, e.mode === 'shift' || e.mode === 'mostWanted');
+            if (e.mode === 'mostWanted') {
+              this.world.shelf.cheer(1);
+              this.world.swingBulb(0.3);
+            }
             this.shows.play(e.mode === 'brawl' ? 'riot' : 'skill');
             audio.knocker();
             this.flash(0.25);
@@ -2615,6 +2620,18 @@ export class GameApp {
         h('span', { class: 'receipt-row-val' }, String(ballsLeft(r))),
       ),
     ];
+    if (o.stats.bounties > 0)
+      lines.splice(
+        4,
+        0,
+        h(
+          'div',
+          { class: 'receipt-row' },
+          h('span', { class: 'receipt-row-label' }, 'Bounties Collected'),
+          h('span', { class: 'receipt-row-dots' }),
+          h('span', { class: 'receipt-row-val' }, String(o.stats.bounties)),
+        ),
+      );
     if (o.extraBalls)
       lines.push(
         h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`),
@@ -3066,7 +3083,9 @@ export class GameApp {
     const r = this.run;
     const st = music.state;
     st.combo = g && g.combo.active(g.time) ? g.combo.count : 0;
-    st.riot = !!g?.riot || !!g?.jailbreak;
+    st.riot =
+      !!g &&
+      (g.riot || g.jailbreak || g.mostWantedLeft > 0 || g.frenzyLeft > 0 || g.manhuntLeft > 0);
     st.sentence = !!r && sentenceActive(r);
     st.tension = r ? Math.min(1, r.round / Math.max(1, roundsIn(r) - 1)) : 0;
     music.update();
@@ -3242,6 +3261,7 @@ const MODE_BANNERS: Record<
   shift: ['DOUBLE SHIFT', 'EVERYTHING PAYS DOUBLE', 'violet'],
   frenzy: ['MESS HALL FRENZY', 'EVERY SWITCH PAYS', 'green'],
   manhunt: ['MANHUNT', 'BOUNTIES PAY DOUBLE', 'red'],
+  mostWanted: ['MOST WANTED', 'EVERY SHOT PAYS A BOUNTY', 'gold'],
 };
 
 const MYSTERY_NAMES: Record<MysteryAward, string> = {

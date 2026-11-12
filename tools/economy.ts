@@ -141,7 +141,10 @@ function shopFor(r: RunState, policy: Policy): void {
 }
 
 interface RunRow {
+  seed: number;
   charms: string[];
+  /** Free balls per round at the end of the run (perks and charms stack). */
+  freeBalls: number;
   reached: number;
   result: string;
   balls: number;
@@ -225,7 +228,9 @@ function playRun(
     }
   }
   return {
+    seed,
     charms: [...r.charms],
+    freeBalls: freeBalls(r),
     reached: r.deadline,
     result: r.result ?? 'fell',
     balls: r.stats.balls,
@@ -329,6 +334,12 @@ if (IS_MAIN) {
   }
   const balls = rows.map((r) => r.balls).sort((a, b) => a - b);
   console.log(`\nBalls per run: median ${quantile(balls, 0.5)}, p90 ${quantile(balls, 0.9)}`);
+  // Runaway runs (far more balls than usual) are worth a look: list what they had.
+  const median = quantile(balls, 0.5);
+  for (const r of rows.filter((x) => x.balls > median * 2))
+    console.log(
+      `  outlier seed ${r.seed}: ${r.balls} balls, ${r.freeBalls} free/round, reached ${r.reached + 1}, funds ${r.funds.join(' ')} | ${r.charms.join(', ')}`,
+    );
   const winners = rows.filter((r) => r.result !== 'fell');
   console.log(
     `Wins: ${winners.length}/${rows.length} (${((winners.length / rows.length) * 100).toFixed(1)}%)`,

@@ -10,7 +10,7 @@ import { h } from './ui';
 import { itemIconHtml } from './icons';
 import { charmDef } from '../content/charms';
 import { jobDef, jobText } from '../content/jobs';
-import { BRAWL, JAILBREAK, SHAKEDOWN, SWEEP } from '../content/balance';
+import { BRAWL, JAILBREAK, SHAKEDOWN, SWEEP, WANTED } from '../content/balance';
 import { formatCoins } from '../present/pops';
 import { ballsLeft, jailbreakLit, roundsIn, type RunState } from '../rules/run';
 import type { TableGame } from '../rules/table-game';
@@ -36,6 +36,7 @@ const LAMPS = [
   'shift',
   'frenzy',
   'manhunt',
+  'most',
   'mystery',
   'luck',
   'again',
@@ -54,6 +55,7 @@ const LAMP_LABEL: Record<LampId, string> = {
   shift: '2X',
   frenzy: 'FRENZY',
   manhunt: 'MANHUNT',
+  most: 'MOST WANTED',
   mystery: 'MYSTERY',
   luck: 'LUCK',
   again: 'AGAIN',
@@ -420,13 +422,23 @@ export class Hud {
       this.lamp(
         'wanted',
         live.jailbreak || live.tilted ? '' : live.manhuntLeft > 0 ? 'blink' : 'on',
-        `${WANTED_SHORT[live.wanted]} ${Math.ceil(live.wantedLeft)}s`,
+        live.mostWantedLeft > 0
+          ? 'ALL'
+          : `${WANTED_SHORT[live.wanted]} ${Math.ceil(live.wantedLeft)}s`,
       );
       this.lamp(
         'frenzy',
         live.frenzyLeft > 0 ? 'blink' : '',
         live.frenzyLeft > 0 ? `${Math.ceil(live.frenzyLeft)}s` : '',
       );
+      if (live.mostWantedLeft > 0) this.lamp('most', 'blink', `${Math.ceil(live.mostWantedLeft)}s`);
+      else
+        this.lamp(
+          'most',
+          live.stats.bounties % WANTED.mostWantedEvery > 0 ? 'fill' : '',
+          '',
+          (live.stats.bounties % WANTED.mostWantedEvery) / WANTED.mostWantedEvery,
+        );
       this.lamp(
         'manhunt',
         live.manhuntLeft > 0 ? 'blink' : '',

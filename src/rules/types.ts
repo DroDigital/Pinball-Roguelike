@@ -43,7 +43,7 @@ export type GameEvent =
   /** The neighbor's secret shot. */
   | { t: 'tunnel'; amount: number }
   /** A timed table mode started or ended (Searchlight SWEEP, Yard BRAWL, DOUBLE SHIFT). */
-  | { t: 'mode'; mode: 'sweep' | 'brawl' | 'shift' | 'frenzy' | 'manhunt'; on: boolean }
+  | { t: 'mode'; mode: TableMode; on: boolean }
   /** WANTED: a bounty collected (n this ball), or the poster moved (amount 0). */
   | { t: 'wanted'; shot: WantedShot; amount: number; n: number }
   /** A PA announcement from the Warden's tannoy. */
@@ -68,6 +68,8 @@ export type MysteryAward =
   | 'luck'
   | 'kickback'
   | 'lockup';
+
+export type TableMode = 'sweep' | 'brawl' | 'shift' | 'frenzy' | 'manhunt' | 'mostWanted';
 
 export type WantedShot = 'chute' | 'perimL' | 'perimR' | 'hole' | 'cellblock' | 'tower';
 

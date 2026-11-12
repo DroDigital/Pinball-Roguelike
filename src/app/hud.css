@@ -218,6 +218,9 @@
   color: var(--sodium);
   border-left: 3px solid var(--sodium);
 }
+.hx-lamp[data-lamp='most'] {
+  color: var(--sodium);
+}
 .hx-lamp[data-lamp='manhunt'] {
   color: var(--blood);
 }
