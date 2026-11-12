@@ -22,6 +22,21 @@ test('pausing between balls never strands the game', async ({ page }) => {
     await page.waitForTimeout(600);
   }
   expect((await state(page)).mode).toBe('play');
+  // The veil behind menus is driven by a class, not :has() (Safari left it over the game).
+  const veiled = () =>
+    page.evaluate(() =>
+      (
+        globalThis as unknown as {
+          document: { getElementById(id: string): { classList: { contains(c: string): boolean } } };
+        }
+      ).document
+        .getElementById('ui')
+        .classList.contains('open'),
+    );
+  await page.keyboard.press('Escape');
+  expect(await veiled()).toBe(true);
+  await page.keyboard.press('Escape');
+  expect(await veiled()).toBe(false);
   await page.evaluate(
     () => ((globalThis as unknown as { __game: GameHandle }).__game.timeScale = 8),
   );
