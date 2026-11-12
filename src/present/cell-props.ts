@@ -288,6 +288,89 @@ export class CellProps {
     mount.position.set(R.x0 + 14, R.ceil - 9, R.z0 + 0.5);
     this.group.add(mount);
 
+    // Stencilled on the paint: the cell's number over the machine, and the house rules.
+    const decal = (
+      cw: number,
+      ch: number,
+      paint: (g: CanvasRenderingContext2D) => void,
+      w: number,
+      x: number,
+      y: number,
+      z: number,
+      ry: number,
+    ) => {
+      const c = document.createElement('canvas');
+      c.width = cw;
+      c.height = ch;
+      paint(c.getContext('2d')!);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.magFilter = THREE.NearestFilter;
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, (w * ch) / cw),
+        new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          opacity: 0.82,
+          depthWrite: false,
+        }),
+      );
+      m.position.set(x, y, z);
+      m.rotation.y = ry;
+      this.group.add(m);
+    };
+    const stencil = '"Saira Stencil One", Impact, sans-serif';
+    decal(
+      256,
+      96,
+      (g) => {
+        g.fillStyle = 'rgba(236,226,200,0.9)';
+        g.font = `86px ${stencil}`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText('C-09', 128, 52);
+      },
+      15,
+      16,
+      R.ceil - 13,
+      R.z0 + 0.5,
+      0,
+    );
+    decal(
+      192,
+      256,
+      (g) => {
+        g.fillStyle = '#d8ccaa';
+        g.fillRect(0, 0, 192, 256);
+        g.fillStyle = '#7a1a10';
+        g.fillRect(0, 0, 192, 44);
+        g.fillStyle = '#d8ccaa';
+        g.font = `30px ${stencil}`;
+        g.textAlign = 'center';
+        g.fillText('INMATE RULES', 96, 33);
+        g.fillStyle = '#241810';
+        g.font = '20px "Bebas Neue", Impact, sans-serif';
+        g.textAlign = 'left';
+        [
+          '1. PAY WHAT YOU OWE',
+          '2. ON TIME',
+          '3. NO TALKING TO',
+          '   THE NEIGHBOUR',
+          '4. DO NOT ANSWER',
+          '   THE RED PHONE',
+          '5. THE FLOOR IS',
+          '   NOT A FLOOR',
+        ].forEach((l, i) => g.fillText(l, 16, 76 + i * 22));
+        g.fillStyle = 'rgba(40,24,10,0.25)';
+        for (let i = 0; i < 40; i++) g.fillRect(Math.random() * 192, Math.random() * 256, 6, 2);
+      },
+      7,
+      R.x1 - 0.4,
+      18,
+      34,
+      -Math.PI / 2,
+    );
+
     // Dust drifting through the bulb's light.
     this.dustPos = new Float32Array(DUST * 3);
     this.dustVel = new Float32Array(DUST * 3);

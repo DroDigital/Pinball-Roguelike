@@ -330,6 +330,13 @@ export const PA = {
   weights: { arrival: 3, frenzy: 3, asleep: 2, lockup: 2, hurry: 2, manhunt: 2 },
 };
 
+/** REINFORCEMENTS: clearing the Cell Block during a RIOT adds a ball, a set number of times. */
+export const ADD_A_BALL = {
+  perRiot: 1,
+  /** Seconds of RIOT ball save the new ball brings. */
+  save: 5,
+};
+
 /** Round Jobs posted by the ATM. */
 export const JOBS = {
   offers: 3,

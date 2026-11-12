@@ -1,0 +1,15 @@
+Sound files in this folder
+==========================
+
+ui-*, st-*  re-voiced from the uisfx package by Romain Simon (Yuki Capital), https://uisfx.com
+            The audio is dedicated to the public domain under CC0 1.0 Universal
+            (https://creativecommons.org/publicdomain/zero/1.0/legalcode).
+            Upstream text: LICENSE-uisfx.txt
+ss-*        re-voiced from Kenney "Digital Audio" (https://kenney.nl), CC0 1.0 Universal.
+            Upstream text: LICENSE-kenney.txt
+all others  original procedural synthesis rendered by tools/lib/foley.mjs on 2026-10-12
+            for this project by DroDigital (repository owner, github.com/DroDigital).
+            Dedicated to the public domain under CC0 1.0 Universal: to the extent possible
+            under law, all copyright and related rights are waived.
+
+See CREDITS.md in the repository root for the per-file source list.

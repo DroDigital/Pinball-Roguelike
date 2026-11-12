@@ -123,7 +123,8 @@ export function canvasTexture(
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  paint(c.getContext('2d')!, w, h);
+  // Some painters read their pixels back (value noise); the canvas is uploaded once.
+  paint(c.getContext('2d', { willReadFrequently: true })!, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.magFilter = THREE.NearestFilter;

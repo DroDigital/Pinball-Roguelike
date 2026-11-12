@@ -405,6 +405,18 @@ describe('Devil charms', () => {
   });
 });
 
+describe('Mess Hall', () => {
+  t('brassMegaphone', () => {
+    expect(snapOf(['brassMegaphone']).ctx.brawlSecondsAdd).toBe(6);
+  });
+  t('prisonClock', () => {
+    expect(snapOf(['prisonClock']).ctx.shiftSecondsAdd).toBe(10);
+  });
+  t('boltCutters', () => {
+    expect(snapOf(['boltCutters']).ctx.shakedownSlingsAdd).toBe(-3);
+  });
+});
+
 describe('every charm', () => {
   it('has a test above', () => {
     const missing = CHARMS.map((c) => c.id).filter((id) => !tested.has(id));

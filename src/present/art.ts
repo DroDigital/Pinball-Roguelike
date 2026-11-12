@@ -44,7 +44,8 @@ async function paint(id: ArtId): Promise<HTMLImageElement> {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  PAINTERS[id](canvas.getContext('2d')!, width, height);
+  // Some painters read pixels back (the pixel logo's masks and outlines).
+  PAINTERS[id](canvas.getContext('2d', { willReadFrequently: true })!, width, height);
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
   if (!blob) throw new Error(`could not encode ${id}`);
   const img = new Image();

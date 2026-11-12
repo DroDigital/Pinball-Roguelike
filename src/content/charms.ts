@@ -39,6 +39,11 @@ export interface CharmFx {
   sparkMult?: number;
   /** Seconds added to the Hole's hold (negative ejects sooner). */
   holeHoldAdd?: number;
+  /** Seconds added to YARD BRAWL and to DOUBLE SHIFT. */
+  brawlSecondsAdd?: number;
+  shiftSecondsAdd?: number;
+  /** Slingshot hits added to (negative: taken off) what lights the SHAKEDOWN. */
+  shakedownSlingsAdd?: number;
   /** Table tag this hardware charm mounts. */
   mount?: string;
   // ---- run
@@ -79,6 +84,33 @@ export interface CharmDef {
 }
 
 export const CHARMS: CharmDef[] = [
+  {
+    id: 'brassMegaphone',
+    name: 'Brass Megaphone',
+    rarity: 'uncommon',
+    cost: 3,
+    tags: ['Yard'],
+    text: 'Yard Brawls last 6 s longer.',
+    fx: { brawlSecondsAdd: 6 },
+  },
+  {
+    id: 'prisonClock',
+    name: 'Prison Clock',
+    rarity: 'uncommon',
+    cost: 3,
+    tags: ['Bonus'],
+    text: 'DOUBLE SHIFT lasts 10 s longer.',
+    fx: { shiftSecondsAdd: 10 },
+  },
+  {
+    id: 'boltCutters',
+    name: 'Bolt Cutters',
+    rarity: 'common',
+    cost: 2,
+    tags: ['Luck'],
+    text: 'SHAKEDOWN lights 3 slingshot hits sooner.',
+    fx: { shakedownSlingsAdd: -3 },
+  },
   // ---------------------------------------------------------------- Money
   {
     id: 'piggyBank',

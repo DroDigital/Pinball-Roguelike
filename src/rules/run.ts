@@ -592,6 +592,9 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     paydayCarry: owns(s, 'hoarderSack') ? s.paydayCarry : 0,
     sparkMult: f.sparkMult,
     holeHoldAdd: f.holeHoldAdd,
+    brawlSecondsAdd: f.brawlSecondsAdd,
+    shiftSecondsAdd: f.shiftSecondsAdd,
+    shakedownSlingsAdd: f.shakedownSlingsAdd,
     noKickback: m.noKickback,
     charms: [...s.charms],
     actives: s.charms.flatMap((id, i) => {

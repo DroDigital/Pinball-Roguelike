@@ -35,6 +35,8 @@ export interface BallStats {
   shakedowns: number;
   /** Completed BAIL sets on the upper deck. */
   bails: number;
+  /** Balls added to a RIOT by REINFORCEMENTS. */
+  addABalls: number;
   /** WANTED bounties collected and PA announcements heard. */
   bounties: number;
   announcements: number;
@@ -67,6 +69,7 @@ export function emptyBallStats(): BallStats {
     brawls: 0,
     shakedowns: 0,
     bails: 0,
+    addABalls: 0,
     bounties: 0,
     announcements: 0,
   };
@@ -98,6 +101,30 @@ export interface JobDef {
 }
 
 export const JOB_DEFS: JobDef[] = [
+  {
+    id: 'brawl',
+    text: 'Start a Yard Brawl',
+    stat: 'brawls',
+    mode: 'sum',
+    target: 1,
+    reward: { tickets: 3 },
+  },
+  {
+    id: 'shakedown',
+    text: 'Collect {n} Shakedowns',
+    stat: 'shakedowns',
+    mode: 'sum',
+    target: 2,
+    reward: { tickets: 3 },
+  },
+  {
+    id: 'bail',
+    text: 'Post bail (spell B-A-I-L)',
+    stat: 'bails',
+    mode: 'sum',
+    target: 1,
+    reward: { tickets: 3, level: 'tower' },
+  },
   {
     id: 'chute',
     text: 'Shoot the Chute {n} times',
