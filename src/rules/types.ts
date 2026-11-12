@@ -42,6 +42,8 @@ export type GameEvent =
   /** Presentation slows real time (Pocket Watch); the sim is unaffected. */
   /** The neighbor's secret shot. */
   | { t: 'tunnel'; amount: number }
+  /** REINFORCEMENTS: a ball added to the RIOT. */
+  | { t: 'addABall' }
   /** A timed table mode started or ended (Searchlight SWEEP, Yard BRAWL, DOUBLE SHIFT). */
   | { t: 'mode'; mode: TableMode; on: boolean }
   /** WANTED: a bounty collected (n this ball), or the poster moved (amount 0). */

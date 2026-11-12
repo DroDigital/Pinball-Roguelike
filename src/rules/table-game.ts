@@ -10,6 +10,7 @@ import type { SimEvent } from '../sim/events';
 import type { ShotType } from '../sim/table-def';
 import { Rng } from '../core/rng';
 import {
+  ADD_A_BALL,
   AWARDS,
   BALL,
   BONUS,
@@ -118,6 +119,10 @@ export interface BallContext {
   actives: ActiveSlot[];
   /** Seconds added to the Hole's hold (Feeding Bowl -1). */
   holeHoldAdd: number;
+  /** Seconds added to YARD BRAWL and DOUBLE SHIFT; slingshots added to light SHAKEDOWN. */
+  brawlSecondsAdd: number;
+  shiftSecondsAdd: number;
+  shakedownSlingsAdd: number;
   /** Chalk: the top lanes start complete. */
   chalk: boolean;
   /** Moonshine: the camera sways (presentation). */
@@ -208,6 +213,9 @@ export function defaultBallContext(): BallContext {
     charms: [],
     actives: [],
     holeHoldAdd: 0,
+    brawlSecondsAdd: 0,
+    shiftSecondsAdd: 0,
+    shakedownSlingsAdd: 0,
     chalk: false,
     moonshine: false,
     tunnel: false,
@@ -350,6 +358,8 @@ export class TableGame implements BallRules {
   /** SHAKEDOWN: slings counted and whether the mystery is lit at the inlanes. */
   slingCount = 0;
   mysteryLit = false;
+  /** Balls added to this RIOT by REINFORCEMENTS. */
+  private addedBalls = 0;
   /** The Tower: BAIL letters lit this ball and DOUBLE SHIFT seconds left. */
   readonly bail = [false, false, false, false];
   shiftLeft = 0;
@@ -823,6 +833,7 @@ export class TableGame implements BallRules {
 
   private startRiot(): void {
     this.riot = true;
+    this.addedBalls = 0;
     this.stats.riots++;
     this.machine.locks = 0;
     this.machine.lockLit = false;
@@ -946,6 +957,14 @@ export class TableGame implements BallRules {
       if (!this.riot && !this.jailbreak && !this.ctx.lockdown && !this.machine.lockLit) {
         this.machine.lockLit = true;
         this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'LOCKUP IS LIT', priority: 4 });
+      } else if (this.riot && this.addedBalls < ADD_A_BALL.perRiot) {
+        // REINFORCEMENTS: another prisoner joins the RIOT.
+        this.addedBalls++;
+        this.stats.addABalls++;
+        this.sim.serveBall(true);
+        this.riotSaveLeft = Math.max(this.riotSaveLeft, ADD_A_BALL.save);
+        this.emit({ t: 'addABall' });
+        this.emit({ t: 'callout', text: 'REINFORCEMENTS', sub: 'ADD-A-BALL', priority: 6 });
       } else this.emit({ t: 'callout', text: 'CELL BLOCK', sub: 'CLEARED', priority: 3 });
       this.setComplete('cellblock');
     }
@@ -978,7 +997,7 @@ export class TableGame implements BallRules {
     this.heat += 1;
     if (this.heat < BRAWL.heatToStart) return;
     this.heat = 0;
-    this.brawlLeft = BRAWL.seconds;
+    this.brawlLeft = BRAWL.seconds + this.ctx.brawlSecondsAdd;
     this.stats.brawls++;
     this.emit({ t: 'mode', mode: 'brawl', on: true });
     this.emit({
@@ -1013,7 +1032,7 @@ export class TableGame implements BallRules {
         this.bail.fill(false);
         this.stats.bails++;
         this.pay('tower', SCORE.bailSet, x, y);
-        this.shiftLeft = SHIFT.seconds;
+        this.shiftLeft = SHIFT.seconds + this.ctx.shiftSecondsAdd;
         this.emit({ t: 'mode', mode: 'shift', on: true });
         this.emit({
           t: 'callout',
@@ -1029,7 +1048,7 @@ export class TableGame implements BallRules {
 
   private countSling(): void {
     if (this.tilted || this.mysteryLit) return;
-    if (++this.slingCount < SHAKEDOWN.slings) return;
+    if (++this.slingCount < Math.max(2, SHAKEDOWN.slings + this.ctx.shakedownSlingsAdd)) return;
     this.slingCount = 0;
     this.mysteryLit = true;
     this.emit({ t: 'mystery', award: null });

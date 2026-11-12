@@ -897,6 +897,12 @@ export class GameApp {
             this.shake(0.4);
           }
           break;
+        case 'addABall':
+          this.hud.banner('REINFORCEMENTS', 'ADD-A-BALL', 'red');
+          audio.extraBall();
+          this.punch(0.6);
+          this.shake(0.6);
+          break;
         case 'tunnel':
           this.hud.banner('THE TUNNEL', `+${formatCoins(e.amount)}`, 'green', true);
           this.punch(1);
