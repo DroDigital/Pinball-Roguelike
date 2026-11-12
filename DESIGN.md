@@ -412,18 +412,23 @@ Per ball after the pass (`npx tsx tools/modes-probe.ts 40`, average bot, deadlin
 sweeps 2.5, brawls 0.5, Shakedowns 3.5, bounties 2.5, PA events 3.5, RIOTs 0.57; balls last
 176 s (was 122 s) thanks to the extra saves and add-a-balls.
 
-M11 calibration (`npm run economy -- --mode physics --runs 16 --skill <s>`, no charms, Hard
-Time 0). Debts are now 50, 100, 200, 400, 1240, 3844, 11916, 36941:
+M11 calibration (`npm run economy -- --mode physics --runs 16 --skill <s> [--arch random]`,
+Hard Time 0). Debts are now 50, 100, 200, 400, 1340, 4489, 15038, 50378:
 
-| bot     | d1   | d2   | d3   | d4   | d5   | d6   | d7  | d8 / wins | before (wins) |
-| ------- | ---- | ---- | ---- | ---- | ---- | ---- | --- | --------- | ------------- |
-| novice  | 100% | 100% | 94%  | 94%  | 94%  | 88%  | 56% | 6%        | d1 81%, 0%    |
-| average | 100% | 100% | 100% | 100% | 100% | 100% | 81% | 25%       | d1 95%, 5%    |
+| bot / build     | d1   | d2   | d3   | d4   | d5   | d6   | d7  | wins  | before (wins) |
+| --------------- | ---- | ---- | ---- | ---- | ---- | ---- | --- | ----- | ------------- |
+| novice, none    | 100% | 100% | 94%  | 94%  |      |      |     |       | d1 81%, 0%    |
+| average, none   | 100% | 100% | 100% | 100% | 100% | 100% | 69% | 12.5% | d1 95%, 5%    |
+| average, random | 100% | 100% | 100% | 100% | 100% | 100% | 88% | 43.8% | d1 95%, 20%   |
 
-Players earn less than the bots (the novice bot still never misses a flip), so the first three
-deadlines are meant to be near-certain for the bots and comfortable for people. Deadlines 7 and
-8 stay the wall that builds are for. With 16 runs a standard error is about 12 points; the
-full nine-archetype pass is still open (M10).
+(The novice row was measured with the same first four debts and a softer late curve; its d5+
+numbers are not comparable.) Players earn less than the bots, so the first deadlines are meant
+to be near-certain for the bots and comfortable for people; deadlines 7 and 8 stay the wall
+that builds are for. With 16 runs a standard error is about 12 points.
+
+Open: one random-build seed snowballs (337 balls, millions of coins by deadline 8), which
+points at a runaway charm combination worth tracing (Wishbone / Live Wire / Hand-Crank are the
+usual suspects in these wins). The full nine-archetype pass is still open (M10).
 
 ## Decisions log
 
@@ -431,7 +436,7 @@ full nine-archetype pass is still open (M10).
   was re-tightened to match. — Players found the machine quiet and the first debts too
   steep. The new rules (WANTED, PA, faster modes, Lockup at round start) roughly tripled
   per-ball income, so `SCORE.scale` went 0.156 to 0.12, per-deadline payout growth 1.48 to
-  1.32, and the debt curve now starts at 50c, doubles three times, then grows x2.9. Early
+  1.32, and the debt curve now starts at 50c, doubles three times, then grows x3.35. Early
   deadlines are much easier; deadlines 6-8 still need a build.
 - 2026-11-12 — WANTED is a roving lit shot rather than another mode with a start condition. —
   "Every ball has a goal" from the first flip; a timed poster that moves keeps the eye on the

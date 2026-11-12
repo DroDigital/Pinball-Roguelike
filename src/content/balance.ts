@@ -333,7 +333,7 @@ export const JOBS = {
 export const ECONOMY = {
   startCoins: 20,
   startDebt: 50,
-  debtGrowth: 3.1,
+  debtGrowth: 3.35,
   /**
    * The first steps of the curve are gentler so a new player can learn the table before
    * the debt outruns them: the first `earlyDeadlines` increases use `earlyGrowth`.
