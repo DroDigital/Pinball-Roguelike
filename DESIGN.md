@@ -421,15 +421,18 @@ Hard Time 0). Debts are now 50, 100, 200, 400, 1340, 4489, 15038, 50378:
 | bot / build     | d1   | d2   | d3   | d4   | d5   | d6   | d7  | wins  | before (wins) |
 | --------------- | ---- | ---- | ---- | ---- | ---- | ---- | --- | ----- | ------------- |
 | novice, none    | 100% | 100% | 94%  | 94%  |      |      |     |       | d1 81%, 0%    |
-| average, none   | 100% | 100% | 100% | 100% | 100% | 100% | 69% | 12.5% | d1 95%, 5%    |
-| average, random | 100% | 100% | 100% | 100% | 100% | 100% | 88% | 43.8% | d1 95%, 20%   |
+| average, none   | 100% | 100% | 100% | 100% | 100% | 88%  | 63% | 6.3%  | d1 95%, 5%    |
+| average, random | 100% | 100% | 100% | 100% | 100% | 100% | 88% | 68.8% | d1 95%, 20%   |
 
-(The novice row was measured with the same first four debts and a softer late curve; its d5+
-numbers are not comparable.) Players earn less than the bots, so the first deadlines are meant
-to be near-certain for the bots and comfortable for people; deadlines 7 and 8 stay the wall
-that builds are for. With 16 runs a standard error is about 12 points.
+The average rows were measured after MOST WANTED and the luck fix below; the novice row came
+earlier, with the same first four debts. Players earn less than the bots, so the first
+deadlines are meant to be near-certain for the bots and comfortable for people. Builds now
+separate much more from no build than before (bounties scale with a build's multipliers, and
+charm runs reach MOST WANTED more often). That is deliberate for now, as the brief for this pass
+was "easier"; if real players win too often, `ECONOMY.debtGrowth` (the late x3.35) is the knob,
+and it does not touch deadlines 1-4. With 16 runs a standard error is about 12 points.
 
-Fixed after this table: two random-build seeds snowballed (337 and 380 balls, ~10 million
+Fixed along the way: two random-build seeds snowballed (337 and 380 balls, ~10 million
 coins by deadline 7). Both held Wishbone, whose round-long luck lifted the lucky bounce to 100%:
 outlanes stopped draining, endless balls earned extra balls, and those fed more luck. Luck now
 lifts a lucky roll to 50% at most and a ball earns one extra ball at most (past it, Bonus X). The full
