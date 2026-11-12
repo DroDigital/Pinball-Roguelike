@@ -14,6 +14,7 @@ import { BRAWL, JAILBREAK, SHAKEDOWN, SWEEP, WANTED } from '../content/balance';
 import { formatCoins } from '../present/pops';
 import { ballsLeft, jailbreakLit, roundsIn, type RunState } from '../rules/run';
 import type { TableGame } from '../rules/table-game';
+import { repToNext } from '../rules/rep';
 import type { WantedShot } from '../rules/types';
 
 export type BannerKind = 'gold' | 'red' | 'green' | 'violet' | 'bone';
@@ -115,6 +116,9 @@ export class Hud {
   private readonly coinNum: HTMLElement;
   private readonly coinSub: HTMLElement;
   private readonly coinDebt: HTMLElement;
+  /** REP: level label and the bar toward the next level. */
+  private readonly repLabel: HTMLElement;
+  private readonly repFill: HTMLElement;
   private readonly ticketNum: HTMLElement;
   private readonly ticketSub: HTMLElement;
   private readonly promptEl: HTMLElement;
@@ -175,12 +179,15 @@ export class Hud {
     this.coinNum = h('b');
     this.coinSub = h('div', { class: 'cp-sub' });
     this.coinDebt = h('div', { class: 'cp-debt' });
+    this.repLabel = h('span');
+    this.repFill = h('i');
     const coinBox = h(
       'div',
       { class: 'cp-box cp-coins', 'data-tab': 'INMATE FUNDS' },
       h('div', { class: 'cp-main' }, this.coinNum, glyph(COIN_SVG, 'coin')),
       this.coinSub,
       this.coinDebt,
+      h('div', { class: 'cp-rep' }, this.repLabel, h('div', { class: 'cp-rep-bar' }, this.repFill)),
     );
     this.ticketNum = h('b');
     this.ticketSub = h('div', { class: 'cp-sub' });
@@ -312,6 +319,14 @@ export class Hud {
         ? 'DEBT PAID'
         : `DEBT ${r.debt} · ${Math.max(0, roundsIn(r) - r.round)} ROUND${roundsIn(r) - r.round === 1 ? '' : 'S'} LEFT`,
     );
+    const repLevel = live ? live.repLevel : r.rep.level;
+    const repP = live ? live.repProgress() : r.rep.xp / repToNext(r.rep.level);
+    this.text(
+      'replabel',
+      this.repLabel,
+      !live && r.rep.picks > 0 ? `REP ${repLevel} · INK WAITING` : `REP ${repLevel}`,
+    );
+    this.css('repfill', this.repFill, 'width', `${Math.round(Math.min(1, repP) * 100)}%`);
     this.text('tickets', this.ticketNum, String(r.tickets));
     this.text('ticketsub', this.ticketSub, r.keys ? `KEYS: ${r.keys}` : '');
 

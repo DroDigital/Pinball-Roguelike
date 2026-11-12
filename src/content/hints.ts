@@ -30,6 +30,9 @@ export const HINTS = {
     text: 'Charms cost tickets and change how the table pays. Contraband costs coins and is used between balls.',
   },
   phone: { text: 'Pick one perk. It lasts for the rest of the run.' },
+  ink: {
+    text: 'Coins on the table build REP. Every level inks a tattoo: ranks stack, and two tattoos at rank II unlock a Sleeve.',
+  },
   redCall: {
     text: 'The red phone offers deals. Every one of them costs something. You can hang up.',
   },

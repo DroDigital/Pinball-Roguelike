@@ -1368,3 +1368,98 @@ body.ui-skinned #hud .hud-frame.bc-skin {
   left: calc(50% + var(--banner) / 4);
   width: var(--fw);
 }
+
+/* ---- Ink: the level-up pick (bone on dark metal, violet for REP) */
+.ink-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 14px;
+  background: rgba(14, 10, 20, 0.9) !important;
+  border: 2px solid rgba(181, 123, 255, 0.45) !important;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease;
+}
+.ink-card:hover,
+.ink-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: #c9a2ff !important;
+  box-shadow: 0 0 16px rgba(181, 123, 255, 0.55);
+}
+.ink-card.r-uncommon {
+  border-color: rgba(120, 190, 255, 0.55) !important;
+}
+.ink-card.r-rare {
+  border-color: rgba(255, 210, 122, 0.65) !important;
+}
+.ink-card.r-sleeve {
+  border-color: #e2533e !important;
+  background: linear-gradient(135deg, rgba(40, 8, 14, 0.95), rgba(20, 6, 30, 0.95)) !important;
+}
+.ink-name {
+  font-family: var(--bc-head);
+  font-size: 1.35em;
+  letter-spacing: 0.08em;
+  color: var(--bc-bone);
+}
+.ink-card.r-sleeve .ink-name {
+  color: #ff8470;
+}
+.ink-rank {
+  color: #c9a2ff;
+  font-size: 0.85em;
+}
+.ink-text {
+  font-family: var(--bc-typewriter);
+  font-size: 1em;
+  color: var(--bc-paper);
+}
+.ink-had {
+  font-family: var(--bc-typewriter);
+  font-size: 0.8em;
+  color: #9b8f7a;
+}
+.ink-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ink-chip {
+  font-family: var(--bc-stencil);
+  font-size: 0.7em;
+  letter-spacing: 0.12em;
+  padding: 2px 6px 1px;
+  color: #120c08;
+  background: #8c7d66;
+}
+.ink-chip.t-early {
+  background: var(--bc-green);
+}
+.ink-chip.t-late {
+  background: var(--bc-gold);
+}
+.ink-chip.t-risk {
+  background: var(--bc-red);
+}
+.ink-chip.t-sleeve {
+  background: #c9a2ff;
+}
+.ink-intro {
+  font-family: var(--bc-typewriter);
+  font-style: italic;
+  margin: 4px 0;
+}
+.ink-worn {
+  font-family: var(--bc-typewriter);
+  font-size: 0.85em;
+  color: #c9a2ff;
+}
+.receipt-alert-box.ink-alert {
+  border-color: #8a4fd8;
+  color: #5b2aa0;
+}

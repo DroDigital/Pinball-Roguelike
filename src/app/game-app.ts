@@ -107,6 +107,8 @@ import {
   useContraband,
 } from '../rules/shop';
 import { perkDef, bargainDef } from '../content/phone';
+import { ROMAN, tattooDef, type InkTiming } from '../content/tattoos';
+import { chooseInk, rankOf, repToNext } from '../rules/ink';
 import { WARDEN, type WardenTrigger } from '../content/dialogue';
 import { Subtitles } from '../present/subtitles';
 import { SaveDetector } from '../present/save-detector';
@@ -139,6 +141,7 @@ export type AppMode =
   | 'play'
   | 'tally'
   | 'ballEnd'
+  | 'ink'
   | 'deadline'
   | 'fall'
   | 'rapsheet'
@@ -823,6 +826,22 @@ export class GameApp {
         case 'charm':
           this.world.shelf.trigger(e.id);
           this.hud.pulseRelic(e.id);
+          break;
+        case 'repLevel':
+          this.hud.banner('LEVEL UP', `REP ${e.level} · INK AT THE DRAIN`, 'violet', true);
+          audio.levelUp();
+          this.flash(0.2);
+          this.punch(0.5);
+          break;
+        case 'ink':
+          if (e.id === 'joker') {
+            this.hud.banner('ACE OF SPADES', 'A SECOND BALL', 'violet');
+            audio.extraBall();
+            this.shake(0.5);
+          } else if (e.id === 'serpent') {
+            this.hud.banner('SERPENT', 'SHOT LEVEL UP', 'violet');
+            audio.levelUp();
+          } else if (e.id === 'luckyDevil') this.hud.banner('LUCKY DEVIL', '', 'violet');
           break;
         case 'bonusMult':
           this.hud.banner(`BONUS X${e.mult}`, '', 'gold');
@@ -1659,6 +1678,103 @@ export class GameApp {
     );
   }
 
+  /** A REP level: ink one of three tattoos (or take the cash when nothing is left). */
+  private enterInk(): void {
+    const r = this.run!;
+    const offer = r.rep.offer;
+    if (!offer) {
+      this.afterBall();
+      return;
+    }
+    this.mode = 'ink';
+    this.hints.show('ink');
+    const cards = offer.map((o, i) => {
+      const pick = () => {
+        if (!chooseInk(r, i)) return;
+        audio.levelUp();
+        this.autosave();
+        this.afterBall();
+      };
+      if (o.id === 'cash')
+        return h(
+          'button',
+          { class: 'ink-card', onclick: pick },
+          h('div', { class: 'ink-name' }, 'Pawn the Needle'),
+          h('div', { class: 'ink-text' }, `Nothing left to ink. Take ${o.cash}c instead.`),
+        );
+      const d = tattooDef(o.id);
+      const n = rankOf(r, o.id);
+      const sleeve = d.rarity === 'sleeve';
+      // Earlier ranks that read differently from this one (stacked repeats say nothing new).
+      const had = [...new Set(d.ranks.slice(0, n).map((x) => x.text))].filter(
+        (t) => t !== d.ranks[n].text,
+      );
+      const chips: HTMLElement[] = [
+        h('span', { class: `ink-chip t-${d.timing}` }, INK_TIMING[d.timing]),
+        ...d.tags.map((t) => h('span', { class: 'ink-chip' }, t)),
+      ];
+      if (sleeve && d.needs)
+        chips.push(
+          h(
+            'span',
+            { class: 'ink-chip t-sleeve' },
+            d.needs.map((id) => tattooDef(id).name).join(' + '),
+          ),
+        );
+      return h(
+        'button',
+        { class: `ink-card r-${d.rarity}${i === 0 ? ' primary' : ''}`, onclick: pick },
+        h(
+          'div',
+          { class: 'ink-name' },
+          d.name,
+          sleeve
+            ? null
+            : h('span', { class: 'ink-rank' }, ` ${ROMAN[n + 1]}/${ROMAN[d.ranks.length]}`),
+        ),
+        h('div', { class: 'ink-text' }, d.ranks[n].text),
+        had.length ? h('div', { class: 'ink-had' }, `Already inked: ${had.join(' ')}`) : null,
+        h('div', { class: 'ink-chips' }, ...chips),
+      );
+    });
+    this.ui.show(
+      h(
+        'div',
+        { class: 'panel ink-panel', 'data-skin': 'phone' },
+        h('h2', { 'data-slot': 'head' }, `Level up · REP ${r.rep.level - r.rep.picks + 1}`),
+        h(
+          'div',
+          { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          h(
+            'p',
+            { class: 'warden ink-intro' },
+            r.rep.picks > 1
+              ? `The yard knows your name. ${r.rep.picks} needles waiting: pick one at a time.`
+              : 'The yard knows your name. Pick your ink; it stays for the rest of your stay.',
+          ),
+          h('div', { class: 'col' }, ...cards),
+          this.inkLine(r),
+        ),
+      ),
+    );
+  }
+
+  /** The tattoos worn, for the Ink screen and the cell. */
+  private inkLine(r: RunState): HTMLElement | null {
+    const worn = Object.entries(r.ink).filter(([, n]) => n > 0);
+    if (!worn.length) return null;
+    return h(
+      'div',
+      { class: 'ink-worn' },
+      `INK: ${worn
+        .map(([id, n]) => {
+          const d = tattooDef(id);
+          return d.rarity === 'sleeve' ? d.name : `${d.name} ${ROMAN[n]}`;
+        })
+        .join(' · ')}`,
+    );
+  }
+
   private answerPhone(fn: () => boolean): void {
     if (!fn()) return;
     audio.phonePick();
@@ -2052,6 +2168,12 @@ export class GameApp {
             : null,
           this.charmBar(r),
           h('div', { class: 'cell-levels' }, `SHOT UPGRADES: ${levelsText(r)}`),
+          h(
+            'div',
+            { class: 'cell-levels' },
+            `REP ${r.rep.level} · ${Math.floor(r.rep.xp)}/${repToNext(r.rep.level)} TO NEXT`,
+          ),
+          this.inkLine(r),
           this.stash(r, () => this.enterCell()),
           sentenceActive(r)
             ? h(
@@ -2655,6 +2777,30 @@ export class GameApp {
           h('span', { class: 'receipt-row-val' }, String(o.stats.bounties)),
         ),
       );
+    if (res.rep > 0)
+      lines.splice(
+        lines.length - 2,
+        0,
+        h(
+          'div',
+          { class: 'receipt-row' },
+          h('span', { class: 'receipt-row-label' }, 'Reputation Earned'),
+          h('span', { class: 'receipt-row-dots' }),
+          h('span', { class: 'receipt-row-val' }, `+${Math.floor(res.rep)} REP`),
+        ),
+      );
+    if (res.levels > 0)
+      lines.push(
+        h(
+          'div',
+          { class: 'receipt-alert-box ink-alert' },
+          `▲ LEVEL UP: REP ${r.rep.level}${res.levels > 1 ? ` (+${res.levels})` : ''} · CHOOSE YOUR INK`,
+        ),
+      );
+    if (res.interest > 0)
+      lines.push(
+        h('div', { class: 'receipt-alert-box' }, `WHITE COLLAR: THE BANK EARNED +${res.interest}c`),
+      );
     if (o.extraBalls)
       lines.push(
         h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`),
@@ -2794,6 +2940,10 @@ export class GameApp {
 
   afterBall(): void {
     const r = this.run!;
+    if (r.rep.picks > 0 && r.rep.offer) {
+      this.enterInk();
+      return;
+    }
     if (ballsLeft(r) > 0) {
       this.enterCell();
       return;
@@ -3319,6 +3469,14 @@ const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
   intro: 'seated',
   tally: 'tray',
   ballEnd: 'tray',
+  ink: 'tray',
+};
+
+const INK_TIMING: Record<InkTiming, string> = {
+  early: 'EARLY',
+  late: 'LATE GAME',
+  risk: 'RISK',
+  any: 'ANYTIME',
 };
 
 function tallyMarks(n: number): string {

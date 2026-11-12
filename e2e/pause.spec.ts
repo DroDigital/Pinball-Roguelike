@@ -58,6 +58,6 @@ test('pausing between balls never strands the game', async ({ page }) => {
   await expect.poll(async () => (await state(page)).mode, { timeout: 20_000 }).toBe('ballEnd');
   expect((await state(page)).uiOpen).toBe(true);
   await page.keyboard.press('Enter');
-  await expect.poll(async () => (await state(page)).mode).toMatch(/cell|buy|deadline/);
+  await expect.poll(async () => (await state(page)).mode).toMatch(/cell|buy|deadline|ink/);
   expect((await state(page)).uiOpen).toBe(true);
 });

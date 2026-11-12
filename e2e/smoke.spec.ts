@@ -68,7 +68,7 @@ test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   expect(after.balls).toBe(1);
 
   await page.keyboard.press('Enter');
-  await expect.poll(async () => (await game(page)).mode).toMatch(/cell|buy|deadline/);
+  await expect.poll(async () => (await game(page)).mode).toMatch(/cell|buy|deadline|ink/);
   await page.screenshot({ path: 'screenshots/06-after-ball.png' });
 
   expect(problems, problems.join('\n')).toEqual([]);

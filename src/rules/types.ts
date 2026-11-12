@@ -52,6 +52,10 @@ export type GameEvent =
   | { t: 'pa'; event: PaEvent }
   /** SHAKEDOWN: the mystery lit at the inlanes, or was collected. */
   | { t: 'mystery'; award: MysteryAward | null }
+  /** REP reached a new level this ball (the Ink pick waits for the drain). */
+  | { t: 'repLevel'; level: number }
+  /** A tattoo or Sleeve's behaviour fired. */
+  | { t: 'ink'; id: string }
   /** A charm's behaviour fired (its relic reacts). */
   | { t: 'charm'; id: string }
   /**

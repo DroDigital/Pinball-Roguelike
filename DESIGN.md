@@ -461,8 +461,86 @@ Left out as duplicated or superseded: #8's Yard Brawl, Contraband Crate (SHAKEDO
 Time (DOUBLE SHIFT), particles, banners and coin flights, its HUD and menu skin, its machine
 renderer and its music rewrite (main's mode-driven music stays).
 
+### M12 — REP and Ink
+
+The run's second build axis, beside the shop: levels earned by playing, each one a choice.
+
+- [x] REP: every coin earned on the table (Bonus included, tilts forfeit it) fills the REP bar,
+      measured in deadline-1 coins (`ball coins / payScale`) so the coin mech's growth doesn't
+      inflate it. Each level costs `REP.growth` times the last (36 REP for the first), so levels
+      grow with the log of earnings: a strong build levels faster, never runaway faster.
+- [x] The live ball calls each level as it is crossed (LEVEL UP banner and sound); the HUD's coin
+      plate carries the REP level and a violet bar. Picks wait for the drain: after the receipt,
+      one Ink screen per level gained.
+- [x] Ink: 22 tattoos as data (`content/tattoos.ts`), each with 1-5 ranks that stack (every rank
+      folds its own `CharmFx`, the same record and fold as the charms). Cards show the rank
+      (II/III), what the next rank adds, and an EARLY / LATE GAME / RISK / ANYTIME chip.
+      Early: Swallow, Nautical Star, Broken Chains, MOM, Inmate Number. Late: Hourglass (+2% pay
+      per REP level per rank), Dollar Sign, Scales of Justice (smaller future debts). Risk:
+      Teardrop (pay up, ball save down), Grudge Skull (each lost ball makes the rest of the round
+      pay more). Shot and mode tattoos for every archetype (Anchor, Snake, Clock, Spider Web,
+      Crown, Barbed Wire, Lightning Bolt, Watching Eye, Ace of Spades, Compass Rose).
+- [x] Sleeves: eight combinations, each unlocked once two named tattoos reach rank II, offered in
+      their own slot on the next level. Each changes how the table plays: Kingpin (bounties raise
+      every payout for the rest of the ball), Jailhouse Rock (multiball pays more), Life Sentence
+      (no Bonus X cap, balls start higher with REP), Lucky Devil (the first outlane each ball
+      bounces back), Yard Dog (any bumper starts a Brawl), White Collar (interest after every
+      ball), Serpent (x3 combos level the shot for the ball), Dead Man Walking (the round's last
+      ball pays double).
+- [x] New table hooks for them: bounty multiplier and MOST WANTED sooner, PAYDAY multiplier, timed
+      mode length, PA frequency, kickback lit at ball start, extra-ball cap, a second ball at the
+      start of a ball; all off (and drawing no random numbers) without ink, so replays are
+      unchanged.
+- [x] Economy tool: an Ink policy (Sleeves first, then the archetype's tag, stacking ranks),
+      `--noink` for the old baseline, median REP per deadline and ink in winning builds
+- [x] Tests: the curve, REP from a ball, tilt, live level-up, offers (no repeats, no maxed
+      tattoos, Sleeve gating, cash fallback), determinism, and one test per tattoo and Sleeve
+- [x] Saves: the run format is v4 (a v3 run in progress is dropped, as before for rule changes)
+
+M12 calibration (`npm run economy -- --mode physics --runs 16 [--arch random] [--noink]`, average
+bot, Hard Time 0). Debts are now 50, 100, 200, 400, 2080, 10816, 56243, 292465:
+
+| build                   | d5   | d6   | d7    | d8 (wins) | REP at d1 / d4 / d8 |
+| ----------------------- | ---- | ---- | ----- | --------- | ------------------- |
+| none, no ink, old debts | 100% | 100% | 87.5% | 12.5%     | (6 / 9 / 33)        |
+| none + ink, old debts   | 100% | 100% | 100%  | 100%      | 6 / 12 / 30         |
+| none + ink, final       | 100% | 100% | 75%   | 43.8%     | 6 / 10 / 25         |
+| random + ink, final     | 100% | 100% | 93.8% | 75%       | 6 / 10 / 25         |
+
+The first ink pass (before the nerfs and the cap on in-ball Sleeves) won every run with funds
+up to 90x the debt. Ink multiplies late income by about 5x for the bot, so the late debt curve
+went from x3.35 to x5.2; deadlines 1-4 are unchanged and stay comfortable. Random builds now win
+about as often as before Ink (69% in M11); a no-charm run wins far more often than it did, which
+is deliberate: Ink is a build every run gets. With 16 runs a standard error is about 12 points.
+The bot's Ink policy favours LOVE/HATE, Anchor and Crown (the bot hits the Yard and the Hole a
+lot); players will spread wider. If real players clear Last Call too often, `ECONOMY.debtGrowth`
+is still the knob; `REP.growth` sets how many tattoos a run sees.
+
 ## Decisions log
 
+- 2026-11-12 — REP counts table coins divided by the coin mech's scale, and levels cost x1.3 more
+  each time. — Raw coins grow x1.32 per deadline on top of builds, so a flat curve gave 33 levels
+  without ink and REP 80 runaways with it; a geometric curve gives ~6 levels at deadline 1 (the
+  hook) and ~22 by Last Call, and doubling income buys only ~2.6 more levels.
+- 2026-11-12 — Ink picks happen between balls, after the receipt, never mid-ball. — Pausing
+  the table for a menu breaks the flow and the replay model (a choice is not an input); the
+  live LEVEL UP banner keeps the moment, and the pick happens where the player is already
+  reading the receipt.
+- 2026-11-12 — Tattoo effects reuse `CharmFx` and the charm fold, with each rank folding its own
+  effect. — One choke point (`charmFx`) already fed every ball, price and interest rule; ranks
+  compound the same way two charms do, and new tattoos need no new plumbing.
+- 2026-11-12 — Sleeves need two tattoos at rank II and take their own slot in the offer. — The
+  "in combination" payoff should be something you steer toward, not luck; rank II means
+  committing two picks to each half first.
+- 2026-11-12 — Sleeves that scale inside a ball are capped there: Kingpin at +50%, Serpent's
+  levels last only the ball, White Collar pays a quarter rate. — Uncapped, the first pass let
+  bounties and combos compound into permanent levels and the bot banked 4 million coins against a
+  50k debt.
+- 2026-11-12 — Barbed Wire's one-lock RIOT moved to rank III. — Rounds already open with Lockup
+  lit, so at rank I a RIOT came almost every ball from the first deadline (REP 16 after one round).
+- 2026-11-12 — Late debt growth x3.35 -> x5.2 (deadlines 1-4 unchanged). — Ink is a build every
+  run gets: before the change the average bot with no charms won every run with about 2x the debt
+  banked. See the M12 calibration.
 - 2026-11-12 — The veil behind menus and the hint's menu layout key off classes the UI sets
   (`#ui.open`, `body.ui-open`, `body.hint-on`), not `:has()`. — Safari does not always
   re-check `:has()` when a panel is removed, so the 60% veil could stay over the game after a

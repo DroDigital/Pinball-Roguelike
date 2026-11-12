@@ -18,6 +18,7 @@ import { SENTENCES } from '../content/sentences';
 import { SENTENCE } from '../content/balance';
 import { gainCharm, jobTarget, roundsIn } from '../rules/run';
 import { restock } from '../rules/shop';
+import { gainRep, repToNext } from '../rules/ink';
 import { CHARMS } from '../content/charms';
 import { CONTRABAND } from '../content/contraband';
 
@@ -147,6 +148,9 @@ export function attachDevPanel(app: GameApp): void {
   run
     .addButton({ title: 'Give contraband' })
     .on('click', () => app.run?.contraband.push(state.contraband));
+  run.addButton({ title: '+1 REP level (ink between balls)' }).on('click', () => {
+    if (app.run) gainRep(app.run, repToNext(app.run.rep.level) - app.run.rep.xp);
+  });
   run.addButton({ title: 'Restock shop' }).on('click', () => app.run && restock(app.run));
   run.addButton({ title: 'Skip deadline (paid)' }).on('click', () => app.devSkipDeadline());
   run.addButton({ title: 'Trapdoor' }).on('click', () => app.fall());

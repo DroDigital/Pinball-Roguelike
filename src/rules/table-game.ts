@@ -21,6 +21,7 @@ import {
   JAILBREAK,
   LUCK,
   PA,
+  REP,
   RIOT,
   SCORE,
   SECRET,
@@ -34,6 +35,7 @@ import { emptyBallStats, type BallStats } from '../content/jobs';
 import { ComboTracker, comboName } from './combo';
 import { BALL_HOOKS, type BallHooks, type BallRules } from './charm-hooks';
 import { bonusTotal } from './bonus';
+import { repToNext } from './rep';
 import {
   Lamp,
   type AwardId,
@@ -132,6 +134,21 @@ export interface BallContext {
   /** JAILBREAK is lit at the Hole (Last Call with the Keys). */
   jailbreak: boolean;
   job: BallJob | null;
+  /** REP level and progress before this ball, and REP per coin earned (0: no REP). */
+  repLevel: number;
+  repXp: number;
+  repRate: number;
+  /** Tattoo effects (see content/tattoos.ts). */
+  bountyMult: number;
+  mostWantedSooner: number;
+  paydayMult: number;
+  modeSecondsMult: number;
+  paGapMult: number;
+  kickbackStart: boolean;
+  extraBallCapAdd: number;
+  twinChance: number;
+  /** Sleeves inked (behaviour by id). */
+  sleeves: string[];
 }
 
 export interface ActiveSlot {
@@ -221,6 +238,18 @@ export function defaultBallContext(): BallContext {
     tunnel: false,
     jailbreak: false,
     job: null,
+    repLevel: 1,
+    repXp: 0,
+    repRate: 0,
+    bountyMult: 1,
+    mostWantedSooner: 0,
+    paydayMult: 1,
+    modeSecondsMult: 1,
+    paGapMult: 1,
+    kickbackStart: false,
+    extraBallCapAdd: 0,
+    twinChance: 0,
+    sleeves: [],
   };
 }
 
@@ -375,6 +404,16 @@ export class TableGame implements BallRules {
   /** Its own stream so the new features never shift lucky bounces or Shakedown rolls. */
   private readonly paRng: Rng;
   private readonly hookIds: string[];
+  /** REP: the live level (callouts as levels are crossed) and the REP the next one needs. */
+  repLevel: number;
+  private repNeed: number;
+  /** Sleeves: Kingpin's growing pay, Lucky Devil's bounce used, Serpent's level-ups. */
+  private readonly sleeves: ReadonlySet<string>;
+  kingpin = 0;
+  private devilUsed = false;
+  private serpentUps = 0;
+  /** Ace of Spades rolled for this ball. */
+  private twinRolled = false;
 
   constructor(
     readonly sim: PinballSim,
@@ -402,6 +441,11 @@ export class TableGame implements BallRules {
     this.combo = new ComboTracker(ctx.comboWindow, ctx.comboStart, ctx.comboStep);
     this.payday = ctx.paydayCarry > 0 ? ctx.paydayCarry : RIOT.paydayBase;
     if (ctx.lockdown) machine.lockLit = false;
+    this.repLevel = ctx.repLevel;
+    this.repNeed = repToNext(ctx.repLevel) - ctx.repXp;
+    this.sleeves = new Set(ctx.sleeves);
+    this.paClock = PA.first * ctx.paGapMult;
+    if (ctx.kickbackStart && !ctx.noKickback) machine.kickback = true;
     this.dropSeq = machine.drops.every(Boolean) ? [] : null;
     sim.setKickback(machine.kickback);
     this.refreshLamps();
@@ -611,6 +655,7 @@ export class TableGame implements BallRules {
         this.ballSaveLeft = this.ctx.ballSave;
         this.refreshLamps();
       }
+      this.maybeTwin();
       return;
     }
     const bail = BAIL_IDS.indexOf(id);
@@ -717,7 +762,7 @@ export class TableGame implements BallRules {
     // The orbit runs past the top lanes: it spots the next one.
     this.spotLane(e.x, e.y);
     this.stats.perimeters++;
-    const mult = this.major();
+    const mult = this.major('perimeter');
     this.pay('perimeter', SCORE.perimeter * mult, e.x, e.y, mult);
     if (mult === 1) this.emit({ t: 'callout', text: 'THE PERIMETER', priority: 2 });
     if (side === 'L' && this.superArmed >= 0) {
@@ -741,7 +786,7 @@ export class TableGame implements BallRules {
     this.hitWanted('chute', e.x, e.y);
     this.stats.chutes++;
     this.endSkill();
-    const mult = this.major();
+    const mult = this.major('chute');
     this.pay('chute', SCORE.chute * mult, e.x, e.y, mult);
     if (this.riot) {
       const amount = this.shotValue('chute', this.payday) * mult * this.paydayMult();
@@ -776,7 +821,7 @@ export class TableGame implements BallRules {
     this.stats.holes++;
     this.hitWanted('hole', e.x, e.y);
     this.endSkill();
-    const mult = this.major();
+    const mult = this.major('hole');
     this.pay('hole', SCORE.hole * mult, e.x, e.y, mult);
     let locked = false;
     if (this.jailbreak) {
@@ -874,7 +919,11 @@ export class TableGame implements BallRules {
     this.machine.award = (this.machine.award + 1) % ladder.length;
     if (award === 'kickback' && this.ctx.noKickback) award = 'bonusX';
     // Past the cap a Bonus X for this ball, not a level: levels last the whole run and compound.
-    if (award === 'extraBall' && this.extraBalls >= AWARDS.maxExtraPerBall) award = 'bonusX';
+    if (
+      award === 'extraBall' &&
+      this.extraBalls >= AWARDS.maxExtraPerBall + this.ctx.extraBallCapAdd
+    )
+      award = 'bonusX';
     this.machine.awardLit = false;
     this.emit({ t: 'award', award, collected: true });
     let sub = AWARD_NAMES[award];
@@ -979,7 +1028,7 @@ export class TableGame implements BallRules {
     this.sweepMeter += turns;
     if (this.sweepMeter < SWEEP.spins) return;
     this.sweepMeter = 0;
-    this.sweepLeft = SWEEP.seconds;
+    this.sweepLeft = SWEEP.seconds * this.ctx.modeSecondsMult;
     this.stats.sweeps++;
     this.emit({ t: 'mode', mode: 'sweep', on: true });
     this.emit({
@@ -995,15 +1044,15 @@ export class TableGame implements BallRules {
   private stoke(): void {
     if (this.tilted || this.brawlLeft > 0) return;
     this.heat += 1;
-    if (this.heat < BRAWL.heatToStart) return;
+    if (this.heat < (this.sleeves.has('yardDog') ? 1 : BRAWL.heatToStart)) return;
     this.heat = 0;
-    this.brawlLeft = BRAWL.seconds + this.ctx.brawlSecondsAdd;
+    this.brawlLeft = (BRAWL.seconds + this.ctx.brawlSecondsAdd) * this.ctx.modeSecondsMult;
     this.stats.brawls++;
     this.emit({ t: 'mode', mode: 'brawl', on: true });
     this.emit({
       t: 'callout',
       text: 'YARD BRAWL',
-      sub: `BUMPERS PAY X${BRAWL.popMult}`,
+      sub: `BUMPERS PAY X${this.brawlMult()}`,
       priority: 6,
       anim: 'riot',
     });
@@ -1032,7 +1081,7 @@ export class TableGame implements BallRules {
         this.bail.fill(false);
         this.stats.bails++;
         this.pay('tower', SCORE.bailSet, x, y);
-        this.shiftLeft = SHIFT.seconds + this.ctx.shiftSecondsAdd;
+        this.shiftLeft = (SHIFT.seconds + this.ctx.shiftSecondsAdd) * this.ctx.modeSecondsMult;
         this.emit({ t: 'mode', mode: 'shift', on: true });
         this.emit({
           t: 'callout',
@@ -1191,7 +1240,12 @@ export class TableGame implements BallRules {
     if (this.tilted) return;
     // The left kickback handles its own outlane.
     if (e.id === 'outlaneL' && this.sim.kickbackArmed) return;
-    const forced = this.hooks.some((h) => h.forceBounce?.(this));
+    let forced = this.hooks.some((h) => h.forceBounce?.(this));
+    if (!forced && this.sleeves.has('luckyDevil') && !this.devilUsed) {
+      this.devilUsed = true;
+      forced = true;
+      this.emit({ t: 'ink', id: 'luckyDevil' });
+    }
     if (!forced && !this.rng.chance(this.cappedChance(LUCK.luckyBounce))) return;
     this.sim.luckyKick(e.ballId);
     this.stats.luckyBounces++;
@@ -1231,10 +1285,22 @@ export class TableGame implements BallRules {
   }
 
   /** Register a major shot for combos; returns its multiplier. */
-  private major(): number {
+  private major(shot: ShotType): number {
     const mult = this.combo.hit(this.time);
     const n = this.combo.count;
     if (n > this.stats.maxCombo) this.stats.maxCombo = n;
+    if (
+      n >= REP.serpentCombo &&
+      this.sleeves.has('serpent') &&
+      this.serpentUps < REP.serpentPerBall &&
+      !this.tilted
+    ) {
+      // This ball only: permanent levels from every combo would compound without end.
+      this.serpentUps++;
+      this.levels[shot]++;
+      this.refreshLamps();
+      this.emit({ t: 'ink', id: 'serpent' });
+    }
     if (n >= 2) {
       this.emit({ t: 'combo', count: n, mult });
       this.emit({
@@ -1298,6 +1364,7 @@ export class TableGame implements BallRules {
     }
     this.stats.bonusTally = this.bonusPaid;
     this.stats.earned = this.earned + this.bonusPaid;
+    if (!this.tilted) this.checkRep(this.earned + this.bonusPaid);
     this.machine.bonusMult = this.bonusMult;
     this.checkJob();
     this.emit({ t: 'ballOver', earned: this.earned + this.bonusPaid, tilted: this.tilted });
@@ -1334,7 +1401,7 @@ export class TableGame implements BallRules {
   }
 
   private paydayMult(): number {
-    let m = 1;
+    let m = this.ctx.paydayMult;
     for (const h of this.hooks) if (h.paydayMult) m *= h.paydayMult(this);
     return m;
   }
@@ -1484,13 +1551,18 @@ export class TableGame implements BallRules {
     const most = this.mostWantedLeft > 0;
     if ((shot !== this.wanted && !most) || this.jailbreak || this.tilted || this.over) return;
     const n = ++this.stats.bounties;
-    let v = this.shotValue(WANTED_LEVEL[shot], WANTED.base + WANTED.step * (n - 1));
+    let v =
+      this.shotValue(WANTED_LEVEL[shot], WANTED.base + WANTED.step * (n - 1)) * this.ctx.bountyMult;
     if (this.manhuntLeft > 0) v *= PA.manhuntMult;
     if (this.shiftLeft > 0) v *= SHIFT.mult;
     this.payRaw(v, x, y);
     // Half of it lands in the Bonus too, so bounty hunting feeds the end-of-ball tally.
     this.bonus += v * 0.5 * this.ctx.bonusShare;
     this.emit({ t: 'wanted', shot, amount: v, n });
+    if (this.sleeves.has('kingpin')) {
+      this.kingpin = Math.min(REP.kingpinMax, this.kingpin + REP.kingpinStep);
+      this.emit({ t: 'ink', id: 'kingpin' });
+    }
     this.emit({
       t: 'callout',
       text: n >= 3 ? `BOUNTY X${n}` : 'BOUNTY!',
@@ -1500,8 +1572,8 @@ export class TableGame implements BallRules {
     });
     if (most) return;
     this.moveWanted(false);
-    if (n % WANTED.mostWantedEvery === 0) {
-      this.mostWantedLeft = WANTED.mostWantedSeconds;
+    if (n % Math.max(2, WANTED.mostWantedEvery - this.ctx.mostWantedSooner) === 0) {
+      this.mostWantedLeft = WANTED.mostWantedSeconds * this.ctx.modeSecondsMult;
       this.emit({ t: 'mode', mode: 'mostWanted', on: true });
       this.emit({
         t: 'callout',
@@ -1527,7 +1599,7 @@ export class TableGame implements BallRules {
 
   /** The tannoy crackles: one random event the machine can give right now. */
   private announce(): void {
-    this.paClock = this.paRng.range(PA.minGap, PA.maxGap);
+    this.paClock = this.paRng.range(PA.minGap, PA.maxGap) * this.ctx.paGapMult;
     const w = PA.weights;
     const can = (e: PaEvent): boolean => {
       switch (e) {
@@ -1563,7 +1635,7 @@ export class TableGame implements BallRules {
         });
         break;
       case 'frenzy':
-        this.frenzyLeft = PA.seconds;
+        this.frenzyLeft = PA.seconds * this.ctx.modeSecondsMult;
         this.emit({ t: 'mode', mode: 'frenzy', on: true });
         this.emit({
           t: 'callout',
@@ -1589,8 +1661,8 @@ export class TableGame implements BallRules {
         this.emit({ t: 'callout', text: 'CHOW TIME', sub: 'HURRY-UP AT THE CHUTE', priority: 6 });
         break;
       case 'manhunt':
-        this.manhuntLeft = PA.seconds;
-        this.wantedLeft = Math.max(this.wantedLeft, PA.seconds);
+        this.manhuntLeft = PA.seconds * this.ctx.modeSecondsMult;
+        this.wantedLeft = Math.max(this.wantedLeft, this.manhuntLeft);
         this.emit({ t: 'mode', mode: 'manhunt', on: true });
         this.emit({
           t: 'callout',
@@ -1614,8 +1686,20 @@ export class TableGame implements BallRules {
       SCORE.scale *
       (1 + SCORE.levelStep * (level - 1)) *
       (this.ctx.shotMult[shot] ?? 1) *
-      this.ctx.payMult
+      this.ctx.payMult *
+      this.inkMult()
     );
+  }
+
+  /** Sleeves that scale every payout live: Kingpin's bounties, Jailhouse Rock's multiball. */
+  inkMult(): number {
+    let m = 1 + this.kingpin;
+    if (this.sleeves.has('jailhouseRock') && this.sim.ballsInPlay() > 1) m *= REP.multiballMult;
+    return m;
+  }
+
+  private brawlMult(): number {
+    return this.sleeves.has('yardDog') ? REP.yardDogMult : BRAWL.popMult;
   }
 
   /** Pay a hit: scaled by level; adds to Bonus (excluding the combo part) and to PAYDAY. */
@@ -1637,7 +1721,7 @@ export class TableGame implements BallRules {
       if (m !== 1) this.emit({ t: 'charm', id: this.hookIds[i] });
       v *= m;
     }
-    if (shot === 'yard' && this.brawlLeft > 0) v *= BRAWL.popMult;
+    if (shot === 'yard' && this.brawlLeft > 0) v *= this.brawlMult();
     if (this.shiftLeft > 0) v *= SHIFT.mult;
     this.hitCounts[shot]++;
     for (const h of this.hooks) h.onHit?.(this, shot, source);
@@ -1645,6 +1729,7 @@ export class TableGame implements BallRules {
     if (this.riot) this.payday += RIOT.paydayPerHit;
     this.earned += v;
     this.emit({ t: 'score', shot, amount: v, x, y } satisfies GameEvent);
+    this.checkRep(this.earned);
     // SWEEP: every switch but the Searchlight itself pays a little extra (no Bonus).
     if (this.sweepLeft > 0 && shot !== 'searchlight') {
       const extra = this.shotValue('searchlight', SWEEP.perHit);
@@ -1664,6 +1749,43 @@ export class TableGame implements BallRules {
     if (this.tilted || amount <= 0) return;
     this.earned += amount;
     this.emit({ t: 'score', shot: 'jackpot', amount, x, y });
+    this.checkRep(this.earned);
+  }
+
+  /** REP crossed a level: say so now; the pick waits for the drain. */
+  private checkRep(coins: number): void {
+    const rate = this.ctx.repRate;
+    if (rate <= 0) return;
+    while (coins * rate >= this.repNeed) {
+      this.repLevel++;
+      this.repNeed += repToNext(this.repLevel);
+      this.emit({ t: 'repLevel', level: this.repLevel });
+      this.emit({
+        t: 'callout',
+        text: 'LEVEL UP',
+        sub: `REP ${this.repLevel}  INK AT THE DRAIN`,
+        priority: 6,
+        anim: 'skill',
+      });
+    }
+  }
+
+  /** REP this ball so far, as a fraction of the way to the next level (HUD). */
+  repProgress(): number {
+    const need = repToNext(this.repLevel);
+    const left = this.repNeed - this.earned * this.ctx.repRate;
+    return Math.max(0, Math.min(1, 1 - left / need));
+  }
+
+  /** Ace of Spades: maybe a second ball once the first is in play. */
+  private maybeTwin(): void {
+    if (this.twinRolled || this.ctx.twinChance <= 0 || this.tilted) return;
+    this.twinRolled = true;
+    if (!this.paRng.chance(Math.min(1, this.ctx.twinChance))) return;
+    this.sim.serveBall(true);
+    this.multiSaveLeft = Math.max(this.multiSaveLeft, REP.twinSave);
+    this.emit({ t: 'ink', id: 'joker' });
+    this.emit({ t: 'callout', text: 'ACE OF SPADES', sub: 'A SECOND BALL', priority: 6 });
   }
 
   // ------------------------------------------------------------------ lamps

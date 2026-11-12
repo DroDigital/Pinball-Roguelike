@@ -46,6 +46,25 @@ export interface CharmFx {
   shakedownSlingsAdd?: number;
   /** Table tag this hardware charm mounts. */
   mount?: string;
+  // ---- ball, from tattoos (rules/charms.ts folds both)
+  /** Added to every combo step (stacks, unlike comboStep). */
+  comboStepAdd?: number;
+  bountyMult?: number;
+  /** MOST WANTED comes this many bounties sooner. */
+  mostWantedSooner?: number;
+  paydayMult?: number;
+  /** Multiplies the length of every timed table mode. */
+  modeSecondsMult?: number;
+  /** Multiplies the gaps between PA announcements. */
+  paGapMult?: number;
+  kickbackStart?: boolean;
+  extraBallCapAdd?: number;
+  /** Chance each ball brings a second ball. */
+  twinChance?: number;
+  /** Pay bonus per REP level held. */
+  payPerRep?: number;
+  /** Pay bonus per ball already lost this round. */
+  grudgePay?: number;
   // ---- run
   interestAdd?: number;
   loanRate?: number;
@@ -60,6 +79,9 @@ export interface CharmFx {
   debtMult?: number;
   oilCanLevels?: number;
   oilCanAlways?: boolean;
+  /** REP gained multiplier (tattoos). */
+  xpMult?: number;
+  ballPriceMult?: number;
 }
 
 export interface ActiveDef {

@@ -35,6 +35,12 @@ When the deadline comes, the Bank pays the debt, or the floor opens. After a pai
 the phone rings with a perk, or a red call with a devil's bargain. The vending cabinet sells
 charms (for tickets) and contraband (for coins); charms change how the table pays and plays.
 
+Coins earned on the table also build **REP**. Every REP level (the violet bar under your coins)
+lets you ink one of three **tattoos** between balls. Tattoos stack in ranks, some pay off early
+and some late, and any two tattoos named by a **Sleeve** at rank II unlock that Sleeve: a
+combination that changes how the table plays (doubled multiball, a bounty that never stops
+growing, interest after every ball...).
+
 | Action   | Keys                                 | Gamepad                    | Touch                                |
 | -------- | ------------------------------------ | -------------------------- | ------------------------------------ |
 | Flippers | Z / Slash, Shift L / R, arrows       | bumpers / triggers         | left / right half of the screen      |
@@ -109,6 +115,11 @@ it up. Each new charm and contraband item needs a test in `tests/rules/charms.te
     - per run, as checks of `owns(run, id)` in `src/rules/run.ts`.
   - Hardware charms set `fx.mount` to a tag that enables tagged parts in `table.ts`.
   - To lock a new charm behind a milestone, list it in `unlocks.ts`.
+- **Tattoos** (`tattoos.ts`): `id`, `name`, `rarity` (`common` / `uncommon` / `rare`, or
+  `sleeve` with `needs: [tattooA, tattooB]`), `timing` (the card's EARLY / LATE GAME / RISK
+  chip), `tags`, and one `ranks` entry per rank with its `text` and `fx` (a `CharmFx`, folded
+  with the charms) or `once` (applied when inked). Sleeve behaviours are checked by id in
+  `table-game.ts` and `run.ts`. Each tattoo needs a test in `tests/rules/ink.test.ts`.
 - **Contraband** (`contraband.ts`):
   - Fields: `id`, `name`, `text`, and a price (`price` in coins, `ballPrices`, or
     `debtPrice`), plus `target: 'shot' | 'charm'` if it needs one.
@@ -227,7 +238,11 @@ npm run economy:summary              # pool every archetype's report: win rates,
   `money` or `lone`.
 - `--skill` sets the bot skill; `--inmate` and `--hard 0-8` set the inmate and Hard Time.
 - `--red` accepts red-call bargains; `--loans` borrows to cover a shortfall.
-- `--mode sampled` draws ball earnings from botstats instead of playing them (fast but rough).
+- `--mode sampled` draws ball earnings from botstats instead of playing them (fast but rough;
+  it ignores tattoos, so calibrate Ink in physics mode).
+- `--noink` never takes a tattoo (the pre-Ink baseline); otherwise the bot inks Sleeves first,
+  then its archetype's tag.
 
-The report shows clear rates per deadline, win rate and the charms in winning builds.
+The report shows clear rates per deadline, the median REP level, win rate and the charms and
+tattoos in winning builds.
 Calibration history is in DESIGN.md.

@@ -16,6 +16,7 @@ import {
   LUCK,
   NEIGHBOR,
   PHONE,
+  REP,
   SENTENCE,
 } from '../content/balance';
 import { CONTRABAND } from '../content/contraband';
@@ -26,6 +27,7 @@ import { CHARMS, charmDef } from '../content/charms';
 import { foldCharms, type FoldedFx } from './charms';
 import { RUN_HOOK } from './charm-hooks';
 import { contrabandSlots, restock } from './shop';
+import { gainRep, newRep, repRate, wears, type RepState } from './ink';
 import { JOB_DEFS, emptyBallStats, jobDef, type BallStats, type JobDef } from '../content/jobs';
 import { SENTENCES, maxTier, minTier, sentenceDef } from '../content/sentences';
 import { BARGAINS, PERKS, PERK_SHOTS, bargainDef, perkDef } from '../content/phone';
@@ -136,10 +138,10 @@ export interface RunOptions {
 
 export type RunKind = 'random' | 'seeded' | 'daily';
 
-export const RUN_VERSION = 3;
+export const RUN_VERSION = 4;
 
 export interface RunState {
-  version: 3;
+  version: 4;
   seed: string;
   inmate: string;
   hardTime: number;
@@ -202,6 +204,10 @@ export interface RunState {
   stats: RunStats;
   /** Deadlines in this run (8 normally). */
   deadlines: number;
+  /** REP level, progress and the pending Ink pick. */
+  rep: RepState;
+  /** Tattoos inked: id -> rank (Sleeves are rank 1). */
+  ink: Record<string, number>;
 }
 
 /** The debt curve's multiplier at a deadline: gentle early steps, then the full growth. */
@@ -294,6 +300,8 @@ export function newRun(seed: string, opts: RunOptions = {}): RunState {
       tunnels: 0,
     },
     deadlines: endless ? ENDLESS.deadlines : (opts.deadlines ?? ECONOMY.deadlines),
+    rep: newRep(),
+    ink: {},
   };
   applyInmate(s);
   applyHardTime(s);
@@ -349,9 +357,9 @@ export function jailbreakLit(s: RunState): boolean {
   );
 }
 
-/** Folded static effects of the owned charms. */
+/** Folded static effects of the owned charms and the inked tattoos. */
 export function charmFx(s: RunState): FoldedFx {
-  return foldCharms(s.charms);
+  return foldCharms(s.charms, s.ink);
 }
 
 export function owns(s: RunState, id: string): boolean {
@@ -489,7 +497,9 @@ export function payScale(s: RunState): number {
 
 export function ballPrice(s: RunState): number {
   let p =
-    (ECONOMY.ballPriceBase + ECONOMY.ballPricePerDeadline * s.deadline) * s.mods.ballPriceMult;
+    (ECONOMY.ballPriceBase + ECONOMY.ballPricePerDeadline * s.deadline) *
+    s.mods.ballPriceMult *
+    charmFx(s).ballPriceMult;
   for (const d of activeSentences(s)) p *= d.effect.ballPriceMult ?? 1;
   return Math.round(p);
 }
@@ -554,6 +564,7 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
   const ballNumber = s.ballsPlayed + 1;
   const lastBall = ballNumber >= s.ballsThisRound;
   const p = s.pending;
+  const life = f.sleeves.includes('lifeSentence');
   const ctx: BallContext = {
     ...base,
     shotLevels: { ...s.shotLevels },
@@ -571,7 +582,10 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
       payScale(s) *
       m.payMult *
       f.payMult *
-      (owns(s, 'solitary') && s.boughtThisRound === 0 ? RUN_HOOK.solitaryMult : 1),
+      (owns(s, 'solitary') && s.boughtThisRound === 0 ? RUN_HOOK.solitaryMult : 1) *
+      (1 + f.payPerRep * s.rep.level) *
+      (1 + f.grudgePay * s.ballsPlayed) *
+      (lastBall && f.sleeves.includes('deadManWalking') ? REP.deadManMult : 1),
     luck:
       m.luck +
       f.luck +
@@ -579,10 +593,10 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
       (owns(s, 'candleStub') && lastBall ? RUN_HOOK.candleLuck : 0) +
       (p.moonshine ? CONTRABAND_FX.moonshineLuck : 0),
     comboStart: f.comboStart || base.comboStart,
-    comboStep: f.comboStep || base.comboStep,
+    comboStep: (f.comboStep || base.comboStep) + f.comboStepAdd,
     comboWindow: base.comboWindow + f.comboWindowAdd,
-    bonusMaxMult: f.noBonusCap ? 999 : BONUS.maxMult + m.bonusMaxAdd + f.bonusMaxAdd,
-    bonusStart: 1 + f.bonusStartAdd,
+    bonusMaxMult: f.noBonusCap || life ? 999 : BONUS.maxMult + m.bonusMaxAdd + f.bonusMaxAdd,
+    bonusStart: 1 + f.bonusStartAdd + (life ? Math.floor(s.rep.level / REP.lifeSentenceLevels) : 0),
     bonusShare: base.bonusShare * f.bonusShareMult,
     bonusKeep: f.noBonus ? 0 : 1,
     bonusTimes: owns(s, 'lastRites') && lastBall ? RUN_HOOK.lastRitesTimes : 1,
@@ -609,6 +623,18 @@ export function nextBall(s: RunState, baseTags: string[] = ['outlanePosts']): Ba
     jailbreak: jailbreakLit(s),
     ballNumber,
     ballsInRound: s.ballsThisRound,
+    repLevel: s.rep.level,
+    repXp: s.rep.xp,
+    repRate: repRate(s),
+    bountyMult: f.bountyMult,
+    mostWantedSooner: f.mostWantedSooner,
+    paydayMult: f.paydayMult,
+    modeSecondsMult: f.modeSecondsMult,
+    paGapMult: f.paGapMult,
+    kickbackStart: f.kickbackStart,
+    extraBallCapAdd: f.extraBallCapAdd,
+    twinChance: f.twinChance,
+    sleeves: [...f.sleeves],
     job:
       s.job && job
         ? {
@@ -666,6 +692,11 @@ export interface BallOutcome {
 export interface BallResult {
   /** Whole coins added to the Pocket from the table and Bonus. */
   gained: number;
+  /** REP earned by the ball and the REP levels it crossed (each one an Ink pick). */
+  rep: number;
+  levels: number;
+  /** White Collar: interest the Bank earned after this ball. */
+  interest: number;
   /** The Job completed by this ball, if any. */
   jobDone: JobDef | null;
   /** Debt added by Head Count. */
@@ -717,6 +748,14 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
   for (const l of o.levelUps) s.shotLevels[l]++;
   for (const [id, n] of Object.entries(o.charges)) if (id in s.charges) s.charges[id] = n;
   if (owns(s, 'hoarderSack') && o.paydayEnd > 0) s.paydayCarry = o.paydayEnd;
+  // REP is earned like the coins: a tilt forfeits it.
+  const rep = o.tilted ? 0 : (o.earned + o.bonus) * repRate(s);
+  const levels = gainRep(s, rep);
+  let interest = 0;
+  if (wears(s, 'whiteCollar')) {
+    interest = Math.floor(s.bank * interestRate(s) * REP.whiteCollarRate);
+    s.bank += interest;
+  }
   ballLost(s);
   let debtAdded = 0;
   for (const d of activeSentences(s)) {
@@ -757,7 +796,7 @@ export function finishBall(s: RunState, o: BallOutcome): BallResult {
     s.phase = 'over';
     s.result = 'breakout';
   }
-  return { gained, jobDone, debtAdded };
+  return { gained, jobDone, debtAdded, rep, levels, interest };
 }
 
 // ------------------------------------------------------------------ ATM
