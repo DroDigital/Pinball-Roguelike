@@ -441,6 +441,14 @@ nine-archetype pass is still open (M10).
 
 ## Decisions log
 
+- 2026-11-12 — Playfield print, three changes. Shot stripes: each major arrow sits on a painted
+  lane in its own insert colour, carrying its level ladder, instead of thin roads from the
+  flippers that ran under sockets and labels; a lit or WANTED arrow now has an obvious lane.
+  Cleaner, brighter print: lighter inks and wear, shot labels moved clear of the inserts, no
+  starburst under the Spare Bumper's empty spot (it is only there with the mount), no pinstripe
+  box across the art. The Pit: a riveted iron trapdoor under the flippers, its seam glowing red
+  from the drop. — The print read as muddy, cluttered and dark from the follow camera, and the
+  lower third was an empty sunburst.
 - 2026-11-12 — The title logo is pixel art (Silkscreen and Press Start 2P, both OFL): BALL in
   red and CHAIN in teal with a steel ball on a chain between them. — Chosen from three
   directions (70s backglass, pixel roguelike, grim stencil); the metallic logo read as generic.
