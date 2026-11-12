@@ -111,6 +111,7 @@ export class UI {
     refitTree(el);
     this.root.append(el);
     this.panel = el;
+    this.syncOpen();
     if (fresh && !el.dataset.wired) {
       el.dataset.wired = '1';
       for (const b of Array.from(el.querySelectorAll('button')))
@@ -127,6 +128,20 @@ export class UI {
   hide(): void {
     this.panel?.remove();
     this.panel = null;
+    this.syncOpen();
+  }
+
+  /**
+   * Mirror "a screen is up" into classes the CSS can use. The veil and the hint layout used
+   * to hang off :has(.panel), which Safari does not always re-check when a panel is removed:
+   * the 60% veil stayed over the game after a menu closed.
+   */
+  private syncOpen(): void {
+    const open = this.panel !== null;
+    const skinned = open && !!this.panel?.classList.contains('bc-skin');
+    this.root.classList.toggle('open', open);
+    document.body.classList.toggle('ui-open', open);
+    document.body.classList.toggle('ui-skinned', skinned);
   }
 
   /** Move focus among the panel's buttons (flipper-button navigation). */

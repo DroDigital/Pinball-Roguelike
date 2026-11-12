@@ -58,6 +58,7 @@ function paintGrid(): HTMLCanvasElement {
   const w = GRID_W;
   const h = GRID_H;
   const art = makeCanvas(w, h);
+  // Read back several times while painting (masks, crop): tell the browser up front.
   const g = art.getContext('2d', { willReadFrequently: true })!;
   const img = g.createImageData(w, h);
   const px = img.data;
@@ -73,7 +74,7 @@ function paintGrid(): HTMLCanvasElement {
   const filled = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < w && y < h && px[(y * w + x) * 4 + 3] > 0;
 
-  const measure = makeCanvas(8, 8).getContext('2d', { willReadFrequently: true })!;
+  const measure = makeCanvas(8, 8).getContext('2d')!;
   measure.font = `700 ${SIZE}px ${FONT.pixel}`;
   const widthOf = (text: string): number =>
     [...text].reduce((a, ch) => a + measure.measureText(ch).width + KERN, -KERN);
@@ -214,9 +215,7 @@ function paintMask(
 
 /** The bounding box of the opaque pixels. */
 function opaqueBox(c: HTMLCanvasElement): { x: number; y: number; w: number; h: number } {
-  const d = c
-    .getContext('2d', { willReadFrequently: true })!
-    .getImageData(0, 0, c.width, c.height).data;
+  const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
   let x0 = c.width;
   let y0 = c.height;
   let x1 = -1;

@@ -46,6 +46,7 @@ export class Hints {
     const id = this.queue.shift();
     if (!id) {
       this.el.classList.remove('on');
+      document.body.classList.remove('hint-on');
       return;
     }
     this.seen.push(id);
@@ -58,6 +59,7 @@ export class Hints {
     tag.textContent = 'NOTE';
     this.el.append(tag, text);
     this.el.classList.add('on');
+    document.body.classList.add('hint-on');
     this.timer = window.setTimeout(() => this.next(), Math.max(MIN_MS, text.length * MS_PER_CHAR));
   }
 }

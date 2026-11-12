@@ -463,6 +463,10 @@ renderer and its music rewrite (main's mode-driven music stays).
 
 ## Decisions log
 
+- 2026-11-12 — The veil behind menus and the hint's menu layout key off classes the UI sets
+  (`#ui.open`, `body.ui-open`, `body.hint-on`), not `:has()`. — Safari does not always
+  re-check `:has()` when a panel is removed, so the 60% veil could stay over the game after a
+  menu closed ("sometimes the screen gets dark").
 - 2026-11-12 — Pause holds the Bonus tally, and a new screen resets the open-menu count. —
   Settings opened during the tally was replaced by the ball receipt when the tally ended; the
   next Back then popped the receipt and left no screen and no way on. `e2e/pause.spec.ts` covers it.

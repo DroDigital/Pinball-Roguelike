@@ -24,7 +24,7 @@
   transition: opacity 0.15s steps(3);
   background: rgba(4, 3, 2, 0.6);
 }
-#ui:has(.panel)::before {
+#ui.open::before {
   opacity: 1;
 }
 
@@ -604,7 +604,7 @@
   color: var(--rust);
 }
 /* With a screen up, the note sits under it as one line. */
-body:has(#ui .panel) #hint {
+body.ui-open #hint {
   left: 50%;
   bottom: 6px;
   width: max-content;
@@ -613,14 +613,14 @@ body:has(#ui .panel) #hint {
   font-size: calc(0.9rem * var(--text-scale, 1));
   transform: translate(-50%, 8px);
 }
-body:has(#ui .panel) #hint.on {
+body.ui-open #hint.on {
   transform: translate(-50%, 0);
 }
-body:has(#ui .panel) #hint b {
+body.ui-open #hint b {
   display: inline;
   margin-right: 0.6em;
 }
-body:has(#hint.on) #ui:has(.panel) {
+body.hint-on.ui-open #ui {
   padding-bottom: calc(2.8rem * var(--text-scale, 1));
 }
 #subtitle {

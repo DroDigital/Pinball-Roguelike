@@ -1228,7 +1228,7 @@ button.bc-skin.bc-s-jobs.key b {
   margin-bottom: calc(var(--fw) / var(--bc-ratio-n) * var(--bc-vb) * -1);
 }
 /* A full-size menu frame covers most of the HUD: don't let its frames peek out around it. */
-body:has(#ui .panel.bc-skin) #hud .hud-frame.bc-skin {
+body.ui-skinned #hud .hud-frame.bc-skin {
   visibility: hidden;
 }
 #hud .hud-frame.bc-skin > .bc-skin__content {
