@@ -38,6 +38,8 @@ export class UI {
   private toastTimer = 0;
   /** Called when any button is activated (for UI sounds). */
   onClick: (() => void) | null = null;
+  /** Called when show() replaces every panel (the app forgets the menus that were open). */
+  onShow: (() => void) | null = null;
 
   constructor(
     readonly root: HTMLElement,
@@ -56,6 +58,7 @@ export class UI {
   show(el: HTMLElement): void {
     this.hide();
     this.stack.length = 0;
+    this.onShow?.();
     this.mount(el);
   }
 

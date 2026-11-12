@@ -441,6 +441,9 @@ nine-archetype pass is still open (M10).
 
 ## Decisions log
 
+- 2026-11-12 — Pause holds the Bonus tally, and a new screen resets the open-menu count. —
+  Settings opened during the tally was replaced by the ball receipt when the tally ended; the
+  next Back then popped the receipt and left no screen and no way on. `e2e/pause.spec.ts` covers it.
 - 2026-11-12 — Playfield print, three changes. Shot stripes: each major arrow sits on a painted
   lane in its own insert colour, carrying its level ladder, instead of thin roads from the
   flippers that ran under sockets and labels; a lit or WANTED arrow now has an obvious lane.
