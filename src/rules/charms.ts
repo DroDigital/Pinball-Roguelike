@@ -1,8 +1,10 @@
 /**
- * Folding owned charms' static effects into one record: multipliers from different charms
- * multiply, additions add, flags OR, and "better is lower/higher" fields take the best.
+ * Folding owned charms' and tattoos' static effects into one record: multipliers multiply,
+ * additions add, flags OR, and "better is lower/higher" fields take the best. Each tattoo rank
+ * folds its own effect, so stacked ranks compound.
  */
 import { CHARM_BY_ID, type CharmFx } from '../content/charms';
+import { TATTOO_BY_ID } from '../content/tattoos';
 import type { ShotType } from '../sim/table-def';
 
 export interface FoldedFx {
@@ -45,6 +47,21 @@ export interface FoldedFx {
   freeBalls: number;
   oilCanLevels: number;
   oilCanAlways: boolean;
+  comboStepAdd: number;
+  bountyMult: number;
+  mostWantedSooner: number;
+  paydayMult: number;
+  modeSecondsMult: number;
+  paGapMult: number;
+  kickbackStart: boolean;
+  extraBallCapAdd: number;
+  twinChance: number;
+  payPerRep: number;
+  grudgePay: number;
+  xpMult: number;
+  ballPriceMult: number;
+  /** Sleeves inked (behaviour checked by id). */
+  sleeves: string[];
 }
 
 export function emptyFx(): FoldedFx {
@@ -86,6 +103,20 @@ export function emptyFx(): FoldedFx {
     freeBalls: 0,
     oilCanLevels: 0,
     oilCanAlways: false,
+    comboStepAdd: 0,
+    bountyMult: 1,
+    mostWantedSooner: 0,
+    paydayMult: 1,
+    modeSecondsMult: 1,
+    paGapMult: 1,
+    kickbackStart: false,
+    extraBallCapAdd: 0,
+    twinChance: 0,
+    payPerRep: 0,
+    grudgePay: 0,
+    xpMult: 1,
+    ballPriceMult: 1,
+    sleeves: [],
   };
 }
 
@@ -129,14 +160,43 @@ function fold(out: FoldedFx, fx: CharmFx): void {
   if (fx.freeBalls) out.freeBalls += fx.freeBalls;
   if (fx.oilCanLevels) out.oilCanLevels = Math.max(out.oilCanLevels, fx.oilCanLevels);
   if (fx.oilCanAlways) out.oilCanAlways = true;
+  if (fx.comboStepAdd) out.comboStepAdd += fx.comboStepAdd;
+  if (fx.bountyMult) out.bountyMult *= fx.bountyMult;
+  if (fx.mostWantedSooner) out.mostWantedSooner += fx.mostWantedSooner;
+  if (fx.paydayMult) out.paydayMult *= fx.paydayMult;
+  if (fx.modeSecondsMult) out.modeSecondsMult *= fx.modeSecondsMult;
+  if (fx.paGapMult) out.paGapMult *= fx.paGapMult;
+  if (fx.kickbackStart) out.kickbackStart = true;
+  if (fx.extraBallCapAdd) out.extraBallCapAdd += fx.extraBallCapAdd;
+  if (fx.twinChance) out.twinChance += fx.twinChance;
+  if (fx.payPerRep) out.payPerRep += fx.payPerRep;
+  if (fx.grudgePay) out.grudgePay += fx.grudgePay;
+  if (fx.xpMult) out.xpMult *= fx.xpMult;
+  if (fx.ballPriceMult) out.ballPriceMult *= fx.ballPriceMult;
 }
 
-/** Fold the static effects of a set of owned charms. */
-export function foldCharms(ids: readonly string[]): FoldedFx {
+/** Fold the static effects of a set of owned charms, then every inked tattoo rank. */
+export function foldCharms(
+  ids: readonly string[],
+  ink: Readonly<Record<string, number>> = {},
+): FoldedFx {
   const out = emptyFx();
   for (const id of ids) {
     const fx = CHARM_BY_ID.get(id)?.fx;
     if (fx) fold(out, fx);
+  }
+  // Object key order is insertion order: stable for a given run.
+  for (const [id, n] of Object.entries(ink)) {
+    const t = TATTOO_BY_ID.get(id);
+    if (!t) continue;
+    if (t.rarity === 'sleeve') {
+      if (n > 0) out.sleeves.push(id);
+      continue;
+    }
+    for (let r = 0; r < Math.min(n, t.ranks.length); r++) {
+      const fx = t.ranks[r].fx;
+      if (fx) fold(out, fx);
+    }
   }
   return out;
 }

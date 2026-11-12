@@ -5,6 +5,7 @@
  *     [--red] (accept red-call bargains) [--loans] (borrow to cover a shortfall)
  *     [--arch none|random|yard|chute|riot|bonus|luck|money|lone] (shop policy)
  *     [--inmate debtor|embezzler|brawler|lifer|escapeArtist|snitch] [--hard 0-8] (Hard Time)
+ *     [--noink] (never take a tattoo at a REP level: the pre-Ink baseline)
  * sampled: ball earnings drawn from tools/out/botstats.json (run `npm run botstats` first).
  *          Fast; good for tuning debt curves, prices and interest.
  * physics: every ball is played by the bot on the real table (slow; use few runs).
@@ -53,6 +54,8 @@ import {
 import type { ShotType } from '../src/sim/table-def';
 import type { ShotTarget } from '../src/bot/shot-table';
 import { emptyBallStats } from '../src/content/jobs';
+import { chooseInk, rankOf } from '../src/rules/ink';
+import { tattooDef, type InkTag } from '../src/content/tattoos';
 import {
   IS_MAIN,
   runPool,
@@ -82,6 +85,7 @@ interface Policy {
   arch: string;
   inmate: string;
   hardTime: number;
+  ink: boolean;
 }
 
 /** Shot each archetype levels with Oil Cans and aims the bot at. */
@@ -150,9 +154,71 @@ interface RunRow {
   balls: number;
   /** Bank + Pocket at each deadline's settlement. */
   funds: number[];
+  /** REP level at each deadline's settlement, and the tattoos worn at the end. */
+  levels: number[];
+  ink: string[];
 }
 
 const PERK_PREF = ['freeBall', 'levels', 'bonusMax', 'interest', 'ballSave', 'tickets'];
+
+/** Ink tag each archetype leans toward. */
+const INK_TAG: Record<string, InkTag | undefined> = {
+  yard: 'Yard',
+  chute: 'Chute',
+  riot: 'Riot',
+  bonus: 'Bonus',
+  luck: 'Luck',
+  money: 'Money',
+  lone: 'Lone',
+};
+/** A rough player's ranking of the tattoos (higher first) before tags and stacking. */
+const INK_PREF: Record<string, number> = {
+  compass: 12,
+  knuckles: 10,
+  barcode: 9,
+  hourglass: 8,
+  teardrop: 7,
+  star: 7,
+  crown: 7,
+  scales: 6,
+  joker: 6,
+  web: 5,
+  snake: 5,
+  anchor: 5,
+  wire: 5,
+  lightning: 4,
+  dollar: 4,
+  swallow: 4,
+  clock: 3,
+  dots: 3,
+  eye: 3,
+  chains: 3,
+  skull: 2,
+  heart: 2,
+};
+
+/** Ink policy: Sleeves first, then the archetype's tag, stacking what it already wears. */
+function inkFor(r: RunState, policy: Policy): void {
+  while (r.rep.picks > 0 && r.rep.offer) {
+    let best = 0;
+    let score = -1e9;
+    r.rep.offer.forEach((o, i) => {
+      let sc = -50;
+      if (o.id !== 'cash') {
+        const d = tattooDef(o.id);
+        sc = d.rarity === 'sleeve' ? 100 : (INK_PREF[o.id] ?? 0);
+        const tag = INK_TAG[policy.arch];
+        if (tag && d.tags.includes(tag)) sc += 8;
+        if (rankOf(r, o.id) > 0) sc += 3;
+      }
+      if (sc > score) {
+        score = sc;
+        best = i;
+      }
+    });
+    if (!chooseInk(r, best)) break;
+  }
+}
 
 /**
  * Player policy: take the first Job, buy as many balls as possible while keeping enough for
@@ -166,6 +232,7 @@ function playRun(
 ): RunRow {
   const r = newRun(`ECON${seed}`, { inmate: policy.inmate, hardTime: policy.hardTime });
   const funds: number[] = [];
+  const levels: number[] = [];
   while (r.phase !== 'over') {
     if (r.phase === 'pickJob') {
       // The neighbor: help when it's cheap and pays in Keys or the Tunnel tip.
@@ -175,6 +242,7 @@ function playRun(
       shopFor(r, policy);
       if (canPayEarly(r)) {
         funds.push(r.bank);
+        levels.push(r.rep.level);
         payEarly(r);
         continue;
       }
@@ -186,6 +254,7 @@ function playRun(
       buyBalls(r, r.charms.includes('solitary') ? freeBalls(r) : maxAffordableBalls(r));
       continue;
     }
+    if (r.phase === 'betweenBalls' && policy.ink) inkFor(r, policy);
     if (r.phase === 'betweenBalls' && ballsLeft(r) > 0) {
       finishBall(r, ball(nextBall(r), r));
       continue;
@@ -207,6 +276,7 @@ function playRun(
         deposit(r, r.pocket);
       }
       funds.push(r.bank);
+      levels.push(r.rep.level);
       settleDeadline(r);
       continue;
     }
@@ -235,6 +305,8 @@ function playRun(
     result: r.result ?? 'fell',
     balls: r.stats.balls,
     funds,
+    levels,
+    ink: Object.entries(r.ink).map(([k, v]) => (v > 1 ? `${k}${v}` : k)),
   };
 }
 
@@ -310,6 +382,7 @@ if (IS_MAIN) {
       arch: argStr(args, '--arch', 'none'),
       inmate: argStr(args, '--inmate', 'debtor'),
       hardTime: argNum(args, '--hard', 0),
+      ink: !args.includes('--noink'),
     },
   }));
   const rows = (await runPool<Job, RunRow[]>(import.meta.url, jobs)).flat();
@@ -320,15 +393,16 @@ if (IS_MAIN) {
   console.log(
     `Start ${ECONOMY.startCoins}c, debt ${ECONOMY.startDebt}c x${ECONOMY.earlyGrowth} then x${ECONOMY.debtGrowth}/deadline, ball ${ECONOMY.ballPriceBase}+${ECONOMY.ballPricePerDeadline}/deadline, interest ${ECONOMY.interest * 100}%/round\n`,
   );
-  console.log('deadline |   debt | cleared | funds p10   p50   p90');
+  console.log('deadline |   debt | cleared | funds p10   p50   p90 | REP p50');
   const report: Record<string, unknown>[] = [];
   for (let d = 0; d < ECONOMY.deadlines; d++) {
     const debt = debtFor(d);
     const at = rows.filter((r) => r.funds.length > d);
     const cleared = rows.filter((r) => r.reached > d).length / rows.length;
     const f = at.map((r) => r.funds[d]).sort((a, b) => a - b);
+    const lv = at.map((r) => r.levels[d]).sort((a, b) => a - b);
     console.log(
-      `${String(d + 1).padStart(8)} | ${String(debt).padStart(6)} | ${(cleared * 100).toFixed(1).padStart(6)}% | ${String(quantile(f, 0.1)).padStart(9)} ${String(quantile(f, 0.5)).padStart(5)} ${String(quantile(f, 0.9)).padStart(5)}`,
+      `${String(d + 1).padStart(8)} | ${String(debt).padStart(6)} | ${(cleared * 100).toFixed(1).padStart(6)}% | ${String(quantile(f, 0.1)).padStart(9)} ${String(quantile(f, 0.5)).padStart(5)} ${String(quantile(f, 0.9)).padStart(5)} | ${String(quantile(lv, 0.5)).padStart(7)}`,
     );
     report.push({ deadline: d + 1, debt, cleared, p50: quantile(f, 0.5) });
   }
@@ -338,7 +412,7 @@ if (IS_MAIN) {
   const median = quantile(balls, 0.5);
   for (const r of rows.filter((x) => x.balls > median * 2))
     console.log(
-      `  outlier seed ${r.seed}: ${r.balls} balls, ${r.freeBalls} free/round, reached ${r.reached + 1}, funds ${r.funds.join(' ')} | ${r.charms.join(', ')}`,
+      `  outlier seed ${r.seed}: ${r.balls} balls, ${r.freeBalls} free/round, reached ${r.reached + 1}, funds ${r.funds.join(' ')} | ${r.charms.join(', ')} | ink ${r.ink.join(', ')}`,
     );
   const winners = rows.filter((r) => r.result !== 'fell');
   console.log(
@@ -354,7 +428,21 @@ if (IS_MAIN) {
         .map(([k, v]) => `${k} ${Math.round((v / winners.length) * 100)}%`)
         .join(', ')}`,
     );
+    const ink: Record<string, number> = {};
+    for (const w of winners)
+      for (const c of w.ink) ink[c.replace(/\d+$/, '')] = (ink[c.replace(/\d+$/, '')] ?? 0) + 1;
+    console.log(
+      `Ink in winning builds: ${Object.entries(ink)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([k, v]) => `${k} ${Math.round((v / winners.length) * 100)}%`)
+        .join(', ')}`,
+    );
   }
+  for (const r of rows.slice(0, 6))
+    console.log(
+      `  run ${r.seed}: reached ${r.reached + 1}, REP ${r.levels.join(' ')} | ink ${r.ink.join(', ')}`,
+    );
   mkdirSync('tools/out', { recursive: true });
   const arch = jobs[0]?.policy.arch ?? 'none';
   const out = {
@@ -363,7 +451,7 @@ if (IS_MAIN) {
     runs,
     arch,
     report,
-    winners: winners.map((w) => ({ result: w.result, charms: w.charms })),
+    winners: winners.map((w) => ({ result: w.result, charms: w.charms, ink: w.ink })),
   };
   writeFileSync('tools/out/economy.json', JSON.stringify(out, null, 2));
   // Per-archetype copy: pool these to check charm dominance across all winning builds.

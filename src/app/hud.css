@@ -74,6 +74,24 @@
   left: 16px;
   top: 16px;
 }
+/* REP: the level and a thin violet bar toward the next tattoo. */
+.cp-rep {
+  margin-top: 6px;
+  font-size: clamp(0.75rem, 1vw, 0.95rem);
+  color: #c9a2ff;
+}
+.cp-rep-bar {
+  margin-top: 3px;
+  height: 5px;
+  background: rgba(201, 162, 255, 0.18);
+}
+.cp-rep-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: #b57bff;
+  transition: width 0.2s steps(4);
+}
 .cp-tickets {
   right: 16px;
   top: 16px;

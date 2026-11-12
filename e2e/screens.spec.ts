@@ -107,6 +107,19 @@ for (const size of SIZES) {
 
       await page.evaluate(() => {
         const g = (globalThis as unknown as { __game: Game }).__game;
+        g.run.ink = { crown: 2, knuckles: 1 };
+        g.run.rep = {
+          level: 4,
+          xp: 12,
+          picks: 1,
+          offer: [{ id: 'knuckles' }, { id: 'joker' }, { id: 'kingpin' }],
+        };
+        g.enterInk();
+      });
+      await shot('ink');
+
+      await page.evaluate(() => {
+        const g = (globalThis as unknown as { __game: Game }).__game;
         g.run.call = { kind: 'red', offers: ['bloodMoney', 'borrowedLuck'] };
         g.enterPhone();
       });

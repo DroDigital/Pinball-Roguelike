@@ -350,7 +350,7 @@ export const JOBS = {
 export const ECONOMY = {
   startCoins: 20,
   startDebt: 50,
-  debtGrowth: 3.35,
+  debtGrowth: 5.2,
   /**
    * The first steps of the curve are gentler so a new player can learn the table before
    * the debt outruns them: the first `earlyDeadlines` increases use `earlyGrowth`.
@@ -466,4 +466,43 @@ export const ASSIST = {
 /** Endless (unlocked by Paid in Full): deadlines keep coming. */
 export const ENDLESS = {
   deadlines: 99,
+};
+
+/**
+ * REP and Ink: coins earned on the table (measured in deadline-1 coins, so the coin mech's
+ * growth doesn't inflate it) fill the REP bar; every level lets you ink one of three tattoos.
+ * Each level costs `growth` times the last, so levels grow with the log of what you earn: a
+ * strong build levels faster, never runaway faster. Calibrated so the average bot reaches about
+ * REP 6 at the first deadline and REP 20 by Last Call without ink.
+ */
+export const REP = {
+  base: 36,
+  growth: 1.3,
+  /** Tattoos offered per level. */
+  offers: 3,
+  /** Relative odds of each rarity on the offer, and the boost for one you already wear. */
+  weights: { common: 10, uncommon: 6, rare: 3 },
+  ownedBoost: 1.6,
+  /** Both tattoos of a Sleeve need this rank before it is offered. */
+  sleeveRank: 2,
+  /** With nothing left to ink, a level pays this share of the deadline's base debt. */
+  cashShare: 0.15,
+  /** Ace of Spades: multiball save of the second ball. */
+  twinSave: 6,
+  /** Kingpin: pay added per bounty for the rest of the ball, up to a cap. */
+  kingpinStep: 0.05,
+  kingpinMax: 0.5,
+  /** Jailhouse Rock: everything pays this much during multiball. */
+  multiballMult: 1.5,
+  /** Life Sentence: one Bonus X per this many REP levels. */
+  lifeSentenceLevels: 4,
+  /** Yard Dog: brawls pay this (instead of BRAWL.popMult) and start from one bumper. */
+  yardDogMult: 4,
+  /** White Collar: share of the round's interest paid after each ball. */
+  whiteCollarRate: 0.25,
+  /** Serpent: combo length that raises a shot's level (this ball only), and how often. */
+  serpentCombo: 3,
+  serpentPerBall: 3,
+  /** Dead Man Walking: the round's last ball pays this much. */
+  deadManMult: 2,
 };
