@@ -46,8 +46,20 @@ charms (for tickets) and contraband (for coins); charms change how the table pay
 | Menus    | flippers move, Space / Enter selects | bumpers move, A selects    | tap                                  |
 
 Keys can be rebound in **Settings**, which also has volume per channel, shake, grain,
-resolution, text size, camera, reduced flashing, hint notes and **Assist mode** (a slower
-table and a longer ball save).
+resolution, text size, camera (Follow, Overhead or Seated), reduced flashing, hint notes and
+**Assist mode** (a slower table and a longer ball save).
+
+What the table does (besides the shots themselves):
+
+- **WANTED:** one major shot always flashes fast. Make it for a bounty that grows with each one
+  you collect this ball; the poster moves if you wait too long.
+- **PA announcements:** every half minute or so the Warden's tannoy starts something: an
+  add-a-ball, a FRENZY where every switch pays, a free ball save, Lockup, a Chute hurry-up, or a
+  MANHUNT that doubles bounties.
+- **Modes:** Searchlight SWEEP (spinner), Yard BRAWL (bumpers), SHAKEDOWN (slings, then an
+  inlane), DOUBLE SHIFT (the upper deck's BAIL targets), Lockup / RIOT / PAYDAY (every round
+  opens with Lockup lit) and the Hole's award ladder. Modes that are building show a meter on
+  the right.
 
 - **Skill shot:** tap a flipper while the ball sits in the shooter lane to move the lit lane,
   then pull the plunger to the white mark.

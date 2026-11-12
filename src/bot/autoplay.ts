@@ -18,6 +18,9 @@ export function litChooser(game: TableGame): TargetChooser {
       if (side === 'right') return lit.has('chute') ? 'chute' : lit.has('hole') ? 'hole' : 'chute';
       return lit.has('cellblock') ? 'cellblock' : lit.has('perimL') ? 'perimeter' : 'cellblock';
     }
+    // WANTED on an orbit: the left flipper's Perimeter shot reaches either one.
+    if (side === 'left' && (game.wanted === 'perimL' || game.wanted === 'perimR'))
+      return 'perimeter';
     if (side === 'right') {
       if (L.arrowChute === Lamp.Fast) return 'chute';
       if ((L.arrowHole ?? Lamp.Off) !== Lamp.Off) return 'hole';

@@ -16,6 +16,7 @@ import { BallSession, type BallSnapshot } from '../src/rules/session';
 import { ECONOMY } from '../src/content/balance';
 import {
   answerKnock,
+  debtFor,
   canHelp,
   freeBalls,
   newRun,
@@ -312,12 +313,12 @@ if (IS_MAIN) {
     `Economy: ${runs} runs, ${mode} ball earnings (${skill} bot), ${((Date.now() - t0) / 1000).toFixed(1)} s`,
   );
   console.log(
-    `Start ${ECONOMY.startCoins}c, debt ${ECONOMY.startDebt}c x${ECONOMY.debtGrowth}/deadline, ball ${ECONOMY.ballPriceBase}+${ECONOMY.ballPricePerDeadline}/deadline, interest ${ECONOMY.interest * 100}%/round\n`,
+    `Start ${ECONOMY.startCoins}c, debt ${ECONOMY.startDebt}c x${ECONOMY.earlyGrowth} then x${ECONOMY.debtGrowth}/deadline, ball ${ECONOMY.ballPriceBase}+${ECONOMY.ballPricePerDeadline}/deadline, interest ${ECONOMY.interest * 100}%/round\n`,
   );
   console.log('deadline |   debt | cleared | funds p10   p50   p90');
   const report: Record<string, unknown>[] = [];
   for (let d = 0; d < ECONOMY.deadlines; d++) {
-    const debt = Math.round(ECONOMY.startDebt * Math.pow(ECONOMY.debtGrowth, d));
+    const debt = debtFor(d);
     const at = rows.filter((r) => r.funds.length > d);
     const cleared = rows.filter((r) => r.reached > d).length / rows.length;
     const f = at.map((r) => r.funds[d]).sort((a, b) => a - b);

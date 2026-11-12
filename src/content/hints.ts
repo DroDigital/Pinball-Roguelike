@@ -37,6 +37,12 @@ export const HINTS = {
   lockup: {
     text: 'Lockup is lit: sink the Hole to lock a ball. Two locks start a RIOT.',
   },
+  wanted: {
+    text: 'The fast-flashing arrow is WANTED: make that shot for a bounty. Each one this ball pays more, and the poster moves if you wait.',
+  },
+  pa: {
+    text: 'The tannoy: the Warden announces something every so often. Some of it even helps you.',
+  },
   riot: { text: 'RIOT: shoot the Chute for PAYDAY, then the Hole for SUPER PAYDAY.' },
   sentence: {
     text: 'This round is under the Sentence shown at the deadline. It ends with the deadline.',

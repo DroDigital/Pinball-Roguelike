@@ -19,6 +19,7 @@ import {
   HURRY,
   JAILBREAK,
   LUCK,
+  PA,
   RIOT,
   SCORE,
   SECRET,
@@ -26,12 +27,21 @@ import {
   SHIFT,
   SWEEP,
   TILT,
+  WANTED,
 } from '../content/balance';
 import { emptyBallStats, type BallStats } from '../content/jobs';
 import { ComboTracker, comboName } from './combo';
 import { BALL_HOOKS, type BallHooks, type BallRules } from './charm-hooks';
 import { bonusTotal } from './bonus';
-import { Lamp, type AwardId, type GameEvent, type GameEventSink, type MysteryAward } from './types';
+import {
+  Lamp,
+  type AwardId,
+  type GameEvent,
+  type GameEventSink,
+  type MysteryAward,
+  type PaEvent,
+  type WantedShot,
+} from './types';
 import type { BallOutcome } from './run';
 
 export const SHOT_TYPES: ShotType[] = [
@@ -151,7 +161,8 @@ export function newMachineState(): MachineState {
     skillLane: 1,
     drops: [true, true, true],
     locks: 0,
-    lockLit: false,
+    // Every round opens with Lockup lit: the first lock is one Hole shot away.
+    lockLit: true,
     kickback: false,
     award: 0,
     awardLit: true,
@@ -226,6 +237,34 @@ const JB_LAMP: Record<JailbreakShot, string> = {
   hole: 'arrowHole',
   cellblock: 'arrowCell',
 };
+
+/** Shots that can carry the WANTED bounty, their arrows and the ladder they pay at. */
+export const WANTED_SHOTS: WantedShot[] = [
+  'chute',
+  'perimL',
+  'perimR',
+  'hole',
+  'cellblock',
+  'tower',
+];
+const WANTED_LAMP: Record<WantedShot, string> = { ...JB_LAMP, tower: 'arrowTower' };
+const WANTED_LEVEL: Record<WantedShot, ShotType> = {
+  chute: 'chute',
+  perimL: 'perimeter',
+  perimR: 'perimeter',
+  hole: 'hole',
+  cellblock: 'cellblock',
+  tower: 'tower',
+};
+export const WANTED_NAMES: Record<WantedShot, string> = {
+  chute: 'THE CHUTE',
+  perimL: 'LEFT ORBIT',
+  perimR: 'RIGHT ORBIT',
+  hole: 'THE HOLE',
+  cellblock: 'CELL BLOCK',
+  tower: 'THE TOWER',
+};
+const PA_EVENTS: PaEvent[] = ['arrival', 'frenzy', 'asleep', 'lockup', 'hurry', 'manhunt'];
 
 export const AWARD_NAMES: Record<AwardId, string> = {
   bonusX: 'BONUS X',
@@ -313,6 +352,15 @@ export class TableGame implements BallRules {
   /** The Tower: BAIL letters lit this ball and DOUBLE SHIFT seconds left. */
   readonly bail = [false, false, false, false];
   shiftLeft = 0;
+  /** WANTED: the shot with the bounty, seconds until the poster moves, bounties this ball. */
+  wanted: WantedShot;
+  wantedLeft: number = WANTED.rotate;
+  /** PA: live seconds to the next announcement, and FRENZY / MANHUNT seconds left. */
+  paClock: number = PA.first;
+  frenzyLeft = 0;
+  manhuntLeft = 0;
+  /** Its own stream so the new features never shift lucky bounces or Shakedown rolls. */
+  private readonly paRng: Rng;
   private readonly hookIds: string[];
 
   constructor(
@@ -326,6 +374,8 @@ export class TableGame implements BallRules {
     // Own stream, derived from the sim's seed state without advancing the physics stream.
     const st = sim.rng.getState();
     this.rng = new Rng((st.a ^ Math.imul(st.b, 0x9e3779b1) ^ 0x51ed270b) >>> 0);
+    this.paRng = new Rng((Math.imul(st.a, 0x85ebca6b) ^ st.b ^ 0x2545f491) >>> 0);
+    this.wanted = this.paRng.pick(WANTED_SHOTS);
     this.levels = { ...ctx.shotLevels };
     this.owned = new Set(ctx.charms);
     this.hookIds = ctx.charms.filter((id) => !!BALL_HOOKS[id]);
@@ -419,6 +469,22 @@ export class TableGame implements BallRules {
       this.brawlLeft -= dt;
       if (this.brawlLeft <= 0) this.endMode('brawl');
     } else if (this.heat > 0) this.heat = Math.max(0, this.heat - BRAWL.decay * dt);
+    if (this.frenzyLeft > 0) {
+      this.frenzyLeft -= dt;
+      if (this.frenzyLeft <= 0) this.endMode('frenzy');
+    }
+    if (this.manhuntLeft > 0) {
+      this.manhuntLeft -= dt;
+      if (this.manhuntLeft <= 0) this.endMode('manhunt');
+    }
+    if (this.saveStarted && !this.over && !this.tilted && !this.jailbreak) {
+      this.wantedLeft -= dt;
+      if (this.wantedLeft <= 0) this.moveWanted(true);
+      if (!this.riot && this.multiSaveLeft <= 0 && this.sim.ballsInPlay() === 1) {
+        this.paClock -= dt;
+        if (this.paClock <= 0) this.announce();
+      }
+    }
     for (const [id, left] of this.holeHolds) {
       if (left <= 1) {
         this.holeHolds.delete(id);
@@ -630,6 +696,7 @@ export class TableGame implements BallRules {
 
   private onPerimeter(side: 'L' | 'R', e: SimEvent): void {
     this.jbShot(side === 'L' ? 'perimL' : 'perimR', e.x, e.y);
+    this.hitWanted(side === 'L' ? 'perimL' : 'perimR', e.x, e.y);
     // The orbit runs past the top lanes: it spots the next one.
     this.spotLane(e.x, e.y);
     this.stats.perimeters++;
@@ -654,6 +721,7 @@ export class TableGame implements BallRules {
 
   private onChute(e: SimEvent): void {
     this.jbShot('chute', e.x, e.y);
+    this.hitWanted('chute', e.x, e.y);
     this.stats.chutes++;
     this.endSkill();
     const mult = this.major();
@@ -689,6 +757,7 @@ export class TableGame implements BallRules {
 
   private onHole(e: SimEvent): void {
     this.stats.holes++;
+    this.hitWanted('hole', e.x, e.y);
     this.endSkill();
     const mult = this.major();
     this.pay('hole', SCORE.hole * mult, e.x, e.y, mult);
@@ -850,6 +919,7 @@ export class TableGame implements BallRules {
     this.pay('cellblock', SCORE.drop, e.x, e.y);
     this.endSkill();
     this.jbShot('cellblock', e.x, e.y);
+    this.hitWanted('cellblock', e.x, e.y);
     // Targets falling in the step that clears the bank belong to the cleared bank.
     if (!this.cellCleared) this.dropSeq?.push(e.value);
     const states = this.sim.dropStates();
@@ -911,9 +981,11 @@ export class TableGame implements BallRules {
     });
   }
 
-  private endMode(mode: 'sweep' | 'brawl' | 'shift'): void {
+  private endMode(mode: 'sweep' | 'brawl' | 'shift' | 'frenzy' | 'manhunt'): void {
     if (mode === 'sweep') this.sweepLeft = 0;
     else if (mode === 'brawl') this.brawlLeft = 0;
+    else if (mode === 'frenzy') this.frenzyLeft = 0;
+    else if (mode === 'manhunt') this.manhuntLeft = 0;
     else this.shiftLeft = 0;
     this.emit({ t: 'mode', mode, on: false });
     this.refreshLamps();
@@ -924,6 +996,7 @@ export class TableGame implements BallRules {
     if (this.tilted) return;
     this.pay('tower', SCORE.bail, x, y);
     this.endSkill();
+    this.hitWanted('tower', x, y);
     if (!this.bail[i]) {
       this.bail[i] = true;
       if (this.bail.every(Boolean)) {
@@ -1041,6 +1114,8 @@ export class TableGame implements BallRules {
       this.sweepLeft = 0;
       this.brawlLeft = 0;
       this.shiftLeft = 0;
+      this.frenzyLeft = 0;
+      this.manhuntLeft = 0;
       this.mysteryLit = false;
       this.emit({ t: 'tilt' });
       this.emit({ t: 'callout', text: 'TILT', priority: 9, anim: 'tilt' });
@@ -1164,6 +1239,8 @@ export class TableGame implements BallRules {
     this.sweepLeft = 0;
     this.brawlLeft = 0;
     this.shiftLeft = 0;
+    this.frenzyLeft = 0;
+    this.manhuntLeft = 0;
     if (this.riot) this.endRiot();
     if (this.jailbreak) {
       this.jailbreak = false;
@@ -1364,6 +1441,119 @@ export class TableGame implements BallRules {
     this.refreshLamps();
   }
 
+  // ------------------------------------------------------------------ WANTED, PA announcements
+
+  /** The wanted shot was made: pay the bounty (bigger every time this ball) and move on. */
+  private hitWanted(shot: WantedShot, x: number, y: number): void {
+    if (shot !== this.wanted || this.jailbreak || this.tilted || this.over) return;
+    const n = ++this.stats.bounties;
+    let v = this.shotValue(WANTED_LEVEL[shot], WANTED.base + WANTED.step * (n - 1));
+    if (this.manhuntLeft > 0) v *= PA.manhuntMult;
+    if (this.shiftLeft > 0) v *= SHIFT.mult;
+    this.payRaw(v, x, y);
+    // Half of it lands in the Bonus too, so bounty hunting feeds the end-of-ball tally.
+    this.bonus += v * 0.5 * this.ctx.bonusShare;
+    this.emit({ t: 'wanted', shot, amount: v, n });
+    this.emit({
+      t: 'callout',
+      text: n >= 3 ? `BOUNTY X${n}` : 'BOUNTY!',
+      sub: `${WANTED_NAMES[shot]}  +${fmt(v)}`,
+      priority: 6,
+      anim: 'payday',
+    });
+    this.moveWanted(false);
+  }
+
+  /** Post the bounty on another shot (never the same one twice in a row). */
+  private moveWanted(timedOut: boolean): void {
+    const prev = this.wanted;
+    let next = prev;
+    while (next === prev) next = this.paRng.pick(WANTED_SHOTS);
+    this.wanted = next;
+    this.wantedLeft = WANTED.rotate;
+    if (timedOut) this.emit({ t: 'wanted', shot: next, amount: 0, n: this.stats.bounties });
+    this.refreshLamps();
+  }
+
+  /** The tannoy crackles: one random event the machine can give right now. */
+  private announce(): void {
+    this.paClock = this.paRng.range(PA.minGap, PA.maxGap);
+    const w = PA.weights;
+    const can = (e: PaEvent): boolean => {
+      switch (e) {
+        case 'lockup':
+          return !this.ctx.lockdown && !this.machine.lockLit;
+        case 'hurry':
+          return this.hurryLeft <= 0;
+        case 'asleep':
+          return this.ballSaveLeft <= 0;
+        case 'frenzy':
+          return this.frenzyLeft <= 0;
+        case 'manhunt':
+          return this.manhuntLeft <= 0;
+        default:
+          return true;
+      }
+    };
+    const options = PA_EVENTS.filter(can);
+    if (!options.length) return;
+    const event = this.paRng.weighted(options, (e) => w[e]);
+    this.stats.announcements++;
+    this.emit({ t: 'pa', event });
+    switch (event) {
+      case 'arrival':
+        this.sim.serveBall(true);
+        this.multiSaveLeft = Math.max(this.multiSaveLeft, PA.arrivalSave);
+        this.emit({
+          t: 'callout',
+          text: 'NEW ARRIVAL',
+          sub: 'ADD-A-BALL',
+          priority: 7,
+          anim: 'riot',
+        });
+        break;
+      case 'frenzy':
+        this.frenzyLeft = PA.seconds;
+        this.emit({ t: 'mode', mode: 'frenzy', on: true });
+        this.emit({
+          t: 'callout',
+          text: 'MESS HALL FRENZY',
+          sub: 'EVERY SWITCH PAYS',
+          priority: 6,
+          anim: 'skill',
+        });
+        break;
+      case 'asleep':
+        this.saveStarted = true;
+        this.saved = false;
+        this.ballSaveLeft = Math.max(this.ballSaveLeft, PA.asleepSave);
+        this.emit({ t: 'callout', text: 'LIGHTS OUT', sub: 'THE GUARD IS ASLEEP', priority: 6 });
+        break;
+      case 'lockup':
+        this.machine.lockLit = true;
+        this.emit({ t: 'callout', text: 'CELL DOOR OPEN', sub: 'LOCKUP IS LIT', priority: 6 });
+        break;
+      case 'hurry':
+        this.hurryLeft = HURRY.seconds;
+        this.emit({ t: 'hurry', on: true });
+        this.emit({ t: 'callout', text: 'CHOW TIME', sub: 'HURRY-UP AT THE CHUTE', priority: 6 });
+        break;
+      case 'manhunt':
+        this.manhuntLeft = PA.seconds;
+        this.wantedLeft = Math.max(this.wantedLeft, PA.seconds);
+        this.emit({ t: 'mode', mode: 'manhunt', on: true });
+        this.emit({
+          t: 'callout',
+          text: 'MANHUNT',
+          sub: `${WANTED_NAMES[this.wanted]} PAYS X${PA.manhuntMult}`,
+          priority: 6,
+          anim: 'skill',
+        });
+        break;
+    }
+    this.refreshLamps();
+  }
+
   // ------------------------------------------------------------------ scoring
 
   /** Value of a hit before luck/charm effects: base scaled by shot level and multipliers. */
@@ -1411,6 +1601,12 @@ export class TableGame implements BallRules {
       this.earned += extra;
       this.emit({ t: 'score', shot: 'searchlight', amount: extra, x, y: y + 0.9 });
     }
+    // FRENZY: the whole machine pays a little extra on every switch (no Bonus).
+    if (this.frenzyLeft > 0) {
+      const extra = this.shotValue(shot, PA.frenzyPerHit);
+      this.earned += extra;
+      this.emit({ t: 'score', shot, amount: extra, x, y: y - 0.9 });
+    }
   }
 
   /** Pay an already-valued jackpot (PAYDAY, hurry-up): no Bonus, no PAYDAY growth. */
@@ -1451,11 +1647,12 @@ export class TableGame implements BallRules {
         : Lamp.Off;
     L.arrowPerimR = Lamp.Off;
     L.arrowCell = !this.machine.lockLit && !this.riot && drops.some(Boolean) ? Lamp.Slow : Lamp.Off;
+    L.arrowTower = this.shiftLeft > 0 ? Lamp.Off : Lamp.Slow;
     if (this.jailbreak)
       for (const s of JAILBREAK_SHOTS) L[JB_LAMP[s]] = this.jbLit.has(s) ? Lamp.Fast : Lamp.Off;
+    else if (!this.tilted && !this.over) L[WANTED_LAMP[this.wanted]] = Lamp.Fast;
     L.kickback = this.machine.kickback ? Lamp.On : Lamp.Off;
     for (let i = 0; i < 4; i++) L[`bail${i}`] = this.bail[i] ? Lamp.On : Lamp.Slow;
-    L.arrowTower = this.shiftLeft > 0 ? Lamp.Off : Lamp.Slow;
     L.doubleShift = this.shiftLeft > 0 ? Lamp.Fast : Lamp.Off;
     L.towerTop = Lamp.On;
     L.mysteryL = L.mysteryR = this.mysteryLit ? Lamp.Fast : Lamp.Off;

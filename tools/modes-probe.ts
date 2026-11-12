@@ -19,5 +19,5 @@ for (let i = 0; i < N; i++) {
 }
 const per = (k: string): string => ((tot[k] ?? 0) / N).toFixed(2);
 console.log(
-  `balls ${N} coins/ball ${(earned / N).toFixed(2)} secs/ball ${(secs / N).toFixed(0)} | bails ${per('bails')} skill ${per('skillShots')} sweeps ${per('sweeps')} brawls ${per('brawls')} shakedowns ${per('shakedowns')} spins ${per('spins')} yard ${per('yardHits')}`,
+  `balls ${N} coins/ball ${(earned / N).toFixed(2)} secs/ball ${(secs / N).toFixed(0)} | bails ${per('bails')} skill ${per('skillShots')} sweeps ${per('sweeps')} brawls ${per('brawls')} shakedowns ${per('shakedowns')} bounties ${per('bounties')} pa ${per('announcements')} riots ${per('riots')} locks ${per('locks')} spins ${per('spins')} yard ${per('yardHits')}`,
 );

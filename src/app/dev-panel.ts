@@ -212,7 +212,13 @@ export function attachDevPanel(app: GameApp): void {
   const cam = { camera: 'auto' };
   view
     .addBinding(cam, 'camera', {
-      options: { auto: 'auto', overhead: 'play', seated: 'seated', 'top-down': 'top' },
+      options: {
+        auto: 'auto',
+        follow: 'follow',
+        overhead: 'play',
+        seated: 'seated',
+        'top-down': 'top',
+      },
     })
     .on('change', (e) => (app.devCam = e.value === 'auto' ? null : (e.value as CamMode)));
   const triggerSegs: number[] = [];

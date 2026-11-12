@@ -200,6 +200,7 @@ describe('Hole awards', () => {
 
   it('hurry-up pays a countdown at the Chute', () => {
     const h = harness({}, { award: 2 });
+    h.game.wanted = 'tower';
     h.hole();
     expect(h.game.hurryLeft).toBeGreaterThan(0);
     h.wait(COMBO.window + 0.1);

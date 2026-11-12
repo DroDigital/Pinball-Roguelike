@@ -233,8 +233,16 @@
 .panel .cell-dock::before {
   display: none;
 }
-.panel.title .row {
+.panel.title .row,
+.panel.title .cell-dock {
   justify-content: center;
+}
+/* The title's keys sit mid-panel with the controls line below them: never sticky. */
+.panel.title .cell-dock {
+  position: static;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  background: none;
 }
 .panel .row.seed {
   padding-top: 0;

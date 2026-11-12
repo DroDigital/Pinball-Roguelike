@@ -378,8 +378,70 @@ Known limits: the bot never aims at the upper deck, so BAIL and DOUBLE SHIFT are
 economy numbers and are worth more to a player than the sim shows. The old painted HUD bezels
 (`src/present/artwork/hud.ts`, `HUD_FIT`, `hudLayout`) are no longer used and can be deleted.
 
+### M11 — A busier machine, a fairer start
+
+Playtest feedback: the machine felt quiet ("it doesn't happen much") and the first deadlines
+were too hard to pay. Measured before the pass, the average bot saw 0.3 Searchlight sweeps,
+0.2 brawls and 1.1 Shakedowns per ball, and the novice bot cleared deadline 1 only 81% of
+the time and never won.
+
+- [x] WANTED: one major shot (Chute, either orbit, Hole, Cell Block, Tower) always carries a
+      bounty, its arrow flashing fast with a target ring pulsing over it. Each bounty this ball
+      pays more than the last (6, 9, 12... base at the shot's level) and half goes to the Bonus;
+      the poster moves after 14 s unclaimed. A new Job asks for bounties.
+- [x] PA announcements: after 18 s of single-ball play, and every 22-34 s after, the Warden's
+      tannoy starts one of six events: NEW ARRIVAL (add-a-ball, 8 s save), MESS HALL FRENZY
+      (every switch pays extra for 12 s), LIGHTS OUT (12 s ball save), CELL DOOR OPEN (Lockup),
+      CHOW TIME (Chute hurry-up), MANHUNT (bounties x2 for 12 s). Only events the machine can
+      give right now are drawn. Own RNG stream, so lucky bounces and Shakedowns roll as before.
+- [x] Every round opens with Lockup lit; Searchlight SWEEP needs 6 half-turns (was 9),
+      SHAKEDOWN 7 slings (was 9). Building modes show a slim meter in the HUD.
+- [x] Early debt relief: start 50c (was 75c) with 20c in the pocket (was 15c); the first three
+      increases are x2, then the curve steepens (see the decisions log).
+- [x] Follow camera (new default; Settings cycles Follow / Overhead / Seated): closer than the
+      overhead view and riding with the lowest live ball, with the flippers always in frame once
+      the ball is in the lower half. Dust motes and half the CRT grain/dither are dropped while a
+      ball is live so the playfield reads cleanly; the cell keeps its grit.
+- [x] Fixes: the ball receipt labelled the Bonus coins as "Bonus Multiplier x32"; the title's
+      controls line sat under the sticky button row; PA modes no longer show two banners;
+      banners moved up and out of the ball's way.
+- [x] Tests: WANTED (pays, grows, moves, tilt), PA (timing, every event does something, FRENZY,
+      MANHUNT, silent before launch), round-start Lockup, the new debt curve
+
+Per ball after the pass (`npx tsx tools/modes-probe.ts 40`, average bot, deadline-1 rules):
+sweeps 2.5, brawls 0.5, Shakedowns 3.5, bounties 2.5, PA events 3.5, RIOTs 0.57; balls last
+176 s (was 122 s) thanks to the extra saves and add-a-balls.
+
+M11 calibration (`npm run economy -- --mode physics --runs 16 --skill <s>`, no charms, Hard
+Time 0). Debts are now 50, 100, 200, 400, 1240, 3844, 11916, 36941:
+
+| bot     | d1   | d2   | d3   | d4   | d5   | d6   | d7  | d8 / wins | before (wins) |
+| ------- | ---- | ---- | ---- | ---- | ---- | ---- | --- | --------- | ------------- |
+| novice  | 100% | 100% | 94%  | 94%  | 94%  | 88%  | 56% | 6%        | d1 81%, 0%    |
+| average | 100% | 100% | 100% | 100% | 100% | 100% | 81% | 25%       | d1 95%, 5%    |
+
+Players earn less than the bots (the novice bot still never misses a flip), so the first three
+deadlines are meant to be near-certain for the bots and comfortable for people. Deadlines 7 and
+8 stay the wall that builds are for. With 16 runs a standard error is about 12 points; the
+full nine-archetype pass is still open (M10).
+
 ## Decisions log
 
+- 2026-11-12 — More happens on the table, and the early deadlines are easier; the late game
+  was re-tightened to match. — Players found the machine quiet and the first debts too
+  steep. The new rules (WANTED, PA, faster modes, Lockup at round start) roughly tripled
+  per-ball income, so `SCORE.scale` went 0.156 to 0.12, per-deadline payout growth 1.48 to
+  1.32, and the debt curve now starts at 50c, doubles three times, then grows x2.9. Early
+  deadlines are much easier; deadlines 6-8 still need a build.
+- 2026-11-12 — WANTED is a roving lit shot rather than another mode with a start condition. —
+  "Every ball has a goal" from the first flip; a timed poster that moves keeps the eye on the
+  arrows without a meter to fill first.
+- 2026-11-12 — PA events draw from their own RNG stream and only during single-ball play. —
+  Lucky bounces and Shakedown awards keep their rolls (tests and replays), and stacking an
+  add-a-ball on a RIOT would swamp the jackpots.
+- 2026-11-12 — Follow camera as the default. — In landscape the full-table overhead view made
+  the playfield about a third of the screen wide; following the ball roughly doubles its size,
+  and the flippers stay in frame whenever the ball is low enough to matter.
 - 2026-11-10 — The machine grew upward instead of being re-laid out. — Every lower shot (the
   flipper geometry, the Chute, the Hole, both Perimeters, the bot's shot table and the feel
   targets) was tuned against the existing geometry; inserting 8 units above the Yard keeps all

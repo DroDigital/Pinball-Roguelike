@@ -91,6 +91,8 @@ export class RetroRenderer {
   /** 0..1 zoom punch and colour split (decays in the app loop). */
   punch = 0;
   exposure = 1.3;
+  /** Multiplier on the CRT strength: play lowers it so the playfield reads cleanly. */
+  crtScale = 1;
   readonly tint = new THREE.Vector3(1, 1, 1);
   private lowW = 426;
   private lowH = 240;
@@ -158,7 +160,7 @@ export class RetroRenderer {
     r.setRenderTarget(null);
     const u = this.postMat.uniforms;
     u.uTime.value = time;
-    u.uCrt.value = this.settings.crt;
+    u.uCrt.value = this.settings.crt * this.crtScale;
     u.uLevels.value = this.settings.levels;
     u.uFlash.value = this.flash;
     u.uExposure.value = this.exposure;
