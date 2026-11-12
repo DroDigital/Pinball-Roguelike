@@ -862,6 +862,7 @@ export class TableGame implements BallRules {
     let award = ladder[this.machine.award % ladder.length] as AwardId;
     this.machine.award = (this.machine.award + 1) % ladder.length;
     if (award === 'kickback' && this.ctx.noKickback) award = 'bonusX';
+    if (award === 'extraBall' && this.extraBalls >= AWARDS.maxExtraPerBall) award = 'shotLevel';
     this.machine.awardLit = false;
     this.emit({ t: 'award', award, collected: true });
     let sub = AWARD_NAMES[award];
@@ -1161,12 +1162,17 @@ export class TableGame implements BallRules {
     return Math.max(0, Math.min(1, base + LUCK.perPoint * this.luck));
   }
 
+  /** A luck-boosted roll: luck helps up to `LUCK.maxChance` (a higher base is kept). */
+  cappedChance(base: number): number {
+    return Math.min(Math.max(base, LUCK.maxChance), this.chance(base));
+  }
+
   private maybeLuckyBounce(e: SimEvent): void {
     if (this.tilted) return;
     // The left kickback handles its own outlane.
     if (e.id === 'outlaneL' && this.sim.kickbackArmed) return;
     const forced = this.hooks.some((h) => h.forceBounce?.(this));
-    if (!forced && !this.rng.chance(this.chance(LUCK.luckyBounce))) return;
+    if (!forced && !this.rng.chance(this.cappedChance(LUCK.luckyBounce))) return;
     this.sim.luckyKick(e.ballId);
     this.stats.luckyBounces++;
     this.hooks.forEach((h, i) => {
@@ -1280,7 +1286,7 @@ export class TableGame implements BallRules {
   // ------------------------------------------------------------------ charm API (BallRules)
 
   lucky(base: number): boolean {
-    return this.rng.chance(this.chance(base));
+    return this.rng.chance(this.cappedChance(base));
   }
 
   addBonusMult(n: number): void {

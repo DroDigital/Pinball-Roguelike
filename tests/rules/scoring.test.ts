@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { harness } from './harness';
 import { ComboTracker } from '../../src/rules/combo';
 import { bonusTotal } from '../../src/rules/bonus';
-import { BONUS, COMBO, HURRY, RIOT, SCORE } from '../../src/content/balance';
+import { BONUS, COMBO, HURRY, LUCK, RIOT, SCORE } from '../../src/content/balance';
 
 describe('combos', () => {
   it('tracker builds within the window and resets outside it', () => {
@@ -224,6 +224,13 @@ describe('Hole awards', () => {
     const x = harness({}, { award: 4 });
     x.hole();
     expect(x.game.extraBalls).toBe(1);
+    // One extra ball per ball: the next time round the ladder the Hole gives a level instead.
+    x.game.machine.award = 4;
+    x.game.machine.awardLit = true;
+    x.wait(COMBO.window + 0.1);
+    x.hole();
+    expect(x.game.extraBalls).toBe(1);
+    expect(x.game.levelUps.length).toBe(1);
   });
 });
 
@@ -244,6 +251,21 @@ describe('kickback and luck', () => {
     h.fire('trigger', 'outlaneR', { dir: 1, ballId: b.id });
     expect(h.of('luck')[0]).toMatchObject({ kind: 'bounce' });
     expect(h.game.stats.luckyBounces).toBe(1);
+  });
+
+  it('luck lifts a lucky roll only up to the cap', () => {
+    const h = harness({ luck: 100 });
+    expect(h.game.cappedChance(LUCK.luckyBounce)).toBe(LUCK.maxChance);
+    // A base already above the cap keeps its own odds.
+    expect(h.game.cappedChance(0.8)).toBe(0.8);
+    let bounces = 0;
+    for (let i = 0; i < 200; i++) {
+      const b = h.sim.spawnBall(18, 10, 0, -5);
+      h.fire('trigger', 'outlaneR', { dir: 1, ballId: b.id });
+      bounces = h.game.stats.luckyBounces;
+    }
+    expect(bounces).toBeGreaterThan(60);
+    expect(bounces).toBeLessThan(140);
   });
 
   it('no lucky bounce on the left while the kickback is lit', () => {

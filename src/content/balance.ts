@@ -229,6 +229,8 @@ export const RIOT = {
 /** The Hole's award ladder; a completed set (top lanes, Cell Block) lights the next award. */
 export const AWARDS = {
   ladder: ['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'] as const,
+  /** Extra balls one ball can earn; past it the Hole gives a level instead. */
+  maxExtraPerBall: 1,
 };
 
 /** Chute hurry-up from the Hole award: value counts down from start to end. */
@@ -243,6 +245,11 @@ export const LUCK = {
   perPoint: 0.02,
   /** Base chance that an outlaned ball gets a lucky bounce. */
   luckyBounce: 0.04,
+  /**
+   * Luck can raise a lucky bounce or a charm's lucky roll this far and no further. Uncapped,
+   * a Wishbone round reached 100% bounces: outlanes stopped draining and balls never ended.
+   */
+  maxChance: 0.5,
   /** Spontaneous spark on a manual plunge: chance and luck gained for that ball. */
   sparkChance: 0.1,
   sparkLuck: 3,

@@ -244,8 +244,11 @@ describe('Luck charms', () => {
   t('crookedPenny', () => {
     const h = ballOf(['crookedPenny']);
     h.game.luck = 100;
-    h.fire('pop', 'pop0');
-    expect(h.of('score')[0].amount).toBeCloseTo(SCORE.pop * SCORE.scale * 10);
+    // Luck lifts the roll only as far as LUCK.maxChance, so look for a 10x among a few hits.
+    for (let i = 0; i < 20; i++) h.fire('pop', 'pop0');
+    const amounts = h.of('score').map((e) => e.amount);
+    expect(amounts.some((a) => Math.abs(a - SCORE.pop * SCORE.scale * 10) < 1e-6)).toBe(true);
+    expect(amounts.some((a) => Math.abs(a - SCORE.pop * SCORE.scale) < 1e-6)).toBe(true);
   });
   t('magpieFeather', () => {
     const s = runWith(['magpieFeather']);
@@ -258,8 +261,11 @@ describe('Luck charms', () => {
   t('ninthLife', () => {
     const h = ballOf(['ninthLife']);
     h.game.luck = 100;
-    const b = h.sim.spawnBall(18, 10, 0, -5);
-    h.fire('trigger', 'outlaneR', { dir: 1, ballId: b.id });
+    for (let i = 0; i < 10 && h.game.stats.luckyBounces === 0; i++) {
+      const b = h.sim.spawnBall(18, 10, 0, -5);
+      h.fire('trigger', 'outlaneR', { dir: 1, ballId: b.id });
+    }
+    expect(h.game.stats.luckyBounces).toBe(1);
     expect(h.game.bonusMult).toBe(2);
   });
 });
