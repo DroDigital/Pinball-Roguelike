@@ -439,6 +439,28 @@ outlanes stopped draining, endless balls earned extra balls, and those fed more 
 lifts a lucky roll to 50% at most and a ball earns one extra ball at most (past it, Bonus X). The full
 nine-archetype pass is still open (M10).
 
+### M11 — The best of #8
+
+PR #8 (an earlier overhaul from another session) conflicted with M10 throughout. Rather than
+merge it, its pieces that M10 and the WANTED work did not already cover were ported onto
+`main`:
+
+- [x] Sound: #8's CC0 sample bank (`public/sfx`), sample engine and mix chain with a focus per
+      camera view, machine, reward, cell and story voices with synth fallbacks, the build and
+      check tools (`npm run sfx:build`, `audio:check`, `audio:payouts`), tests, credits. The
+      game's events now call the dedicated sounds instead of the generic knocker.
+- [x] REINFORCEMENTS: a Cell Block clear during RIOT adds a ball, once per RIOT
+- [x] Charms retargeted at our modes: Brass Megaphone (Yard Brawl +6 s), Prison Clock
+      (DOUBLE SHIFT +10 s), Bolt Cutters (SHAKEDOWN 3 slings sooner); icons from #8, relic models
+- [x] Jobs for the modes: start a Yard Brawl, collect 2 Shakedowns, post bail
+- [x] The cell: #8's detailed concrete, brick and tile painters (value noise, damp streaks,
+      stains, cracks) and a new two-tone painted cinder-block wall, a barred cell gate onto a
+      lit corridor, the cell number and an inmate rules sign stencilled on the paint
+
+Left out as duplicated or superseded: #8's Yard Brawl, Contraband Crate (SHAKEDOWN), Double
+Time (DOUBLE SHIFT), particles, banners and coin flights, its HUD and menu skin, its machine
+renderer and its music rewrite (main's mode-driven music stays).
+
 ## Decisions log
 
 - 2026-11-12 — Pause holds the Bonus tally, and a new screen resets the open-menu count. —
