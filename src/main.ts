@@ -5,6 +5,8 @@ import '@fontsource/bebas-neue/latin-400.css';
 import '@fontsource/special-elite/latin-400.css';
 import '@fontsource/saira-stencil-one/latin-400.css';
 import '@fontsource/vt323/latin-400.css';
+import '@fontsource/silkscreen/latin-700.css';
+import '@fontsource/press-start-2p/latin-400.css';
 import { GameApp } from './app/game-app';
 import { startArtLoad } from './present/art';
 

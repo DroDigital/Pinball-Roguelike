@@ -328,6 +328,7 @@ Physics, rules, saves and replays remain strictly untouched.
 - [x] Playfield illustration composited under labels and sockets without obscuring ball action
 - [x] Cabinet side art print on both flanks
 - [x] Redesigned bold, memorable metallic title logo with brass bevels, steel ball and chain links
+      (replaced in M11 by the pixel logo, see the decisions log)
 - [x] Removed all 25 old AI PNGs from `public/assets/`, dropping static asset bundle from 63 MB to 0 MB
 - [x] Cleaned up service worker v3 and skin CSS
 - [x] Offline play checked with the service worker in control
@@ -440,6 +441,22 @@ nine-archetype pass is still open (M10).
 
 ## Decisions log
 
+- 2026-11-12 — Pause holds the Bonus tally, and a new screen resets the open-menu count. —
+  Settings opened during the tally was replaced by the ball receipt when the tally ended; the
+  next Back then popped the receipt and left no screen and no way on. `e2e/pause.spec.ts` covers it.
+- 2026-11-12 — Playfield print, three changes. Shot stripes: each major arrow sits on a painted
+  lane in its own insert colour, carrying its level ladder, instead of thin roads from the
+  flippers that ran under sockets and labels; a lit or WANTED arrow now has an obvious lane.
+  Cleaner, brighter print: lighter inks and wear, shot labels moved clear of the inserts, no
+  starburst under the Spare Bumper's empty spot (it is only there with the mount), no pinstripe
+  box across the art. The Pit: a riveted iron trapdoor under the flippers, its seam glowing red
+  from the drop. — The print read as muddy, cluttered and dark from the follow camera, and the
+  lower third was an empty sunburst.
+- 2026-11-12 — The title logo is pixel art (Silkscreen and Press Start 2P, both OFL): BALL in
+  red and CHAIN in teal with a steel ball on a chain between them. — Chosen from three
+  directions (70s backglass, pixel roguelike, grim stencil); the metallic logo read as generic.
+  It is painted on a hard 250 x 150 grid and scaled by whole numbers, and the page shows it with
+  `image-rendering: pixelated` so the edges stay hard.
 - 2026-11-12 — More happens on the table, and the early deadlines are easier; the late game
   was re-tightened to match. — Players found the machine quiet and the first debts too
   steep. The new rules (WANTED, PA, faster modes, Lockup at round start) roughly tripled

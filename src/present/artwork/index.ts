@@ -30,4 +30,6 @@ export const ART_FONTS: readonly string[] = [
   '400 40px "Special Elite"',
   '400 40px VT323',
   '600 20px Inter',
+  '700 40px Silkscreen',
+  '400 8px "Press Start 2P"',
 ];

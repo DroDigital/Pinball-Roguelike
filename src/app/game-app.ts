@@ -241,6 +241,12 @@ export class GameApp {
     this.world.scene.add(this.sparks.group);
     this.input = new Input(document.body);
     this.ui = new UI(uiRoot, toast);
+    // A new screen replaces Pause and Settings along with everything else: forget them, or
+    // the next Back would pop the new screen and leave nothing to press.
+    this.ui.onShow = () => {
+      this.overlays = 0;
+      this.menuOpen = false;
+    };
     this.ui.onClick = () => audio.atmBeep();
     this.subs = new Subtitles(uiRoot.parentElement ?? document.body);
     this.subs.voice = this.save.settings.voice;
@@ -476,7 +482,8 @@ export class GameApp {
       this.wallClock = now;
       this.input.events.length = 0;
     }
-    if (this.mode === 'tally') this.updateTally(dt);
+    // Pause holds the Bonus tally too, so the receipt never appears under an open menu.
+    if (this.mode === 'tally' && this.overlays === 0) this.updateTally(dt);
     if (this.endings.kind) this.endings.update(dt);
     if (this.mode === 'ending' && !this.endings.running) this.rapSheet();
     this.updateMusic();

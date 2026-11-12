@@ -173,8 +173,9 @@ needed at runtime, keeping the entire production build under 350 kB gzipped:
   rendered portraits and live turntables. A new item without a recipe shows as a wrapped parcel.
 - **Machine Prints:** `src/present/artwork/machine.ts` (70s style backglass with quiet lower strip
   for live shot ladders, playfield illustration under table inserts, cabinet flank decals).
-- **Title Logo:** `src/present/artwork/logo.ts` (metallic brass/bone bevels, chrome steel ball,
-  and chain links).
+- **Title Logo:** `src/present/artwork/logo.ts` (pixel art in Silkscreen and Press Start 2P,
+  painted on a hard grid and scaled by whole numbers: red BALL, teal CHAIN, a steel ball on a
+  chain, and an "A PINBALL ROGUELIKE" plate).
 - **Item Icons:** Crisp inline SVG icons for all 65 charms and contraband items (`src/app/icons.ts`,
   `src/app/icon-paths.ts`), sourced from [game-icons.net](https://game-icons.net) (CC BY 3.0 by
   Lorc, Delapouite and contributors) via `tools/make-icon-paths.mjs`.
