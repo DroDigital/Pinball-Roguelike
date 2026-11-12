@@ -224,13 +224,15 @@ describe('Hole awards', () => {
     const x = harness({}, { award: 4 });
     x.hole();
     expect(x.game.extraBalls).toBe(1);
-    // One extra ball per ball: the next time round the ladder the Hole gives a level instead.
+    // One extra ball per ball: the next time round the ladder the Hole gives Bonus X instead.
     x.game.machine.award = 4;
     x.game.machine.awardLit = true;
     x.wait(COMBO.window + 0.1);
+    const mult = x.game.bonusMult;
     x.hole();
     expect(x.game.extraBalls).toBe(1);
-    expect(x.game.levelUps.length).toBe(1);
+    expect(x.game.bonusMult).toBe(mult + 1);
+    expect(x.game.levelUps).toEqual([]);
   });
 });
 

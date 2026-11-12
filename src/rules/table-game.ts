@@ -862,7 +862,8 @@ export class TableGame implements BallRules {
     let award = ladder[this.machine.award % ladder.length] as AwardId;
     this.machine.award = (this.machine.award + 1) % ladder.length;
     if (award === 'kickback' && this.ctx.noKickback) award = 'bonusX';
-    if (award === 'extraBall' && this.extraBalls >= AWARDS.maxExtraPerBall) award = 'shotLevel';
+    // Past the cap a Bonus X for this ball, not a level: levels last the whole run and compound.
+    if (award === 'extraBall' && this.extraBalls >= AWARDS.maxExtraPerBall) award = 'bonusX';
     this.machine.awardLit = false;
     this.emit({ t: 'award', award, collected: true });
     let sub = AWARD_NAMES[award];

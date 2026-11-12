@@ -52,7 +52,8 @@ resolution, text size, camera (Follow, Overhead or Seated), reduced flashing, hi
 What the table does (besides the shots themselves):
 
 - **WANTED:** one major shot always flashes fast. Make it for a bounty that grows with each one
-  you collect this ball; the poster moves if you wait too long.
+  you collect this ball; the poster moves if you wait too long. Every fourth bounty starts
+  **MOST WANTED**: for 15 s every major shot pays one.
 - **PA announcements:** every half minute or so the Warden's tannoy starts something: an
   add-a-ball, a FRENZY where every switch pays, a free ball save, Lockup, a Chute hurry-up, or a
   MANHUNT that doubles bounties.

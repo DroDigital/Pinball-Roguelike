@@ -229,7 +229,7 @@ export const RIOT = {
 /** The Hole's award ladder; a completed set (top lanes, Cell Block) lights the next award. */
 export const AWARDS = {
   ladder: ['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'] as const,
-  /** Extra balls one ball can earn; past it the Hole gives a level instead. */
+  /** Extra balls one ball can earn; past it the Hole gives Bonus X instead. */
   maxExtraPerBall: 1,
 };
 

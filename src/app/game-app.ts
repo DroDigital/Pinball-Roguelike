@@ -63,6 +63,7 @@ import {
   maxAffordableBalls,
   ballPrice,
   ballsLeft,
+  interestRate,
   nextBall,
   finishBall,
   deposit,
@@ -1919,20 +1920,17 @@ export class GameApp {
           h(
             'p',
             { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.92em', margin: '4px 0' } },
-            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c coins from pocket.`,
+            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c from your pocket.`,
           ),
-          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
           h(
             'div',
             {
               style: {
-                background: 'rgba(41, 28, 18, 0.08)',
                 border: '1px dashed #6a5640',
-                borderRadius: '3px',
                 padding: '6px 10px',
-                marginTop: '8px',
+                margin: '8px 0 0',
                 fontFamily: 'var(--bc-typewriter)',
-                color: '#291c12',
+                color: '#a49477',
                 fontSize: '0.86em',
                 lineHeight: '1.35',
               },
@@ -1941,7 +1939,7 @@ export class GameApp {
               'b',
               {
                 style: {
-                  color: '#84261a',
+                  color: '#e0663a',
                   textTransform: 'uppercase',
                   display: 'block',
                   marginBottom: '2px',
@@ -1949,8 +1947,9 @@ export class GameApp {
               },
               'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY',
             ),
-            'Extra balls give you more attempts to shoot bank targets and complete your Work Order. Unspent coins stay in your pocket to deposit at the ATM for 10% round compound interest.',
+            `More balls mean more shots at the bounties and your Work Order. Unspent coins stay in your pocket; deposit them at the ATM for ${Math.round(interestRate(r) * 100)}% interest each round.`,
           ),
+          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
         ),
       ),
     );

@@ -389,6 +389,9 @@ the time and never won.
       bounty, its arrow flashing fast with a target ring pulsing over it. Each bounty this ball
       pays more than the last (6, 9, 12... base at the shot's level) and half goes to the Bonus;
       the poster moves after 14 s unclaimed. A new Job asks for bounties.
+- [x] MOST WANTED: every 4th bounty in a ball lights every wanted shot for 15 s; each one pays
+      a bounty that keeps growing. The HUD shows progress toward it, the receipt lists bounties,
+      and FRENZY / MANHUNT / MOST WANTED bring in the music's driving layer.
 - [x] PA announcements: after 18 s of single-ball play, and every 22-34 s after, the Warden's
       tannoy starts one of six events: NEW ARRIVAL (add-a-ball, 8 s save), MESS HALL FRENZY
       (every switch pays extra for 12 s), LIGHTS OUT (12 s ball save), CELL DOOR OPEN (Lockup),
@@ -426,9 +429,11 @@ numbers are not comparable.) Players earn less than the bots, so the first deadl
 to be near-certain for the bots and comfortable for people; deadlines 7 and 8 stay the wall
 that builds are for. With 16 runs a standard error is about 12 points.
 
-Open: one random-build seed snowballs (337 balls, millions of coins by deadline 8), which
-points at a runaway charm combination worth tracing (Wishbone / Live Wire / Hand-Crank are the
-usual suspects in these wins). The full nine-archetype pass is still open (M10).
+Fixed after this table: two random-build seeds snowballed (337 and 380 balls, ~10 million
+coins by deadline 7). Both held Wishbone, whose round-long luck lifted the lucky bounce to 100%:
+outlanes stopped draining, endless balls earned extra balls, and those fed more luck. Luck now
+lifts a lucky roll to 50% at most and a ball earns one extra ball at most (past it, Bonus X). The full
+nine-archetype pass is still open (M10).
 
 ## Decisions log
 
@@ -438,6 +443,11 @@ usual suspects in these wins). The full nine-archetype pass is still open (M10).
   per-ball income, so `SCORE.scale` went 0.156 to 0.12, per-deadline payout growth 1.48 to
   1.32, and the debt curve now starts at 50c, doubles three times, then grows x3.35. Early
   deadlines are much easier; deadlines 6-8 still need a build.
+- 2026-11-12 — Luck-boosted rolls cap at 50% (`LUCK.maxChance`), and a ball earns one extra
+  ball at most; past it the Hole gives Bonus X (a level substitute compounded over the run and
+  pushed random-build wins from 44% to 81%). — Luck had no ceiling: Wishbone plus a big round made every outlane a lucky
+  bounce, which turned into immortal balls and a runaway economy. A base chance above the cap
+  keeps its own odds, so nothing that was already likely got worse.
 - 2026-11-12 — WANTED is a roving lit shot rather than another mode with a start condition. —
   "Every ball has a goal" from the first flip; a timed poster that moves keeps the eye on the
   arrows without a meter to fill first.
