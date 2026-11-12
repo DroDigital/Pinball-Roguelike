@@ -28,8 +28,9 @@ export const ART = {
     ink: '#f2dfb2',
   },
   'branding/title-logo': {
-    width: 1500,
-    height: 500,
+    // The pixel logo is about 250 x 150 grid pixels, drawn at 4x.
+    width: 1000,
+    height: 600,
     content: null,
     ink: '#f2dfb2',
   },

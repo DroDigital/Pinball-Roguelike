@@ -39,6 +39,9 @@ export const FONT = {
   mono: 'VT323, "Courier New", monospace',
   sans: 'Inter, system-ui, Arial, sans-serif',
   cond: 'Oswald, "Arial Narrow", sans-serif',
+  /** The pixel title logo. */
+  pixel: 'Silkscreen, "Courier New", monospace',
+  pixelSmall: '"Press Start 2P", "Courier New", monospace',
 } as const;
 
 export function makeCanvas(w: number, h: number): HTMLCanvasElement {

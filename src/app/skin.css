@@ -220,9 +220,11 @@
 }
 .panel h1.logo img {
   display: block;
-  width: min(100%, 420px);
+  /* 500px puts each grid pixel of the pixel logo on exactly two screen pixels. */
+  width: min(100%, 500px);
   height: auto;
   margin: 0 auto;
+  image-rendering: pixelated;
 }
 
 /* The title screen: centred, with the logo on the printed band. */

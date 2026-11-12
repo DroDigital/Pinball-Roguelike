@@ -118,6 +118,8 @@
   display: block;
   width: min(100%, 460px);
   margin: 0 auto;
+  /* Pixel art: keep the edges hard at any size. */
+  image-rendering: pixelated;
 }
 .panel h3 {
   margin: 16px 0 6px;
