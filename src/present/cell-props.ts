@@ -33,7 +33,8 @@ export class CellProps {
   private readonly led: THREE.MeshBasicMaterial;
   private readonly camHead = new THREE.Group();
   private readonly chains: THREE.Group[] = [];
-  private readonly dust: THREE.Points;
+  /** Hidden from the play camera: motes between the eye and the playfield read as noise. */
+  readonly dust: THREE.Points;
   private readonly dustPos: Float32Array;
   private readonly dustVel: Float32Array;
   private readonly look = new THREE.Vector3();

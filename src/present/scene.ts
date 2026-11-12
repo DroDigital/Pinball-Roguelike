@@ -14,6 +14,7 @@ import { ART, CABINET_ART } from '../content/art';
 export type CamMode =
   | 'top'
   | 'play'
+  | 'follow'
   | 'seated'
   | 'atm'
   | 'vending'
@@ -26,6 +27,8 @@ export type CamMode =
   | 'tray';
 
 const TILT = 6.5 * (Math.PI / 180);
+/** Share of the table length the follow camera frames in landscape. */
+const FOLLOW_SPAN = 0.66;
 /** The cabinet body's footprint around the table (width, depth). */
 const BODY_W = TW + 3.4;
 const BODY_D = TH + 5;
@@ -74,6 +77,8 @@ export class World {
   /** The bare bulb's brightness (dims as the cell decays). */
   bulbPower = 1800;
   aspect = 16 / 9;
+  /** Table y (0..TH) the follow camera tracks; the app sets it from the lowest live ball. */
+  followY = 0;
   /** The chasing bulbs along the backbox topper. */
   private readonly marquee: THREE.MeshBasicMaterial[] = [];
   /** How fast the marquee chases (the app speeds it up for jackpots). */
@@ -259,7 +264,9 @@ export class World {
     if (m !== 'fall' && this.mode === 'fall') this.cell.openTrapdoor(0);
     this.mode = m;
     // From the play view the bare bulb would hang between the eye and the table.
-    this.bulbMesh.visible = m !== 'play' && m !== 'top';
+    const overTable = m === 'play' || m === 'follow' || m === 'top';
+    this.bulbMesh.visible = !overTable;
+    this.cell.props.dust.visible = !overTable;
   }
 
   /** Camera goal for a mode. */
@@ -279,6 +286,26 @@ export class World {
         const pitch = 70 * (Math.PI / 180);
         // Looking a little below centre keeps the coin tray on screen under the lockbar.
         l.set(0, 0, portrait ? 0.4 : 3.2);
+        p.set(0, Math.sin(pitch) * dist, l.z + Math.cos(pitch) * dist);
+        break;
+      }
+      case 'follow': {
+        // Closer than 'play' and riding along the table after the ball. It always keeps
+        // the flippers in view once the ball is in the lower half, so saves stay readable.
+        const half = (this.camera.fov * Math.PI) / 360;
+        const portrait = this.aspect < 1.2;
+        const span = portrait ? 0.6 : FOLLOW_SPAN;
+        const fitH = TH * span * 0.6 + (portrait ? 3 : 0);
+        const fitW = TW * 0.56;
+        const dist = Math.max(fitH / Math.tan(half), fitW / (Math.tan(half) * this.aspect)) * 1.04;
+        const pitch = 66 * (Math.PI / 180);
+        // Look a touch below the ball: what's coming down matters more than what's above.
+        const fy = this.followY - TH * 0.03;
+        // Table y -> world z (table centre at z 0, y up-table toward -z).
+        const minZ = -TH * (0.5 - span * 0.5) + 1;
+        const maxZ = portrait ? 0.4 : 3.2 + TH * (1 - span) * 0.5;
+        const z = Math.min(maxZ, Math.max(minZ, -(fy - TH / 2) + 2));
+        l.set(0, 0, z);
         p.set(0, Math.sin(pitch) * dist, l.z + Math.cos(pitch) * dist);
         break;
       }

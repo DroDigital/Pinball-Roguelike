@@ -342,6 +342,28 @@ export class Audio {
     this.tone({ type: 'sine', f0: 200, f1: 50, dur: 0.6, gain: 0.5 });
   }
 
+  /** The prison tannoy: a crackle of static and a three-note chime before an announcement. */
+  tannoy(): void {
+    this.noise({ dur: 0.35, freq: 2400, q: 0.6, gain: 0.25 });
+    const notes = [523, 659, 784];
+    for (let i = 0; i < notes.length; i++)
+      this.tone({
+        type: 'triangle',
+        f0: notes[i],
+        dur: 0.32,
+        gain: 0.22,
+        when: this.now + 0.18 + i * 0.16,
+      });
+  }
+
+  /** A bounty collected: a bell that climbs with each one this ball. */
+  bounty(n: number): void {
+    const f = 660 * Math.pow(2, Math.min(12, n - 1) / 12);
+    this.tone({ type: 'triangle', f0: f, dur: 0.5, gain: 0.3 });
+    this.tone({ type: 'triangle', f0: f * 1.5, dur: 0.6, gain: 0.2, when: this.now + 0.08 });
+    this.noise({ dur: 0.08, freq: 5200, q: 2, gain: 0.2 });
+  }
+
   tilt(): void {
     this.tone({ type: 'sawtooth', f0: 110, dur: 0.9, gain: 0.35 });
   }

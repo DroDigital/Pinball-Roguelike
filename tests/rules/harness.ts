@@ -56,7 +56,8 @@ export function harness(
   const game = new TableGame(
     sim,
     { ...defaultBallContext(), ...ctx },
-    { ...newMachineState(), ...machine },
+    // Rounds open with Lockup lit; rule tests start from a quiet machine unless they ask.
+    { ...newMachineState(), lockLit: false, ...machine },
     (e) => events.push(e),
   );
   const fire: Harness['fire'] = (type, id = '', o = {}) => {

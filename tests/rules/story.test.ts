@@ -23,7 +23,15 @@ import {
   type RunState,
 } from '../../src/rules/run';
 import { rerollCost } from '../../src/rules/shop';
-import { BALL, COMBO, JAILBREAK, NEIGHBOR, SCORE, SECRET } from '../../src/content/balance';
+import {
+  BALL,
+  COMBO,
+  ECONOMY,
+  JAILBREAK,
+  NEIGHBOR,
+  SCORE,
+  SECRET,
+} from '../../src/content/balance';
 import { INMATES } from '../../src/content/inmates';
 import { emptyInput } from '../../src/sim/sim';
 import { harness } from './harness';
@@ -69,7 +77,7 @@ describe('inmates', () => {
   it('the Lifer gets a free ball every round but owes 20% more', () => {
     const s = newRun('L', { inmate: 'lifer' });
     expect(freeBalls(s)).toBe(2);
-    expect(s.debt).toBe(90);
+    expect(s.debt).toBe(Math.round(ECONOMY.startDebt * 1.2));
   });
 
   it('the Escape Artist starts with a Key and a Lockpick, and only 4 charm slots', () => {
@@ -104,8 +112,8 @@ describe('inmates', () => {
 describe('Hard Time', () => {
   it('stacks every level up to the chosen one', () => {
     const at = (hardTime: number) => newRun('HT', { hardTime });
-    expect(at(1).debt).toBe(94);
-    expect(at(8).debt).toBe(188);
+    expect(at(1).debt).toBe(Math.round(ECONOMY.startDebt * 1.25));
+    expect(at(8).debt).toBe(Math.round(ECONOMY.startDebt * 2.5));
     const s2 = at(2);
     s2.round = 1;
     expect(sentenceActive(s2)).toBe(true);

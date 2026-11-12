@@ -189,8 +189,44 @@
 .hx-ticket {
   display: flex;
 }
-/* Running modes only; meters, lit-but-idle lamps and luck stay off the screen. */
-.hx-lamp.fill,
+/* Running modes, plus slim meters for modes that are building; idle lamps stay hidden. */
+.hx-lamp.fill {
+  display: flex;
+  position: relative;
+  padding: 4px 10px 6px;
+  font-size: clamp(0.75rem, 1.05vw, 0.95rem);
+  color: var(--bone);
+  opacity: 0.8;
+}
+.hx-lamp.fill::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: calc(var(--p, 0) * 100%);
+  background: var(--sodium);
+  transition: width 0.2s;
+}
+@media (max-width: 600px) {
+  /* Narrow phones: running modes only, the meters would cover the playfield. */
+  .hx-lamp.fill {
+    display: none;
+  }
+}
+.hx-lamp[data-lamp='wanted'] {
+  color: var(--sodium);
+  border-left: 3px solid var(--sodium);
+}
+.hx-lamp[data-lamp='most'] {
+  color: var(--sodium);
+}
+.hx-lamp[data-lamp='manhunt'] {
+  color: var(--blood);
+}
+.hx-lamp[data-lamp='frenzy'] {
+  color: var(--yard);
+}
 .hx-lamp[data-lamp='luck'],
 .hx-lamp[data-lamp='kick'],
 .hx-lamp[data-lamp='again'],
@@ -320,7 +356,9 @@
 .hx-banners {
   position: absolute;
   left: 50%;
-  top: 30%;
+  /* High on the screen: the follow camera keeps the ball near the middle. */
+  top: 17%;
+  pointer-events: none;
   width: 0;
   display: flex;
   flex-direction: column;
@@ -338,7 +376,7 @@
   16%,
   80% {
     transform: scale(1) rotate(-4deg);
-    opacity: 1;
+    opacity: 0.92;
   }
   100% {
     transform: scale(1) rotate(-4deg) translateY(-16px);
@@ -364,7 +402,7 @@
 .hx-banner b {
   display: block;
   font-weight: normal;
-  font-size: clamp(2.2rem, 5.6vw, 5rem);
+  font-size: clamp(2rem, 4.8vw, 4.4rem);
   line-height: 0.95;
   letter-spacing: 0.03em;
 }

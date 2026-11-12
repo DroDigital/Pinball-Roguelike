@@ -10,7 +10,7 @@ export interface Settings {
   reducedFlashing: boolean;
   /** UI text scale. */
   textSize: number;
-  camera: 'play' | 'seated';
+  camera: 'follow' | 'play' | 'seated';
   /** Assist mode: slower table, longer ball save; excluded from the daily best. */
   assist: boolean;
   vibration: boolean;
@@ -28,7 +28,7 @@ export function defaultSettings(): Settings {
     pixelHeight: 360,
     reducedFlashing: false,
     textSize: 1,
-    camera: 'play',
+    camera: 'follow',
     assist: false,
     vibration: true,
     voice: false,

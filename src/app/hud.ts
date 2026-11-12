@@ -10,10 +10,11 @@ import { h } from './ui';
 import { itemIconHtml } from './icons';
 import { charmDef } from '../content/charms';
 import { jobDef, jobText } from '../content/jobs';
-import { BRAWL, JAILBREAK, SWEEP } from '../content/balance';
+import { BRAWL, JAILBREAK, SHAKEDOWN, SWEEP, WANTED } from '../content/balance';
 import { formatCoins } from '../present/pops';
 import { ballsLeft, jailbreakLit, roundsIn, type RunState } from '../rules/run';
 import type { TableGame } from '../rules/table-game';
+import type { WantedShot } from '../rules/types';
 
 export type BannerKind = 'gold' | 'red' | 'green' | 'violet' | 'bone';
 
@@ -24,6 +25,7 @@ interface Reel {
 }
 
 const LAMPS = [
+  'wanted',
   'save',
   'kick',
   'lock',
@@ -32,6 +34,9 @@ const LAMPS = [
   'sweep',
   'brawl',
   'shift',
+  'frenzy',
+  'manhunt',
+  'most',
   'mystery',
   'luck',
   'again',
@@ -39,6 +44,7 @@ const LAMPS = [
 type LampId = (typeof LAMPS)[number];
 
 const LAMP_LABEL: Record<LampId, string> = {
+  wanted: 'WANTED',
   save: 'SAVE',
   kick: 'KICK',
   lock: 'LOCK',
@@ -47,9 +53,21 @@ const LAMP_LABEL: Record<LampId, string> = {
   sweep: 'SWEEP',
   brawl: 'BRAWL',
   shift: '2X',
-  mystery: '???',
+  frenzy: 'FRENZY',
+  manhunt: 'MANHUNT',
+  most: 'MOST WANTED',
+  mystery: 'MYSTERY',
   luck: 'LUCK',
   again: 'AGAIN',
+};
+
+const WANTED_SHORT: Record<WantedShot, string> = {
+  chute: 'CHUTE',
+  perimL: 'L ORBIT',
+  perimR: 'R ORBIT',
+  hole: 'HOLE',
+  cellblock: 'CELLS',
+  tower: 'TOWER',
 };
 
 const MAX_FLYERS = 28;
@@ -393,7 +411,39 @@ export class Hud {
         live.shiftLeft > 0 ? 'blink' : '',
         live.shiftLeft > 0 ? `${Math.ceil(live.shiftLeft)}s` : '',
       );
-      this.lamp('mystery', live.mysteryLit ? 'blink' : '');
+      if (live.mysteryLit) this.lamp('mystery', 'blink');
+      else
+        this.lamp(
+          'mystery',
+          live.slingCount > 0 ? 'fill' : '',
+          '',
+          live.slingCount / SHAKEDOWN.slings,
+        );
+      this.lamp(
+        'wanted',
+        live.jailbreak || live.tilted ? '' : live.manhuntLeft > 0 ? 'blink' : 'on',
+        live.mostWantedLeft > 0
+          ? 'ALL'
+          : `${WANTED_SHORT[live.wanted]} ${Math.ceil(live.wantedLeft)}s`,
+      );
+      this.lamp(
+        'frenzy',
+        live.frenzyLeft > 0 ? 'blink' : '',
+        live.frenzyLeft > 0 ? `${Math.ceil(live.frenzyLeft)}s` : '',
+      );
+      if (live.mostWantedLeft > 0) this.lamp('most', 'blink', `${Math.ceil(live.mostWantedLeft)}s`);
+      else
+        this.lamp(
+          'most',
+          live.stats.bounties % WANTED.mostWantedEvery > 0 ? 'fill' : '',
+          '',
+          (live.stats.bounties % WANTED.mostWantedEvery) / WANTED.mostWantedEvery,
+        );
+      this.lamp(
+        'manhunt',
+        live.manhuntLeft > 0 ? 'blink' : '',
+        live.manhuntLeft > 0 ? `${Math.ceil(live.manhuntLeft)}s` : '',
+      );
       this.lamp('luck', live.luck > 0 ? 'on' : '', live.luck > 0 ? `${live.luck}` : '');
       this.lamp('again', live.extraBalls > 0 ? 'on' : '');
     } else for (const id of LAMPS) this.lamp(id, '');

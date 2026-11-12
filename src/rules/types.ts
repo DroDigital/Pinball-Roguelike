@@ -43,7 +43,11 @@ export type GameEvent =
   /** The neighbor's secret shot. */
   | { t: 'tunnel'; amount: number }
   /** A timed table mode started or ended (Searchlight SWEEP, Yard BRAWL, DOUBLE SHIFT). */
-  | { t: 'mode'; mode: 'sweep' | 'brawl' | 'shift'; on: boolean }
+  | { t: 'mode'; mode: TableMode; on: boolean }
+  /** WANTED: a bounty collected (n this ball), or the poster moved (amount 0). */
+  | { t: 'wanted'; shot: WantedShot; amount: number; n: number }
+  /** A PA announcement from the Warden's tannoy. */
+  | { t: 'pa'; event: PaEvent }
   /** SHAKEDOWN: the mystery lit at the inlanes, or was collected. */
   | { t: 'mystery'; award: MysteryAward | null }
   /** A charm's behaviour fired (its relic reacts). */
@@ -64,6 +68,12 @@ export type MysteryAward =
   | 'luck'
   | 'kickback'
   | 'lockup';
+
+export type TableMode = 'sweep' | 'brawl' | 'shift' | 'frenzy' | 'manhunt' | 'mostWanted';
+
+export type WantedShot = 'chute' | 'perimL' | 'perimR' | 'hole' | 'cellblock' | 'tower';
+
+export type PaEvent = 'arrival' | 'frenzy' | 'asleep' | 'lockup' | 'hurry' | 'manhunt';
 
 export type AwardId = 'bonusX' | 'kickback' | 'hurryUp' | 'shotLevel' | 'extraBall';
 

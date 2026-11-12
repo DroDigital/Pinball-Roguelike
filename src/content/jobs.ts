@@ -35,6 +35,9 @@ export interface BallStats {
   shakedowns: number;
   /** Completed BAIL sets on the upper deck. */
   bails: number;
+  /** WANTED bounties collected and PA announcements heard. */
+  bounties: number;
+  announcements: number;
 }
 
 export function emptyBallStats(): BallStats {
@@ -64,6 +67,8 @@ export function emptyBallStats(): BallStats {
     brawls: 0,
     shakedowns: 0,
     bails: 0,
+    bounties: 0,
+    announcements: 0,
   };
 }
 
@@ -99,6 +104,14 @@ export const JOB_DEFS: JobDef[] = [
     stat: 'chutes',
     mode: 'sum',
     target: 5,
+    reward: { tickets: 3 },
+  },
+  {
+    id: 'bounty',
+    text: 'Collect {n} WANTED bounties',
+    stat: 'bounties',
+    mode: 'sum',
+    target: 4,
     reward: { tickets: 3 },
   },
   {

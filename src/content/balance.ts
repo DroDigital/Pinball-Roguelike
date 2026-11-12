@@ -167,7 +167,7 @@ export const SCORE = {
    * Global payout scale applied to every table payout (hits, PAYDAY, hurry-up; the Bonus
    * follows). Tuned with `npm run economy` so an average player clears deadline 1 ~90%.
    */
-  scale: 0.156,
+  scale: 0.12,
   pop: 0.6,
   sling: 0.15,
   lane: 0.4,
@@ -229,6 +229,8 @@ export const RIOT = {
 /** The Hole's award ladder; a completed set (top lanes, Cell Block) lights the next award. */
 export const AWARDS = {
   ladder: ['bonusX', 'kickback', 'hurryUp', 'shotLevel', 'extraBall'] as const,
+  /** Extra balls one ball can earn; past it the Hole gives Bonus X instead. */
+  maxExtraPerBall: 1,
 };
 
 /** Chute hurry-up from the Hole award: value counts down from start to end. */
@@ -243,6 +245,11 @@ export const LUCK = {
   perPoint: 0.02,
   /** Base chance that an outlaned ball gets a lucky bounce. */
   luckyBounce: 0.04,
+  /**
+   * Luck can raise a lucky bounce or a charm's lucky roll this far and no further. Uncapped,
+   * a Wishbone round reached 100% bounces: outlanes stopped draining and balls never ended.
+   */
+  maxChance: 0.5,
   /** Spontaneous spark on a manual plunge: chance and luck gained for that ball. */
   sparkChance: 0.1,
   sparkLuck: 3,
@@ -251,7 +258,7 @@ export const LUCK = {
 /** Searchlight SWEEP: spinner turns fill a meter; a full meter makes every switch pay extra. */
 export const SWEEP = {
   /** Half-turns of the Searchlight to fill the meter. */
-  spins: 9,
+  spins: 6,
   seconds: 12,
   /** Extra base value paid on every other hit while the sweep runs (Searchlight level). */
   perHit: 0.45,
@@ -268,7 +275,7 @@ export const BRAWL = {
 
 /** SHAKEDOWN: slingshot hits light a mystery award at both inlanes. */
 export const SHAKEDOWN = {
-  slings: 9,
+  slings: 7,
   /** Base coin values (Lanes level) of the small and big cash awards. */
   coins: 7,
   bigCoins: 18,
@@ -284,6 +291,45 @@ export const SHIFT = {
   mult: 2,
 };
 
+/**
+ * WANTED: one major shot always carries a bounty (its arrow flashes). Making it pays, the
+ * poster moves to another shot, and every bounty this ball is worth more than the last.
+ * Every ball has a goal from its first flip.
+ */
+export const WANTED = {
+  /** Base value of the first bounty (scaled by the wanted shot's level, like a hit). */
+  base: 6,
+  /** Each bounty already collected this ball adds this much base. */
+  step: 3,
+  /** The poster moves on to another shot after this long unclaimed. */
+  rotate: 14,
+  /** MOST WANTED: every this many bounties in a ball, every wanted shot pays for a while. */
+  mostWantedEvery: 4,
+  mostWantedSeconds: 15,
+};
+
+/**
+ * PA announcements: during a long ball the Warden's tannoy crackles and something happens.
+ * Times are seconds of live single-ball play (not counted during multiball).
+ */
+export const PA = {
+  first: 18,
+  minGap: 22,
+  maxGap: 34,
+  /** Length of the timed announcements (FRENZY, MANHUNT). */
+  seconds: 12,
+  /** MESS HALL FRENZY: every switch pays this extra base (at its own shot level). */
+  frenzyPerHit: 0.7,
+  /** NEW ARRIVAL: an add-a-ball with this much multiball save. */
+  arrivalSave: 8,
+  /** LIGHTS OUT: free ball save seconds. */
+  asleepSave: 12,
+  /** MANHUNT: bounties pay this much more while it runs. */
+  manhuntMult: 2,
+  /** Relative odds of each announcement. */
+  weights: { arrival: 3, frenzy: 3, asleep: 2, lockup: 2, hurry: 2, manhunt: 2 },
+};
+
 /** Round Jobs posted by the ATM. */
 export const JOBS = {
   offers: 3,
@@ -295,9 +341,15 @@ export const JOBS = {
 };
 
 export const ECONOMY = {
-  startCoins: 15,
-  startDebt: 75,
-  debtGrowth: 2.4,
+  startCoins: 20,
+  startDebt: 50,
+  debtGrowth: 3.35,
+  /**
+   * The first steps of the curve are gentler so a new player can learn the table before
+   * the debt outruns them: the first `earlyDeadlines` increases use `earlyGrowth`.
+   */
+  earlyGrowth: 2,
+  earlyDeadlines: 3,
   deadlines: 8,
   roundsPerDeadline: 3,
   maxBallsPerRound: 5,
@@ -313,7 +365,7 @@ export const ECONOMY = {
    * The machine's payouts rise this much per deadline ("a heavier coin mech"). Builds must
    * supply the rest of the debt curve: debtGrowth / payGrowth per deadline.
    */
-  payGrowth: 1.48,
+  payGrowth: 1.32,
 };
 
 /** Sentences. */

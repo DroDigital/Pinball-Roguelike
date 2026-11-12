@@ -13,7 +13,7 @@ import { music } from '../present/music';
 import { ROOM_UNIFORMS } from '../present/retro-material';
 import { paintBackglass } from '../present/backglass';
 import { titleLogo } from './skin';
-import { Hud } from './hud';
+import { Hud, type BannerKind } from './hud';
 import { relicStage } from '../present/relics';
 import { Sparks } from '../present/sparks';
 import { CHARMS } from '../content/charms';
@@ -48,13 +48,13 @@ import { inmateDef } from '../content/inmates';
 import { NEIGHBOR_LINES } from '../content/neighbor';
 import { dailySeed, dayKey, recordDaily, shareLink } from '../rules/daily';
 import { BallSession, InputRecording, type BallSnapshot } from '../rules/session';
-import { Lamp, type GameEvent, type MysteryAward } from '../rules/types';
+import { Lamp, type GameEvent, type MysteryAward, type PaEvent } from '../rules/types';
 import { emptyInput, type SimInput } from '../sim/sim';
 import type { SimEvent } from '../sim/events';
 import { Bot, type BotSkillName } from '../bot/bot';
 import { attachBot, defaultSnapshot } from '../bot/autoplay';
 import { jobDef, jobText, type JobDef } from '../content/jobs';
-import { AWARD_NAMES } from '../rules/table-game';
+import { AWARD_NAMES, WANTED_NAMES } from '../rules/table-game';
 import { comboName } from '../rules/combo';
 import {
   newRun,
@@ -63,6 +63,7 @@ import {
   maxAffordableBalls,
   ballPrice,
   ballsLeft,
+  interestRate,
   nextBall,
   finishBall,
   deposit,
@@ -177,6 +178,7 @@ export class GameApp {
   /** Dev: called after every frame (overlays). */
   onFrame: ((dt: number) => void) | null = null;
   private hitStop = 0;
+  private wantedPulse = 0;
   private readonly saves = new SaveDetector();
   /** Coins the tray shows (poured or piled); follows the pocket between balls. */
   private trayCoins = 0;
@@ -498,11 +500,30 @@ export class GameApp {
         this.livePaid = whole;
       }
     }
+    // A target ring pulses over the WANTED shot so the bounty reads on the table itself.
+    const wg = this.mode === 'play' ? this.session?.game : null;
+    if (wg && !wg.jailbreak && !wg.tilted && !wg.over) {
+      this.wantedPulse -= dt;
+      if (this.wantedPulse <= 0) {
+        this.wantedPulse = 0.7;
+        const color = wg.manhuntLeft > 0 ? 0xff3020 : 0xffc040;
+        for (const [shot, lamp] of WANTED_LAMPS) {
+          if (shot !== wg.wanted && wg.mostWantedLeft <= 0) continue;
+          const p = this.world.table.worldOf(lamp.x, lamp.y, 0.3, this.tmpS);
+          this.sparks.ring(p, color, 2.2, 0.6);
+        }
+      }
+    }
     this.sparks.update(dt);
     // The Warden's camera follows the ball (or stares at the stool between balls).
     const eye = shown?.sim.balls.find((b) => b.state === 'field');
     if (eye && this.mode === 'play') this.world.table.worldOf(eye.x, eye.y, 0.5, this.tmpV);
-    else this.tmpV.set(0, 6, 38);
+    // The follow camera rides with the lowest live ball (the one about to need a flipper).
+    if (shown) {
+      let low = Infinity;
+      for (const b of shown.sim.balls) if (b.state === 'field' && b.y < low) low = b.y;
+      this.world.followY = low === Infinity ? 0 : low;
+    } else this.tmpV.set(0, 6, 38);
     this.world.cell.props.watch(this.tmpV);
     this.updateCamera(dt);
     this.world.update(dt);
@@ -524,6 +545,9 @@ export class GameApp {
     this.renderer.flash = Math.max(0, this.renderer.flash - dt * 4);
     this.renderer.punch = Math.max(0, this.renderer.punch - dt * 3.5);
     this.onFrame?.(dt);
+    // The cell keeps its full grit; a live ball gets a cleaner picture of the playfield.
+    const k = this.mode === 'play' || this.mode === 'replay' ? PLAY_CRT : 1;
+    this.renderer.crtScale += (k - this.renderer.crtScale) * Math.min(1, dt * 3);
     this.renderer.render(this.world.scene, this.world.camera, this.time);
   }
 
@@ -732,19 +756,47 @@ export class GameApp {
           break;
         case 'mode':
           if (e.on) {
-            const [text, sub, kind] =
-              e.mode === 'sweep'
-                ? (['SEARCHLIGHT SWEEP', 'EVERY SWITCH PAYS', 'bone'] as const)
-                : e.mode === 'brawl'
-                  ? (['YARD BRAWL', 'BUMPERS PAY TRIPLE', 'red'] as const)
-                  : (['DOUBLE SHIFT', 'EVERYTHING PAYS DOUBLE', 'violet'] as const);
-            this.hud.banner(text, sub, kind, e.mode === 'shift');
+            const [text, sub, kind] = MODE_BANNERS[e.mode];
+            this.hud.banner(text, sub, kind, e.mode === 'shift' || e.mode === 'mostWanted');
+            if (e.mode === 'mostWanted') {
+              this.world.shelf.cheer(1);
+              this.world.swingBulb(0.3);
+            }
             this.shows.play(e.mode === 'brawl' ? 'riot' : 'skill');
             audio.knocker();
             this.flash(0.25);
             this.punch(0.6);
             this.shake(0.7);
             this.hud.swing(1.5);
+          }
+          break;
+        case 'wanted':
+          if (e.amount > 0) {
+            this.hud.banner(
+              e.n >= 3 ? `BOUNTY X${e.n}` : 'BOUNTY',
+              `${WANTED_NAMES[e.shot]}  +${formatCoins(e.amount)}`,
+              'gold',
+              e.n >= 3,
+            );
+            audio.bounty(e.n);
+            this.shows.play('skill');
+            this.flash(0.15);
+            this.punch(Math.min(0.9, 0.3 + 0.1 * e.n));
+            this.shake(0.4);
+            if (this.mode === 'play') this.hints.show('wanted');
+          }
+          break;
+        case 'pa':
+          audio.tannoy();
+          if (this.mode === 'play') this.hints.show('pa');
+          // FRENZY and MANHUNT announce themselves with their own mode banner.
+          if (e.event !== 'frenzy' && e.event !== 'manhunt')
+            this.hud.banner('ATTENTION', PA_NAMES[e.event], 'bone');
+          this.world.swingBulb(0.25);
+          if (e.event === 'arrival') {
+            this.shows.play('riot');
+            this.punch(0.7);
+            this.shake(0.6);
           }
           break;
         case 'mystery':
@@ -1868,20 +1920,17 @@ export class GameApp {
           h(
             'p',
             { style: { fontFamily: 'var(--bc-typewriter)', fontSize: '0.92em', margin: '4px 0' } },
-            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c coins from pocket.`,
+            `LOAD PINBALL RACK: The first ball is free; each extra ball costs ${price}c from your pocket.`,
           ),
-          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
           h(
             'div',
             {
               style: {
-                background: 'rgba(41, 28, 18, 0.08)',
                 border: '1px dashed #6a5640',
-                borderRadius: '3px',
                 padding: '6px 10px',
-                marginTop: '8px',
+                margin: '8px 0 0',
                 fontFamily: 'var(--bc-typewriter)',
-                color: '#291c12',
+                color: '#a49477',
                 fontSize: '0.86em',
                 lineHeight: '1.35',
               },
@@ -1890,7 +1939,7 @@ export class GameApp {
               'b',
               {
                 style: {
-                  color: '#84261a',
+                  color: '#e0663a',
                   textTransform: 'uppercase',
                   display: 'block',
                   marginBottom: '2px',
@@ -1898,8 +1947,9 @@ export class GameApp {
               },
               'WARDEN DIRECTIVE #09: BALL PROCUREMENT & SOLVENCY',
             ),
-            'Extra balls give you more attempts to shoot bank targets and complete your Work Order. Unspent coins stay in your pocket to deposit at the ATM for 10% round compound interest.',
+            `More balls mean more shots at the bounties and your Work Order. Unspent coins stay in your pocket; deposit them at the ATM for ${Math.round(interestRate(r) * 100)}% interest each round.`,
           ),
+          h('div', { class: 'cell-dock', style: { flexWrap: 'wrap' } }, ...opts),
         ),
       ),
     );
@@ -2429,7 +2479,7 @@ export class GameApp {
     this.simInput = emptyInput();
     this.livePaid = 0;
     this.mode = 'play';
-    this.world.setMode(this.save.settings.camera === 'seated' ? 'seated' : 'play');
+    this.world.setMode(this.save.settings.camera);
   }
 
   private onBallOver(): void {
@@ -2543,9 +2593,9 @@ export class GameApp {
       h(
         'div',
         { class: 'receipt-row' },
-        h('span', { class: 'receipt-row-label' }, 'Bonus Multiplier'),
+        h('span', { class: 'receipt-row-label' }, 'End-of-Ball Bonus'),
         h('span', { class: 'receipt-row-dots' }),
-        h('span', { class: 'receipt-row-val' }, o.bonus > 0 ? `x${formatCoins(o.bonus)}` : '—'),
+        h('span', { class: 'receipt-row-val' }, o.bonus > 0 ? `+${formatCoins(o.bonus)}c` : '—'),
       ),
       h(
         'div',
@@ -2569,6 +2619,18 @@ export class GameApp {
         h('span', { class: 'receipt-row-val' }, String(ballsLeft(r))),
       ),
     ];
+    if (o.stats.bounties > 0)
+      lines.splice(
+        4,
+        0,
+        h(
+          'div',
+          { class: 'receipt-row' },
+          h('span', { class: 'receipt-row-label' }, 'Bounties Collected'),
+          h('span', { class: 'receipt-row-dots' }),
+          h('span', { class: 'receipt-row-val' }, String(o.stats.bounties)),
+        ),
+      );
     if (o.extraBalls)
       lines.push(
         h('div', { class: 'receipt-alert-box' }, `★ EXTRA BALL AWARDED: +${o.extraBalls} BALLS`),
@@ -3020,7 +3082,9 @@ export class GameApp {
     const r = this.run;
     const st = music.state;
     st.combo = g && g.combo.active(g.time) ? g.combo.count : 0;
-    st.riot = !!g?.riot || !!g?.jailbreak;
+    st.riot =
+      !!g &&
+      (g.riot || g.jailbreak || g.mostWantedLeft > 0 || g.frenzyLeft > 0 || g.manhuntLeft > 0);
     st.sentence = !!r && sentenceActive(r);
     st.tension = r ? Math.min(1, r.round / Math.max(1, roundsIn(r) - 1)) : 0;
     music.update();
@@ -3039,7 +3103,7 @@ export class GameApp {
     }
     const m: CamMode =
       this.mode === 'play' || this.mode === 'replay'
-        ? (this.devCam ?? (this.save.settings.camera === 'seated' ? 'seated' : 'play'))
+        ? (this.devCam ?? this.save.settings.camera)
         : (CAMERA_FOR[this.mode] ?? 'seated');
     if (this.world.mode !== m) this.world.setMode(m);
     if (this.mode !== 'play') {
@@ -3116,6 +3180,7 @@ export class GameApp {
     this.world.setCounter(g && playing ? formatCoins(g.earned) : r ? String(r.pocket) : '0');
     if (r) {
       if (r.keys) this.hints.show('keys');
+      if (g && playing && g.stats.seconds > 6) this.hints.show('wanted');
       if (g && playing && g.stats.seconds > 25) this.hints.show('nudge');
       // Backglass ladders and the ATM's LCD follow the run.
       const lv = JSON.stringify(r.shotLevels);
@@ -3160,6 +3225,44 @@ export class GameApp {
   }
 }
 
+/** Where each WANTED shot's arrow sits on the playfield. */
+const WANTED_LAMPS = new Map(
+  (
+    [
+      ['chute', 'arrowChute'],
+      ['perimL', 'arrowPerimL'],
+      ['perimR', 'arrowPerimR'],
+      ['hole', 'arrowHole'],
+      ['cellblock', 'arrowCell'],
+      ['tower', 'arrowTower'],
+    ] as const
+  ).map(([shot, id]) => [shot as string, TABLE.lamps.find((l) => l.id === id)!]),
+);
+
+/** CRT strength multiplier while a ball is live (grain and dither muddy fast balls). */
+const PLAY_CRT = 0.45;
+
+const PA_NAMES: Record<PaEvent, string> = {
+  arrival: 'NEW ARRIVAL: ADD-A-BALL',
+  frenzy: 'MESS HALL FRENZY',
+  asleep: 'LIGHTS OUT: BALL SAVE',
+  lockup: 'CELL DOOR OPEN: LOCKUP LIT',
+  hurry: 'CHOW TIME: HURRY-UP',
+  manhunt: 'MANHUNT: BOUNTIES X2',
+};
+
+const MODE_BANNERS: Record<
+  Extract<GameEvent, { t: 'mode' }>['mode'],
+  readonly [string, string, BannerKind]
+> = {
+  sweep: ['SEARCHLIGHT SWEEP', 'EVERY SWITCH PAYS', 'bone'],
+  brawl: ['YARD BRAWL', 'BUMPERS PAY TRIPLE', 'red'],
+  shift: ['DOUBLE SHIFT', 'EVERYTHING PAYS DOUBLE', 'violet'],
+  frenzy: ['MESS HALL FRENZY', 'EVERY SWITCH PAYS', 'green'],
+  manhunt: ['MANHUNT', 'BOUNTIES PAY DOUBLE', 'red'],
+  mostWanted: ['MOST WANTED', 'EVERY SHOT PAYS A BOUNTY', 'gold'],
+};
+
 const MYSTERY_NAMES: Record<MysteryAward, string> = {
   coins: 'LOOSE CHANGE',
   bigCoins: 'A HIDDEN ROLL',
@@ -3195,7 +3298,7 @@ const CAMERA_FOR: Partial<Record<AppMode, CamMode>> = {
 function tallyMarks(n: number): string {
   let s = '';
   for (let i = 0; i < n; i++) s += (i + 1) % 5 === 0 ? '/ ' : '|';
-  return s || '—';
+  return s;
 }
 
 function rewardText(def: JobDef, deadline: number): string {

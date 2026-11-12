@@ -16,6 +16,7 @@ import { BallSession, type BallSnapshot } from '../src/rules/session';
 import { ECONOMY } from '../src/content/balance';
 import {
   answerKnock,
+  debtFor,
   canHelp,
   freeBalls,
   newRun,
@@ -140,7 +141,10 @@ function shopFor(r: RunState, policy: Policy): void {
 }
 
 interface RunRow {
+  seed: number;
   charms: string[];
+  /** Free balls per round at the end of the run (perks and charms stack). */
+  freeBalls: number;
   reached: number;
   result: string;
   balls: number;
@@ -224,7 +228,9 @@ function playRun(
     }
   }
   return {
+    seed,
     charms: [...r.charms],
+    freeBalls: freeBalls(r),
     reached: r.deadline,
     result: r.result ?? 'fell',
     balls: r.stats.balls,
@@ -312,12 +318,12 @@ if (IS_MAIN) {
     `Economy: ${runs} runs, ${mode} ball earnings (${skill} bot), ${((Date.now() - t0) / 1000).toFixed(1)} s`,
   );
   console.log(
-    `Start ${ECONOMY.startCoins}c, debt ${ECONOMY.startDebt}c x${ECONOMY.debtGrowth}/deadline, ball ${ECONOMY.ballPriceBase}+${ECONOMY.ballPricePerDeadline}/deadline, interest ${ECONOMY.interest * 100}%/round\n`,
+    `Start ${ECONOMY.startCoins}c, debt ${ECONOMY.startDebt}c x${ECONOMY.earlyGrowth} then x${ECONOMY.debtGrowth}/deadline, ball ${ECONOMY.ballPriceBase}+${ECONOMY.ballPricePerDeadline}/deadline, interest ${ECONOMY.interest * 100}%/round\n`,
   );
   console.log('deadline |   debt | cleared | funds p10   p50   p90');
   const report: Record<string, unknown>[] = [];
   for (let d = 0; d < ECONOMY.deadlines; d++) {
-    const debt = Math.round(ECONOMY.startDebt * Math.pow(ECONOMY.debtGrowth, d));
+    const debt = debtFor(d);
     const at = rows.filter((r) => r.funds.length > d);
     const cleared = rows.filter((r) => r.reached > d).length / rows.length;
     const f = at.map((r) => r.funds[d]).sort((a, b) => a - b);
@@ -328,6 +334,12 @@ if (IS_MAIN) {
   }
   const balls = rows.map((r) => r.balls).sort((a, b) => a - b);
   console.log(`\nBalls per run: median ${quantile(balls, 0.5)}, p90 ${quantile(balls, 0.9)}`);
+  // Runaway runs (far more balls than usual) are worth a look: list what they had.
+  const median = quantile(balls, 0.5);
+  for (const r of rows.filter((x) => x.balls > median * 2))
+    console.log(
+      `  outlier seed ${r.seed}: ${r.balls} balls, ${r.freeBalls} free/round, reached ${r.reached + 1}, funds ${r.funds.join(' ')} | ${r.charms.join(', ')}`,
+    );
   const winners = rows.filter((r) => r.result !== 'fell');
   console.log(
     `Wins: ${winners.length}/${rows.length} (${((winners.length / rows.length) * 100).toFixed(1)}%)`,

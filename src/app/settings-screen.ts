@@ -133,8 +133,8 @@ export function settingsPanel(
       () => set({ textSize: cycle(TEXT_SIZES, s.textSize, -1) }),
       () => set({ textSize: cycle(TEXT_SIZES, s.textSize, 1) }),
     ),
-    toggle('cam', 'Camera', s.camera === 'play' ? 'Overhead' : 'Seated', () =>
-      set({ camera: s.camera === 'play' ? 'seated' : 'play' }),
+    toggle('cam', 'Camera', CAMERA_NAMES[s.camera], () =>
+      set({ camera: s.camera === 'follow' ? 'play' : s.camera === 'play' ? 'seated' : 'follow' }),
     ),
     toggle('flash', 'Reduced flashing', s.reducedFlashing ? 'On' : 'Off', () =>
       set({ reducedFlashing: !s.reducedFlashing }),
@@ -208,3 +208,9 @@ export function pausePanel(on: PauseHandlers, quitNote: string): HTMLElement {
     ),
   );
 }
+
+const CAMERA_NAMES: Record<Settings['camera'], string> = {
+  follow: 'Follow',
+  play: 'Overhead',
+  seated: 'Seated',
+};

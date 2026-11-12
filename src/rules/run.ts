@@ -204,13 +204,22 @@ export interface RunState {
   deadlines: number;
 }
 
+/** The debt curve's multiplier at a deadline: gentle early steps, then the full growth. */
+export function debtCurve(deadline: number): number {
+  const early = Math.min(deadline, ECONOMY.earlyDeadlines);
+  return (
+    Math.pow(ECONOMY.earlyGrowth, early) *
+    Math.pow(ECONOMY.debtGrowth, Math.max(0, deadline - early))
+  );
+}
+
 export function debtFor(deadline: number, base = ECONOMY.startDebt): number {
-  return Math.round(base * Math.pow(ECONOMY.debtGrowth, deadline));
+  return Math.round(base * debtCurve(deadline));
 }
 
 /** How much bigger coin amounts are at this deadline than at the first. */
 export function debtScale(deadline: number): number {
-  return Math.pow(ECONOMY.debtGrowth, deadline) * JOBS.coinScale;
+  return debtCurve(deadline) * JOBS.coinScale;
 }
 
 export function newRun(seed: string, opts: RunOptions = {}): RunState {

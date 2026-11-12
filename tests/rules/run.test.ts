@@ -43,9 +43,11 @@ const started = (seed: string): RunState => {
 describe('run economy', () => {
   it('starts with the brief numbers', () => {
     const s = started('seed');
-    expect(s.pocket).toBe(15);
-    expect(s.debt).toBe(75);
-    expect(debtFor(1)).toBe(Math.round(75 * ECONOMY.debtGrowth));
+    expect(s.pocket).toBe(ECONOMY.startCoins);
+    expect(s.debt).toBe(ECONOMY.startDebt);
+    expect(debtFor(1)).toBe(Math.round(ECONOMY.startDebt * ECONOMY.earlyGrowth));
+    const late = ECONOMY.earlyDeadlines + 1;
+    expect(debtFor(late) / debtFor(late - 1)).toBeCloseTo(ECONOMY.debtGrowth, 1);
   });
 
   it('first ball each round is free, the rest cost the ball price', () => {
@@ -53,7 +55,7 @@ describe('run economy', () => {
     expect(costForBalls(s, 1)).toBe(0);
     expect(costForBalls(s, 3)).toBe(2 * ECONOMY.ballPriceBase);
     expect(buyBalls(s, 3)).toBe(true);
-    expect(s.pocket).toBe(15 - 6);
+    expect(s.pocket).toBe(ECONOMY.startCoins - 2 * ECONOMY.ballPriceBase);
     expect(ballsLeft(s)).toBe(3);
   });
 
