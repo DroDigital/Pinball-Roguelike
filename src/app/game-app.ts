@@ -534,6 +534,9 @@ export class GameApp {
     this.world.cell.props.watch(this.tmpV);
     this.updateCamera(dt);
     this.world.update(dt);
+    audio.setView(this.world.mode);
+    audio.frame(this.mode === 'play' && !!shown && shown.sim.balls.length > 0);
+    audio.hurryTick(this.mode === 'play' && shown ? shown.game.hurryLeft : 0);
     this.updateCoins(dt);
     this.pops.update(dt);
     relicStage.update(dt);
@@ -721,7 +724,8 @@ export class GameApp {
           const big = e.amount >= 3 || e.shot === 'jackpot';
           this.pops.spawn(`+${formatCoins(e.amount)}`, p, big ? '#ffe28a' : '#ffb347', big);
           // Coin clinks rise in pitch through combos.
-          if (e.amount >= 1) audio.coin(Math.min(8, Math.floor(e.amount) + combo));
+          if (e.shot === 'jackpot') audio.jackpot(e.amount >= 30 ? 2 : 1);
+          else audio.score(e.amount, combo, big);
           if (this.mode === 'play') {
             if (e.amount >= 2) {
               // Real money: gold sparks, and coins fly off the table into the ledger.
@@ -752,11 +756,12 @@ export class GameApp {
           this.hud.banner(e.super ? 'SUPER SKILL' : 'SKILL SHOT', '', 'bone');
           this.punch(0.5);
           this.shows.play('skill');
-          audio.knocker();
+          audio.skillShot(e.super);
           this.flash(0.25);
           this.shake(0.6);
           break;
         case 'combo':
+          audio.combo(e.count);
           if (e.count >= 3) this.shake(0.15 * e.count);
           this.hud.banner(`COMBO X${e.mult}`, comboName(e.count), e.count >= 4 ? 'red' : 'gold');
           this.punch(Math.min(0.8, 0.15 * e.count));
@@ -770,7 +775,7 @@ export class GameApp {
               this.world.swingBulb(0.3);
             }
             this.shows.play(e.mode === 'brawl' ? 'riot' : 'skill');
-            audio.knocker();
+            audio.banner(e.mode === 'brawl' ? 'warn' : 'big', 6);
             this.flash(0.25);
             this.punch(0.6);
             this.shake(0.7);
@@ -810,7 +815,7 @@ export class GameApp {
           if (e.award === null) audio.creak();
           else {
             this.hud.banner('SHAKEDOWN', MYSTERY_NAMES[e.award], 'violet');
-            audio.knocker();
+            audio.banner('secret', 5);
             this.flash(0.2);
             this.punch(0.4);
           }
@@ -821,12 +826,13 @@ export class GameApp {
           break;
         case 'bonusMult':
           this.hud.banner(`BONUS X${e.mult}`, '', 'gold');
+          audio.bonusMult(e.mult);
           break;
         case 'laneComplete':
           this.sparks.ring(this.world.table.worldOf(14.7, 41, 1, this.tmpS), 0xffb020, 6, 0.6);
           break;
         case 'lock':
-          audio.kick();
+          audio.lock(e.locks);
           this.shake(0.5);
           if (e.locks < e.needed)
             this.hud.banner('LOCKED UP', `BALL ${e.locks} OF ${e.needed}`, 'red');
@@ -840,7 +846,7 @@ export class GameApp {
             this.punch(1);
             this.hud.swing(3);
             this.world.shelf.cheer(1);
-            audio.knocker();
+            audio.riot(true);
             this.flash(0.4);
             this.shake(1);
             this.world.swingBulb(0.4);
@@ -866,15 +872,18 @@ export class GameApp {
           this.hud.swing(e.super ? -3 : 2);
           this.world.shelf.cheer(e.super ? 1.4 : 1);
           this.hitStop = e.super ? 0.09 : 0.06;
-          audio.knocker();
+          audio.payday(e.super);
           this.flash(e.super ? 0.5 : 0.3);
           this.shake(e.super ? 1.4 : 0.9);
           this.world.swingBulb(e.super ? 0.6 : 0.3);
           this.input.buzz(e.super ? 120 : 60);
           break;
         case 'extraBall':
-          audio.knocker();
+          audio.extraBall();
           this.hud.banner('EXTRA BALL', '', 'green');
+          break;
+        case 'hurry':
+          audio.hurry(e.on);
           break;
         case 'award':
           if (!e.collected) this.ui.toast(`The Hole is lit: ${AWARD_NAMES[e.award]}`);
@@ -882,7 +891,7 @@ export class GameApp {
         case 'luck':
           if (e.kind === 'spark') {
             this.flash(0.35);
-            audio.creak();
+            audio.spark();
           } else {
             audio.kick();
             this.shake(0.4);
@@ -891,7 +900,7 @@ export class GameApp {
         case 'tunnel':
           this.hud.banner('THE TUNNEL', `+${formatCoins(e.amount)}`, 'green', true);
           this.punch(1);
-          audio.clang();
+          audio.tunnel();
           this.shake(0.8);
           this.flash(0.3);
           this.react('tunnel', true);
@@ -900,7 +909,7 @@ export class GameApp {
           this.onJailbreak(e.phase, e.n);
           break;
         case 'active':
-          audio.kick();
+          audio.active();
           this.hud.banner(charmDef(e.id).name.toUpperCase(), `${e.charges} LEFT`, 'bone');
           this.world.shelf.trigger(e.id, 1.5);
           this.hud.pulseRelic(e.id);
@@ -908,12 +917,12 @@ export class GameApp {
         case 'jobDone':
           this.react('jobDone');
           this.hud.banner('JOB DONE', 'COLLECT AT THE ATM', 'green');
-          audio.knocker();
+          audio.jobComplete();
           this.flash(0.2);
           break;
         case 'ballSaved':
           this.hud.banner('BALL SAVED', '', 'green');
-          audio.knocker();
+          audio.save();
           break;
         case 'tiltWarning':
           audio.warn();
@@ -1025,6 +1034,7 @@ export class GameApp {
     this.endings.stop();
     this.ending = null;
     this.world.setMode('title');
+    audio.titleCard();
     this.world.coins.clear();
     this.trayCoins = 0;
     const saved = this.save.run;
@@ -1280,6 +1290,7 @@ export class GameApp {
 
   newRunFlow(seed?: string, daily = false): void {
     this.attract = null;
+    audio.runStart();
     const c = this.lineup;
     const typed = seed ?? c.seed;
     const kind: RunKind = daily ? 'daily' : typed ? 'seeded' : 'random';
@@ -1354,6 +1365,7 @@ export class GameApp {
       u.inmate ? inmateDef(u.inmate).name : '',
       u.endless ? 'Endless' : '',
     ].filter(Boolean);
+    audio.unlocked();
     this.ui.toast(`Unlocked${what.length ? `: ${what.join(', ')}` : `: ${u.text}`}`, 3500);
   }
 
@@ -1377,23 +1389,21 @@ export class GameApp {
         label: phase === 'escaped' ? 'THE ESCAPE' : 'JAILBREAK',
         value: phase === 'escaped' ? 1e12 : 1e11,
       });
+    audio.jailbreak(phase, n);
     switch (phase) {
       case 'start':
         this.shows.play('jailbreak');
-        audio.knocker();
         this.flash(0.5);
         this.shake(1.2);
         this.world.swingBulb(0.7);
         this.react('jailbreak', true);
         break;
       case 'shot':
-        audio.creak();
         this.shake(0.3 + n * 0.08);
         this.world.swingBulb(0.15 + n * 0.03);
         this.input.buzz(40 + n * 6);
         break;
       case 'posts':
-        audio.clang();
         if (this.session) this.world.table.setTags(new Set(this.session.sim.tags));
         this.ui.toast('THE OUTLANE POSTS FALL OFF');
         break;
@@ -1402,7 +1412,6 @@ export class GameApp {
         this.ui.toast('THE LIGHTS ARE DYING');
         break;
       case 'glass':
-        audio.glassCrack();
         paintCracks(this.cracks, n * 7919 + 13);
         this.cracks.style.display = '';
         this.flash(0.4);
@@ -1410,7 +1419,6 @@ export class GameApp {
       case 'escaped':
         this.flash(0.8);
         this.shake(2);
-        audio.knocker();
         break;
       case 'failed':
         this.react('caught', true);
@@ -1647,7 +1655,7 @@ export class GameApp {
 
   private answerPhone(fn: () => boolean): void {
     if (!fn()) return;
-    audio.atmBeep();
+    audio.phonePick();
     this.enterDeadlineIntro();
   }
 
@@ -2461,6 +2469,7 @@ export class GameApp {
     const snap = nextBall(r);
     this.session = new BallSession(snap, this.onGameEvent);
     this.saves.reset();
+    audio.ballFeed();
     this.moments = [];
     this.hints.show('flippers');
     this.hints.show('plunger');
@@ -2496,6 +2505,8 @@ export class GameApp {
     this.world.sway = 0;
     const g = this.session!.game;
     this.outcome = g.outcome();
+    audio.ballOver(g.tilted);
+    audio.releaseCoils();
     if (!g.tilted) this.pourCoins(Math.floor(this.outcome.earned) - this.livePaid);
     this.livePaid = 0;
     if (!g.tilted && g.bonusPaid > 0) {
@@ -2515,7 +2526,7 @@ export class GameApp {
     if (ticks > t.ticks) {
       this.pourCoins(Math.floor((t.total * ticks) / 24) - Math.floor((t.total * t.ticks) / 24));
       t.ticks = ticks;
-      audio.coin(Math.min(8, Math.floor(ticks / 3)));
+      audio.countTick(ticks, 24);
     }
     if (t.k >= 1) {
       this.tally = null;
@@ -2882,6 +2893,7 @@ export class GameApp {
     const r = this.run!;
     settleDeadline(r);
     recordDeadline(this.save.meta, r);
+    if (r.phase !== 'over') audio.deadlinePaid();
     this.unlockCheck();
     this.persist();
     if (r.phase === 'over') this.endRun();
@@ -2929,6 +2941,7 @@ export class GameApp {
     this.ui.hide();
     this.ending = r.result;
     this.endings.start(r.result);
+    audio.ending(r.result);
     if (r.result === 'cellmate') audio.knock(4);
     if (r.result === 'paidInFull') audio.creak();
   }
