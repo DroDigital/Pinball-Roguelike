@@ -52,13 +52,14 @@ test('load, start a run, play a bot ball, console clean', async ({ page }) => {
   await page.screenshot({ path: 'screenshots/04-play.png' });
   // Fast-forward the bot ball.
   await page.evaluate(
-    () => ((globalThis as unknown as { __game: GameHandle }).__game.timeScale = 4),
+    () => ((globalThis as unknown as { __game: GameHandle }).__game.timeScale = 8),
   );
   await page.waitForFunction(
     () => (globalThis as unknown as { __game: GameHandle }).__game.mode === 'ballEnd',
     null,
     {
-      timeout: 200_000,
+      // Balls run long now (PA ball saves, add-a-balls); the frame step budget caps the speed-up.
+      timeout: 420_000,
       polling: 500,
     },
   );
